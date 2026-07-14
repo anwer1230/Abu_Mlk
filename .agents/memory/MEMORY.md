@@ -1,0 +1,1 @@
+- [Repo Share Editor safety design](repo-share-pr-only.md) — public GitHub edit links must open PRs via a server-side token, never direct pushes or embedded tokens.
