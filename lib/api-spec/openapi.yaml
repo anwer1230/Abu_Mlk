@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: shares
+    description: Shareable repo edit links and pull request submissions
 paths:
   /healthz:
     get:
@@ -24,6 +26,180 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /shares:
+    get:
+      operationId: listShareLinks
+      tags: [shares]
+      summary: List all share links (owner dashboard)
+      responses:
+        "200":
+          description: List of share links
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShareLink"
+    post:
+      operationId: createShareLink
+      tags: [shares]
+      summary: Create a new shareable edit link for a repo file
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShareLinkInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareLink"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /shares/{slug}:
+    get:
+      operationId: getShareLink
+      tags: [shares]
+      summary: Get a share link's metadata and live file content (public)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Share link with current file content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareLinkWithContent"
+        "404":
+          description: Not found, inactive, or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateShareLink
+      tags: [shares]
+      summary: Update a share link (owner dashboard)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShareLinkUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareLink"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteShareLink
+      tags: [shares]
+      summary: Delete a share link (owner dashboard)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /shares/{slug}/submissions:
+    get:
+      operationId: listSubmissions
+      tags: [shares]
+      summary: List pull request submissions for a share link (owner dashboard)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Submission"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createSubmission
+      tags: [shares]
+      summary: Submit an edit (public) — opens a pull request for review, never pushes directly
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmissionInput"
+      responses:
+        "201":
+          description: Pull request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+        "404":
+          description: Not found, inactive, or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +210,147 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    ShareLink:
+      type: object
+      required:
+        - id
+        - slug
+        - repoOwner
+        - repoName
+        - filePath
+        - baseBranch
+        - title
+        - description
+        - isActive
+        - expiresAt
+        - createdAt
+        - submissionCount
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        repoOwner:
+          type: string
+        repoName:
+          type: string
+        filePath:
+          type: string
+        baseBranch:
+          type: string
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        expiresAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        submissionCount:
+          type: integer
+
+    ShareLinkWithContent:
+      allOf:
+        - $ref: "#/components/schemas/ShareLink"
+        - type: object
+          required:
+            - fileContent
+          properties:
+            fileContent:
+              type: string
+
+    ShareLinkInput:
+      type: object
+      required:
+        - repoOwner
+        - repoName
+        - filePath
+        - title
+      properties:
+        repoOwner:
+          type: string
+          minLength: 1
+        repoName:
+          type: string
+          minLength: 1
+        filePath:
+          type: string
+          minLength: 1
+        baseBranch:
+          type: string
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+
+    ShareLinkUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        isActive:
+          type: boolean
+        expiresAt:
+          type: ["string", "null"]
+          format: date-time
+
+    Submission:
+      type: object
+      required:
+        - id
+        - shareLinkId
+        - prUrl
+        - prNumber
+        - branchName
+        - submitterName
+        - note
+        - createdAt
+      properties:
+        id:
+          type: string
+        shareLinkId:
+          type: string
+        prUrl:
+          type: string
+        prNumber:
+          type: integer
+        branchName:
+          type: string
+        submitterName:
+          type: ["string", "null"]
+        note:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    SubmissionInput:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+        submitterName:
+          type: string
+        note:
+          type: string
