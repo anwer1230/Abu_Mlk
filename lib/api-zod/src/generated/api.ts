@@ -141,6 +141,21 @@ export const DeleteShareLinkResponse = zod.void()
 
 
 /**
+ * @summary Browse the files in a GitHub repo branch, to pick a file when creating a share link
+ */
+export const GetRepoTreeQueryParams = zod.object({
+  "owner": zod.coerce.string(),
+  "repo": zod.coerce.string(),
+  "branch": zod.coerce.string().optional()
+})
+
+export const GetRepoTreeResponse = zod.object({
+  "defaultBranch": zod.string(),
+  "files": zod.array(zod.string())
+})
+
+
+/**
  * @summary List pull request submissions for a share link (owner dashboard)
  */
 export const ListSubmissionsParams = zod.object({

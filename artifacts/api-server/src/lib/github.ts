@@ -34,6 +34,42 @@ export async function fetchFileContent(
 }
 
 /**
+ * Lists every file path in a repo branch, so a share link can be created by
+ * picking a file instead of typing its path from memory. Falls back to the
+ * repo's default branch when none is specified.
+ */
+export async function fetchRepoTree(
+  owner: string,
+  repo: string,
+  branch?: string,
+): Promise<{ defaultBranch: string; files: string[] }> {
+  const octokit = getOctokit();
+
+  const { data: repoInfo } = await octokit.repos.get({ owner, repo });
+  const targetBranch = branch || repoInfo.default_branch;
+
+  const { data: ref } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${targetBranch}`,
+  });
+
+  const { data: tree } = await octokit.git.getTree({
+    owner,
+    repo,
+    tree_sha: ref.object.sha,
+    recursive: "true",
+  });
+
+  const files = tree.tree
+    .filter((entry) => entry.type === "blob" && typeof entry.path === "string")
+    .map((entry) => entry.path as string)
+    .sort();
+
+  return { defaultBranch: repoInfo.default_branch, files };
+}
+
+/**
  * Opens a pull request with an edited file — never pushes directly to the
  * base branch. This is the only write path a public share link can trigger:
  * every change lands as a reviewable PR on a fresh branch.

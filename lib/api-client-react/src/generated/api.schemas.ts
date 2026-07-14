@@ -70,9 +70,20 @@ export interface Submission {
   createdAt: string;
 }
 
+export interface RepoTree {
+  defaultBranch: string;
+  files: string[];
+}
+
 export interface SubmissionInput {
   content: string;
   submitterName?: string;
   note?: string;
 }
+
+export type GetRepoTreeParams = {
+owner: string;
+repo: string;
+branch?: string;
+};
 

@@ -18,8 +18,14 @@ import {
   CreateSubmissionParams,
   CreateSubmissionBody,
   CreateSubmissionResponse,
+  GetRepoTreeQueryParams,
+  GetRepoTreeResponse,
 } from "@workspace/api-zod";
-import { fetchFileContent, createPullRequestWithEdit } from "../lib/github";
+import {
+  fetchFileContent,
+  fetchRepoTree,
+  createPullRequestWithEdit,
+} from "../lib/github";
 
 const router: IRouter = Router();
 
@@ -170,6 +176,34 @@ router.delete("/shares/:slug", async (req, res): Promise<void> => {
   }
 
   res.sendStatus(204);
+});
+
+router.get("/repos/tree", async (req, res): Promise<void> => {
+  if (!req.query.owner || !req.query.repo) {
+    res.status(400).json({ error: "owner and repo query parameters are required" });
+    return;
+  }
+
+  const params = GetRepoTreeQueryParams.safeParse(req.query);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  try {
+    const tree = await fetchRepoTree(
+      params.data.owner,
+      params.data.repo,
+      params.data.branch,
+    );
+    res.json(GetRepoTreeResponse.parse(tree));
+  } catch (err) {
+    req.log.error({ err }, "Failed to read repository tree from GitHub");
+    res.status(400).json({
+      error:
+        "Could not read this repository. Check the owner, repo name, and branch, and make sure the connected GitHub account can access it.",
+    });
+  }
 });
 
 router.get("/shares/:slug/submissions", async (req, res): Promise<void> => {

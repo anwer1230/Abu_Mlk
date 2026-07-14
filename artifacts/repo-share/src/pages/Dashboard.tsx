@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { formatDateTime } from "@/lib/utils/date";
+import { cn } from "@/lib/utils";
 import {
   useListShareLinks,
   useCreateShareLink,
   useUpdateShareLink,
   useDeleteShareLink,
   useListSubmissions,
+  useGetRepoTree,
   ShareLink,
   getListShareLinksQueryKey,
+  getGetRepoTreeQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { 
@@ -27,8 +30,11 @@ import {
   Search,
   Activity,
   ChevronRight,
+  ChevronsUpDown,
   MoreVertical,
-  Edit2
+  Edit2,
+  FolderTree,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +55,8 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { format } from "date-fns";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 const createShareSchema = z.object({
   repoOwner: z.string().min(1, "Repository owner is required"),
@@ -308,6 +316,101 @@ function ShareCard({ link, onOpenDetails }: { link: ShareLink, onOpenDetails: ()
   );
 }
 
+function FilePicker({
+  value,
+  onChange,
+  owner,
+  repo,
+  branch,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  owner?: string;
+  repo?: string;
+  branch?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const canBrowse = Boolean(owner && repo);
+
+  const { data, isFetching, isError } = useGetRepoTree(
+    { owner: owner || "", repo: repo || "", branch: branch || undefined },
+    {
+      query: {
+        enabled: open && canBrowse,
+        queryKey: getGetRepoTreeQueryKey({ owner: owner || "", repo: repo || "", branch: branch || undefined }),
+        staleTime: 60_000,
+      },
+    }
+  );
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-mono text-sm font-normal"
+        >
+          <span className={cn("truncate", !value && "text-muted-foreground font-sans")}>
+            {value || (canBrowse ? "Browse repo files..." : "Enter repo owner and name first")}
+          </span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[420px] p-0" align="start">
+        <Command shouldFilter={true}>
+          <CommandInput
+            placeholder="Search files, or type a path..."
+            value={value}
+            onValueChange={onChange}
+          />
+          <CommandList>
+            {!canBrowse && (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                Enter the repo owner and name to browse its files.
+              </div>
+            )}
+            {canBrowse && isFetching && (
+              <div className="py-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Reading repository...
+              </div>
+            )}
+            {canBrowse && isError && (
+              <div className="py-6 text-center text-sm text-muted-foreground px-4">
+                Could not read this repository. Type the file path manually below.
+              </div>
+            )}
+            {canBrowse && !isFetching && !isError && (
+              <>
+                <CommandEmpty>No matching files. You can still type a custom path above.</CommandEmpty>
+                <CommandGroup heading={data ? `${data.files.length} files on ${branch || data.defaultBranch}` : undefined}>
+                  {data?.files.map((path) => (
+                    <CommandItem
+                      key={path}
+                      value={path}
+                      onSelect={(selected) => {
+                        onChange(selected);
+                        setOpen(false);
+                      }}
+                      className="font-mono text-xs"
+                    >
+                      <FileCode2 className="h-3.5 w-3.5 mr-2 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{path}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function CreateShareDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -443,9 +546,15 @@ function CreateShareDialog({ open, onOpenChange }: { open: boolean, onOpenChange
                       <FormItem>
                         <FormLabel>File Path</FormLabel>
                         <FormControl>
-                          <Input placeholder="docs/pricing.md" className="font-mono text-sm" {...field} />
+                          <FilePicker
+                            value={field.value}
+                            onChange={field.onChange}
+                            owner={form.watch("repoOwner")}
+                            repo={form.watch("repoName")}
+                            branch={form.watch("baseBranch")}
+                          />
                         </FormControl>
-                        <FormDescription>Relative to repo root</FormDescription>
+                        <FormDescription>Browse the repo, or type a path relative to its root</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}

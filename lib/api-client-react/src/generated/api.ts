@@ -21,7 +21,9 @@ import type {
 
 import type {
   ErrorResponse,
+  GetRepoTreeParams,
   HealthStatus,
+  RepoTree,
   ShareLink,
   ShareLinkInput,
   ShareLinkUpdate,
@@ -502,6 +504,90 @@ export const useDeleteShareLink = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getDeleteShareLinkMutationOptions(options));
     }
+
+export const getGetRepoTreeUrl = (params: GetRepoTreeParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/repos/tree?${stringifiedParams}` : `/api/repos/tree`
+}
+
+/**
+ * @summary Browse the files in a GitHub repo branch, to pick a file when creating a share link
+ */
+export const getRepoTree = async (params: GetRepoTreeParams, options?: RequestInit): Promise<RepoTree> => {
+
+  return customFetch<RepoTree>(getGetRepoTreeUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRepoTreeQueryKey = (params?: GetRepoTreeParams,) => {
+    return [
+    `/api/repos/tree`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetRepoTreeQueryOptions = <TData = Awaited<ReturnType<typeof getRepoTree>>, TError = ErrorType<ErrorResponse>>(params: GetRepoTreeParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRepoTree>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRepoTreeQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRepoTree>>> = ({ signal }) => getRepoTree(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRepoTree>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRepoTreeQueryResult = NonNullable<Awaited<ReturnType<typeof getRepoTree>>>
+export type GetRepoTreeQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Browse the files in a GitHub repo branch, to pick a file when creating a share link
+ */
+
+export function useGetRepoTree<TData = Awaited<ReturnType<typeof getRepoTree>>, TError = ErrorType<ErrorResponse>>(
+ params: GetRepoTreeParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRepoTree>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRepoTreeQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListSubmissionsUrl = (slug: string,) => {
 
