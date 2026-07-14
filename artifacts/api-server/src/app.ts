@@ -1,3 +1,4 @@
+import path from "node:path";
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
@@ -30,5 +31,21 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+// On Replit, the frontend and this API run as separate artifact services
+// behind the platform's own path router, so this block stays off by
+// default. Set SERVE_STATIC_FRONTEND=true (e.g. on a single-service Render
+// deploy) to have this server also serve the built repo-share frontend and
+// fall back to its index.html for client-side routing.
+if (process.env["SERVE_STATIC_FRONTEND"] === "true") {
+  const frontendDir = path.join(
+    process.cwd(),
+    "artifacts/repo-share/dist/public",
+  );
+  app.use(express.static(frontendDir));
+  app.get(/^\/(?!api).*/, (_req, res) => {
+    res.sendFile(path.join(frontendDir, "index.html"));
+  });
+}
 
 export default app;
