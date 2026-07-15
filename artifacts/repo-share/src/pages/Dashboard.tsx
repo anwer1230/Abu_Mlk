@@ -57,6 +57,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } f
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const createShareSchema = z.object({
   repoOwner: z.string().min(1, "Repository owner is required"),
@@ -278,8 +279,13 @@ function ShareCard({ link, onOpenDetails }: { link: ShareLink, onOpenDetails: ()
           </div>
           <div className="flex items-start gap-2.5 overflow-hidden">
             <FileCode2 className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-            <span className="truncate font-mono text-xs bg-muted/50 px-1 py-0.5 rounded" title={link.filePath}>
-              {link.filePath}
+            <span
+              className="truncate font-mono text-xs bg-muted/50 px-1 py-0.5 rounded"
+              title={link.filePaths.join(", ")}
+            >
+              {link.filePaths.length === 1
+                ? link.filePaths[0]
+                : `${link.filePaths.length} files: ${link.filePaths.join(", ")}`}
             </span>
           </div>
         </div>
@@ -317,21 +323,25 @@ function ShareCard({ link, onOpenDetails }: { link: ShareLink, onOpenDetails: ()
   );
 }
 
+const MAX_SHARE_FILES = 5;
+
 function FilePicker({
-  value,
+  values,
   onChange,
   owner,
   repo,
   branch,
 }: {
-  value: string;
-  onChange: (value: string) => void;
+  values: string[];
+  onChange: (values: string[]) => void;
   owner?: string;
   repo?: string;
   branch?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [manualPath, setManualPath] = useState("");
   const canBrowse = Boolean(owner && repo);
+  const atLimit = values.length >= MAX_SHARE_FILES;
 
   const { data, isFetching, isError } = useGetRepoTree(
     { owner: owner || "", repo: repo || "", branch: branch || undefined },
@@ -344,71 +354,134 @@ function FilePicker({
     }
   );
 
+  const toggle = (path: string) => {
+    if (values.includes(path)) {
+      onChange(values.filter((v) => v !== path));
+    } else if (!atLimit) {
+      onChange([...values, path]);
+    }
+  };
+
+  const addManualPath = () => {
+    const path = manualPath.trim();
+    if (!path || values.includes(path) || atLimit) return;
+    onChange([...values, path]);
+    setManualPath("");
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between font-mono text-sm font-normal"
-        >
-          <span className={cn("truncate", !value && "text-muted-foreground font-sans")}>
-            {value || (canBrowse ? "Browse repo files..." : "Enter repo owner and name first")}
-          </span>
-          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+    <div className="space-y-2">
+      {values.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {values.map((path) => (
+            <Badge key={path} variant="secondary" className="font-mono text-xs gap-1.5 pr-1">
+              {path}
+              <button
+                type="button"
+                onClick={() => toggle(path)}
+                className="hover:bg-muted rounded-sm p-0.5"
+                aria-label={`Remove ${path}`}
+              >
+                <XCircle className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            disabled={atLimit}
+            className="w-full justify-between font-normal text-sm"
+          >
+            <span className={cn("truncate", values.length === 0 && "text-muted-foreground")}>
+              {atLimit
+                ? `Maximum of ${MAX_SHARE_FILES} files selected`
+                : canBrowse
+                ? `Add a file${values.length > 0 ? ` (${values.length}/${MAX_SHARE_FILES})` : ""}...`
+                : "Enter repo owner and name first"}
+            </span>
+            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[420px] p-0" align="start">
+          <Command shouldFilter={true}>
+            <CommandInput placeholder="Search files..." />
+            <CommandList>
+              {!canBrowse && (
+                <div className="py-6 text-center text-sm text-muted-foreground">
+                  Enter the repo owner and name to browse its files.
+                </div>
+              )}
+              {canBrowse && isFetching && (
+                <div className="py-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Reading repository...
+                </div>
+              )}
+              {canBrowse && isError && (
+                <div className="py-6 text-center text-sm text-muted-foreground px-4">
+                  Could not read this repository. Type the file path manually below.
+                </div>
+              )}
+              {canBrowse && !isFetching && !isError && (
+                <>
+                  <CommandEmpty>No matching files. You can still type a custom path below.</CommandEmpty>
+                  <CommandGroup heading={data ? `${data.files.length} files on ${branch || data.defaultBranch}` : undefined}>
+                    {data?.files.map((path) => {
+                      const selected = values.includes(path);
+                      return (
+                        <CommandItem
+                          key={path}
+                          value={path}
+                          onSelect={() => toggle(path)}
+                          className="font-mono text-xs"
+                        >
+                          <div
+                            className={cn(
+                              "mr-2 h-3.5 w-3.5 shrink-0 rounded-sm border flex items-center justify-center",
+                              selected ? "bg-primary border-primary" : "border-muted-foreground/40"
+                            )}
+                          >
+                            {selected && <CheckCircle2 className="h-3 w-3 text-primary-foreground" />}
+                          </div>
+                          <FileCode2 className="h-3.5 w-3.5 mr-2 shrink-0 text-muted-foreground" />
+                          <span className="truncate">{path}</span>
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      <div className="flex gap-2">
+        <Input
+          placeholder="Or type a file path manually..."
+          value={manualPath}
+          onChange={(e) => setManualPath(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addManualPath();
+            }
+          }}
+          disabled={atLimit}
+          className="font-mono text-xs"
+        />
+        <Button type="button" variant="outline" onClick={addManualPath} disabled={atLimit || !manualPath.trim()}>
+          Add
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[420px] p-0" align="start">
-        <Command shouldFilter={true}>
-          <CommandInput
-            placeholder="Search files, or type a path..."
-            value={value}
-            onValueChange={onChange}
-          />
-          <CommandList>
-            {!canBrowse && (
-              <div className="py-6 text-center text-sm text-muted-foreground">
-                Enter the repo owner and name to browse its files.
-              </div>
-            )}
-            {canBrowse && isFetching && (
-              <div className="py-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Reading repository...
-              </div>
-            )}
-            {canBrowse && isError && (
-              <div className="py-6 text-center text-sm text-muted-foreground px-4">
-                Could not read this repository. Type the file path manually below.
-              </div>
-            )}
-            {canBrowse && !isFetching && !isError && (
-              <>
-                <CommandEmpty>No matching files. You can still type a custom path above.</CommandEmpty>
-                <CommandGroup heading={data ? `${data.files.length} files on ${branch || data.defaultBranch}` : undefined}>
-                  {data?.files.map((path) => (
-                    <CommandItem
-                      key={path}
-                      value={path}
-                      onSelect={(selected) => {
-                        onChange(selected);
-                        setOpen(false);
-                      }}
-                      className="font-mono text-xs"
-                    >
-                      <FileCode2 className="h-3.5 w-3.5 mr-2 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{path}</span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+      </div>
+    </div>
   );
 }
 
@@ -422,7 +495,8 @@ function CreateShareDialog({ open, onOpenChange }: { open: boolean, onOpenChange
     defaultValues: {
       repoOwner: "",
       repoName: "",
-      filePath: "",
+      filePaths: [],
+      shareMode: "single",
       baseBranch: "main",
       title: "",
       description: "",
@@ -430,39 +504,66 @@ function CreateShareDialog({ open, onOpenChange }: { open: boolean, onOpenChange
     },
   });
 
-  const onSubmit = (data: CreateShareValues) => {
-    // Format data slightly if needed
-    const payload = {
-      ...data,
-      expiresAt: data.expiresAt ? new Date(data.expiresAt).toISOString() : undefined,
-      baseBranch: data.baseBranch || undefined,
-    };
-    
-    createShare.mutate(
-      { data: payload },
-      {
-        onSuccess: (newLink) => {
-          queryClient.invalidateQueries({ queryKey: getListShareLinksQueryKey() });
-          onOpenChange(false);
-          form.reset();
-          
-          const url = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}/s/${newLink.slug}`;
-          navigator.clipboard.writeText(url);
-          
-          toast({
-            title: "Share link created",
-            description: "The public URL has been copied to your clipboard.",
-          });
-        },
-        onError: (error) => {
-          toast({
-            title: "Failed to create share link",
-            description: error.data?.error || "An unexpected error occurred.",
-            variant: "destructive",
-          });
-        }
+  const onSubmit = async (data: CreateShareValues) => {
+    const expiresAt = data.expiresAt ? new Date(data.expiresAt).toISOString() : undefined;
+    const baseBranch = data.baseBranch || undefined;
+
+    try {
+      let urls: string[];
+
+      if (data.shareMode === "single" || data.filePaths.length === 1) {
+        const newLink = await createShare.mutateAsync({
+          data: {
+            repoOwner: data.repoOwner,
+            repoName: data.repoName,
+            filePaths: data.filePaths,
+            baseBranch,
+            title: data.title,
+            description: data.description,
+            expiresAt,
+          },
+        });
+        urls = [`${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}/s/${newLink.slug}`];
+      } else {
+        const links = await Promise.all(
+          data.filePaths.map((filePath, i) =>
+            createShare.mutateAsync({
+              data: {
+                repoOwner: data.repoOwner,
+                repoName: data.repoName,
+                filePaths: [filePath],
+                baseBranch,
+                title: data.filePaths.length > 1 ? `${data.title} — ${filePath}` : data.title,
+                description: data.description,
+                expiresAt,
+              },
+            })
+          )
+        );
+        urls = links.map(
+          (link) => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}/s/${link.slug}`
+        );
       }
-    );
+
+      queryClient.invalidateQueries({ queryKey: getListShareLinksQueryKey() });
+      onOpenChange(false);
+      form.reset();
+
+      navigator.clipboard.writeText(urls.join("\n"));
+
+      toast({
+        title: urls.length > 1 ? `${urls.length} share links created` : "Share link created",
+        description: urls.length > 1
+          ? "All public URLs have been copied to your clipboard."
+          : "The public URL has been copied to your clipboard.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to create share link",
+        description: error?.data?.error || "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -542,26 +643,65 @@ function CreateShareDialog({ open, onOpenChange }: { open: boolean, onOpenChange
                 <div className="col-span-2">
                   <FormField
                     control={form.control}
-                    name="filePath"
+                    name="filePaths"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>File Path</FormLabel>
+                        <FormLabel>Files (up to {MAX_SHARE_FILES})</FormLabel>
                         <FormControl>
                           <FilePicker
-                            value={field.value}
+                            values={field.value}
                             onChange={field.onChange}
                             owner={form.watch("repoOwner")}
                             repo={form.watch("repoName")}
                             branch={form.watch("baseBranch")}
                           />
                         </FormControl>
-                        <FormDescription>Browse the repo, or type a path relative to its root</FormDescription>
+                        <FormDescription>Browse the repo, or type paths relative to its root</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
               </div>
+
+              {form.watch("filePaths").length > 1 && (
+                <FormField
+                  control={form.control}
+                  name="shareMode"
+                  render={({ field }) => (
+                    <FormItem className="space-y-2 p-4 bg-muted/30 rounded-lg border">
+                      <FormLabel>How should these files be shared?</FormLabel>
+                      <FormControl>
+                        <RadioGroup
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          className="space-y-2"
+                        >
+                          <label className="flex items-start gap-2.5 cursor-pointer">
+                            <RadioGroupItem value="single" id="mode-single" className="mt-0.5" />
+                            <div>
+                              <div className="text-sm font-medium leading-none">One link for all files</div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                A single URL lets an editor update all {form.watch("filePaths").length} files together as one pull request.
+                              </div>
+                            </div>
+                          </label>
+                          <label className="flex items-start gap-2.5 cursor-pointer">
+                            <RadioGroupItem value="separate" id="mode-separate" className="mt-0.5" />
+                            <div>
+                              <div className="text-sm font-medium leading-none">One link per file</div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Creates {form.watch("filePaths").length} separate URLs, each scoped to a single file.
+                              </div>
+                            </div>
+                          </label>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               
               <div className="grid grid-cols-2 gap-4">
                 <FormField
@@ -638,7 +778,9 @@ function ShareDetailsDrawer({ link, onOpenChange }: { link: ShareLink | null, on
                 </span>
                 <span className="flex items-center gap-1.5 font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
                   <FileCode2 className="w-3.5 h-3.5" />
-                  {link.filePath}
+                  {link.filePaths.length === 1
+                    ? link.filePaths[0]
+                    : `${link.filePaths.length} files`}
                 </span>
               </DrawerDescription>
             </DrawerHeader>

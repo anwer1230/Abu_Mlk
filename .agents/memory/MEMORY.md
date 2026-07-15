@@ -1,1 +1,2 @@
 - [Repo Share Editor safety design](repo-share-pr-only.md) — public GitHub edit links must open PRs via a server-side token, never direct pushes or embedded tokens.
+- [Repo Share multi-file links](repo-share-multi-file-links.md) — share links always support N files via a join table; multi-file edits land as one commit/PR.

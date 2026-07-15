@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
@@ -41,29 +42,33 @@ export default function PublicEditor() {
   const createSubmission = useCreateSubmission();
   const { toast } = useToast();
   
-  const [content, setContent] = useState("");
+  const [contents, setContents] = useState<Record<string, string>>({});
+  const [activeFile, setActiveFile] = useState<string>("");
   const [isEdited, setIsEdited] = useState(false);
   const [submitterName, setSubmitterName] = useState("");
   const [note, setNote] = useState("");
   const [submittedPrUrl, setSubmittedPrUrl] = useState<string | null>(null);
 
   // Initialize content once loaded
-  if (share?.fileContent !== undefined && !isEdited && content === "") {
-    setContent(share.fileContent);
+  if (share?.files && !isEdited && Object.keys(contents).length === 0) {
+    setContents(Object.fromEntries(share.files.map((f) => [f.filePath, f.content])));
+    setActiveFile(share.files[0]?.filePath || "");
   }
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value);
+    setContents((prev) => ({ ...prev, [activeFile]: e.target.value }));
     if (!isEdited) setIsEdited(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!content.trim()) {
+
+    const files = Object.entries(contents).map(([filePath, content]) => ({ filePath, content }));
+
+    if (files.some((f) => !f.content.trim())) {
       toast({
-        title: "Empty content",
-        description: "You cannot submit an empty file.",
+        title: "Empty file",
+        description: "None of the files can be submitted empty.",
         variant: "destructive"
       });
       return;
@@ -73,7 +78,7 @@ export default function PublicEditor() {
       { 
         slug, 
         data: { 
-          content,
+          files,
           submitterName: submitterName || undefined,
           note: note || undefined
         } 
@@ -211,7 +216,9 @@ export default function PublicEditor() {
                   {share.repoOwner}/{share.repoName}
                 </span>
                 <span className="flex items-center gap-1.5 font-mono text-xs bg-muted px-2 py-0.5 rounded text-foreground/70">
-                  {share.filePath}
+                  {share.filePaths.length === 1
+                    ? share.filePaths[0]
+                    : `${share.filePaths.length} files`}
                 </span>
                 {share.baseBranch && (
                   <span className="flex items-center gap-1.5 text-xs">
@@ -233,17 +240,43 @@ export default function PublicEditor() {
 
       <main className="flex-1 container max-w-6xl mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6">
         <div className="flex-1 flex flex-col min-h-[500px] border rounded-xl overflow-hidden shadow-sm bg-card">
-          <div className="bg-muted px-4 py-2 border-b flex items-center justify-between font-mono text-xs text-muted-foreground">
-            <span>{share.filePath}</span>
-            <Badge variant="outline" className="font-sans text-[10px] uppercase tracking-wider bg-background">Editing</Badge>
-          </div>
-          <Textarea 
-            value={content}
-            onChange={handleContentChange}
-            className="flex-1 rounded-none border-0 focus-visible:ring-0 resize-none font-mono text-sm p-4 bg-transparent leading-relaxed"
-            placeholder="File content..."
-            spellCheck={false}
-          />
+          {share.filePaths.length > 1 ? (
+            <Tabs value={activeFile} onValueChange={setActiveFile} className="flex-1 flex flex-col min-h-0">
+              <TabsList className="w-full justify-start rounded-none border-b bg-muted h-auto p-0 flex-wrap">
+                {share.filePaths.map((path) => (
+                  <TabsTrigger
+                    key={path}
+                    value={path}
+                    className="font-mono text-xs rounded-none data-[state=active]:bg-card px-4 py-2.5"
+                  >
+                    {path}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <Textarea
+                key={activeFile}
+                value={contents[activeFile] ?? ""}
+                onChange={handleContentChange}
+                className="flex-1 rounded-none border-0 focus-visible:ring-0 resize-none font-mono text-sm p-4 bg-transparent leading-relaxed"
+                placeholder="File content..."
+                spellCheck={false}
+              />
+            </Tabs>
+          ) : (
+            <>
+              <div className="bg-muted px-4 py-2 border-b flex items-center justify-between font-mono text-xs text-muted-foreground">
+                <span>{activeFile}</span>
+                <Badge variant="outline" className="font-sans text-[10px] uppercase tracking-wider bg-background">Editing</Badge>
+              </div>
+              <Textarea
+                value={contents[activeFile] ?? ""}
+                onChange={handleContentChange}
+                className="flex-1 rounded-none border-0 focus-visible:ring-0 resize-none font-mono text-sm p-4 bg-transparent leading-relaxed"
+                placeholder="File content..."
+                spellCheck={false}
+              />
+            </>
+          )}
         </div>
 
         <aside className="w-full lg:w-80 shrink-0">
