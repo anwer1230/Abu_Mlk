@@ -9,6 +9,7 @@
 export * from './errorResponse';
 export * from './getRepoTreeParams';
 export * from './healthStatus';
+export * from './repoFileContent';
 export * from './repoTree';
 export * from './shareLink';
 export * from './shareLinkInput';

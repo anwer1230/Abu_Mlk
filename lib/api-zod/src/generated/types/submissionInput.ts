@@ -5,9 +5,14 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { RepoFileContent } from './repoFileContent';
 
 export interface SubmissionInput {
-  content: string;
+  /**
+     * Edited content for every file in the share link, all landing in a single pull request.
+     * @minItems 1
+     */
+  files: RepoFileContent[];
   submitterName?: string;
   note?: string;
 }

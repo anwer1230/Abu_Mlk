@@ -34,6 +34,24 @@ export async function fetchFileContent(
 }
 
 /**
+ * Reads the current content of several files from a repository branch in
+ * parallel — used when a share link bundles more than one file.
+ */
+export async function fetchMultipleFileContents(
+  owner: string,
+  repo: string,
+  paths: string[],
+  branch: string,
+): Promise<{ filePath: string; content: string }[]> {
+  return Promise.all(
+    paths.map(async (filePath) => ({
+      filePath,
+      content: await fetchFileContent(owner, repo, filePath, branch),
+    })),
+  );
+}
+
+/**
  * Lists every file path in a repo branch, so a share link can be created by
  * picking a file instead of typing its path from memory. Falls back to the
  * repo's default branch when none is specified.
@@ -70,30 +88,22 @@ export async function fetchRepoTree(
 }
 
 /**
- * Opens a pull request with an edited file — never pushes directly to the
- * base branch. This is the only write path a public share link can trigger:
- * every change lands as a reviewable PR on a fresh branch.
+ * Opens a pull request with edits to one or more files — never pushes
+ * directly to the base branch. This is the only write path a public share
+ * link can trigger: every change lands as a single reviewable PR on a fresh
+ * branch, as one commit even when it touches several files.
  */
 export async function createPullRequestWithEdit(params: {
   owner: string;
   repo: string;
   baseBranch: string;
-  filePath: string;
-  newContent: string;
+  files: { filePath: string; newContent: string }[];
   branchName: string;
   prTitle: string;
   prBody: string;
 }): Promise<{ prUrl: string; prNumber: number }> {
-  const {
-    owner,
-    repo,
-    baseBranch,
-    filePath,
-    newContent,
-    branchName,
-    prTitle,
-    prBody,
-  } = params;
+  const { owner, repo, baseBranch, files, branchName, prTitle, prBody } =
+    params;
   const octokit = getOctokit();
 
   const { data: baseRef } = await octokit.git.getRef({
@@ -101,37 +111,54 @@ export async function createPullRequestWithEdit(params: {
     repo,
     ref: `heads/${baseBranch}`,
   });
+  const baseCommitSha = baseRef.object.sha;
+
+  const { data: baseCommit } = await octokit.git.getCommit({
+    owner,
+    repo,
+    commit_sha: baseCommitSha,
+  });
+
+  const blobs = await Promise.all(
+    files.map(async (file) => {
+      const { data: blob } = await octokit.git.createBlob({
+        owner,
+        repo,
+        content: Buffer.from(file.newContent, "utf-8").toString("base64"),
+        encoding: "base64",
+      });
+      return { filePath: file.filePath, sha: blob.sha };
+    }),
+  );
+
+  const { data: newTree } = await octokit.git.createTree({
+    owner,
+    repo,
+    base_tree: baseCommit.tree.sha,
+    tree: blobs.map((blob) => ({
+      path: blob.filePath,
+      mode: "100644",
+      type: "blob",
+      sha: blob.sha,
+    })),
+  });
+
+  const { data: newCommit } = await octokit.git.createCommit({
+    owner,
+    repo,
+    message:
+      files.length === 1
+        ? `Update ${files[0]?.filePath} via shared edit link`
+        : `Update ${files.length} files via shared edit link`,
+    tree: newTree.sha,
+    parents: [baseCommitSha],
+  });
 
   await octokit.git.createRef({
     owner,
     repo,
     ref: `refs/heads/${branchName}`,
-    sha: baseRef.object.sha,
-  });
-
-  let existingSha: string | undefined;
-  try {
-    const { data: existing } = await octokit.repos.getContent({
-      owner,
-      repo,
-      path: filePath,
-      ref: branchName,
-    });
-    if (!Array.isArray(existing) && existing.type === "file") {
-      existingSha = existing.sha;
-    }
-  } catch {
-    // File doesn't exist yet on this branch — creating a new file is fine.
-  }
-
-  await octokit.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path: filePath,
-    message: `Update ${filePath} via shared edit link`,
-    content: Buffer.from(newContent, "utf-8").toString("base64"),
-    branch: branchName,
-    sha: existingSha,
+    sha: newCommit.sha,
   });
 
   const { data: pr } = await octokit.pulls.create({

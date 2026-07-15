@@ -5,8 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { RepoFileContent } from './repoFileContent';
 import type { ShareLink } from './shareLink';
 
 export type ShareLinkWithContent = ShareLink & {
-  fileContent: string;
+  files: RepoFileContent[];
 };

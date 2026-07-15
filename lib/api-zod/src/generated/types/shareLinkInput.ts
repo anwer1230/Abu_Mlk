@@ -11,8 +11,11 @@ export interface ShareLinkInput {
   repoOwner: string;
   /** @minLength 1 */
   repoName: string;
-  /** @minLength 1 */
-  filePath: string;
+  /**
+     * @minItems 1
+     * @items.minLength 1
+     */
+  filePaths: string[];
   baseBranch?: string;
   /** @minLength 1 */
   title: string;

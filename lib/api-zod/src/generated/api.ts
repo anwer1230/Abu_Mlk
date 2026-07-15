@@ -20,12 +20,15 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary List all share links (owner dashboard)
  */
+
+
+
 export const ListShareLinksResponseItem = zod.object({
   "id": zod.string(),
   "slug": zod.string(),
   "repoOwner": zod.string(),
   "repoName": zod.string(),
-  "filePath": zod.string(),
+  "filePaths": zod.array(zod.string()).min(1).describe('One or more repo-relative file paths bundled into this share link\'s editing session.'),
   "baseBranch": zod.string(),
   "title": zod.string(),
   "description": zod.string().nullable(),
@@ -46,22 +49,26 @@ export const ListShareLinksResponse = zod.array(ListShareLinksResponseItem)
 
 
 
+
 export const CreateShareLinkBody = zod.object({
   "repoOwner": zod.string().min(1),
   "repoName": zod.string().min(1),
-  "filePath": zod.string().min(1),
+  "filePaths": zod.array(zod.string().min(1)).min(1),
   "baseBranch": zod.string().optional(),
   "title": zod.string().min(1),
   "description": zod.string().optional(),
   "expiresAt": zod.coerce.date().optional()
 })
 
+
+
+
 export const CreateShareLinkResponse = zod.object({
   "id": zod.string(),
   "slug": zod.string(),
   "repoOwner": zod.string(),
   "repoName": zod.string(),
-  "filePath": zod.string(),
+  "filePaths": zod.array(zod.string()).min(1).describe('One or more repo-relative file paths bundled into this share link\'s editing session.'),
   "baseBranch": zod.string(),
   "title": zod.string(),
   "description": zod.string().nullable(),
@@ -79,12 +86,15 @@ export const GetShareLinkParams = zod.object({
   "slug": zod.coerce.string()
 })
 
+
+
+
 export const GetShareLinkResponse = zod.object({
   "id": zod.string(),
   "slug": zod.string(),
   "repoOwner": zod.string(),
   "repoName": zod.string(),
-  "filePath": zod.string(),
+  "filePaths": zod.array(zod.string()).min(1).describe('One or more repo-relative file paths bundled into this share link\'s editing session.'),
   "baseBranch": zod.string(),
   "title": zod.string(),
   "description": zod.string().nullable(),
@@ -93,7 +103,10 @@ export const GetShareLinkResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "submissionCount": zod.number()
 }).and(zod.object({
-  "fileContent": zod.string()
+  "files": zod.array(zod.object({
+  "filePath": zod.string(),
+  "content": zod.string()
+}))
 }))
 
 
@@ -114,12 +127,15 @@ export const UpdateShareLinkBody = zod.object({
   "expiresAt": zod.coerce.date().nullish()
 })
 
+
+
+
 export const UpdateShareLinkResponse = zod.object({
   "id": zod.string(),
   "slug": zod.string(),
   "repoOwner": zod.string(),
   "repoName": zod.string(),
-  "filePath": zod.string(),
+  "filePaths": zod.array(zod.string()).min(1).describe('One or more repo-relative file paths bundled into this share link\'s editing session.'),
   "baseBranch": zod.string(),
   "title": zod.string(),
   "description": zod.string().nullable(),
@@ -182,8 +198,14 @@ export const CreateSubmissionParams = zod.object({
   "slug": zod.coerce.string()
 })
 
+
+
+
 export const CreateSubmissionBody = zod.object({
-  "content": zod.string(),
+  "files": zod.array(zod.object({
+  "filePath": zod.string(),
+  "content": zod.string()
+})).min(1).describe('Edited content for every file in the share link, all landing in a single pull request.'),
   "submitterName": zod.string().optional(),
   "note": zod.string().optional()
 })

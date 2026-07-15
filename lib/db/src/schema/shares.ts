@@ -13,7 +13,6 @@ export const shareLinksTable = pgTable("share_links", {
   slug: text("slug").notNull().unique(),
   repoOwner: text("repo_owner").notNull(),
   repoName: text("repo_name").notNull(),
-  filePath: text("file_path").notNull(),
   baseBranch: text("base_branch").notNull().default("main"),
   title: text("title").notNull(),
   description: text("description"),
@@ -29,6 +28,23 @@ export const insertShareLinkSchema = createInsertSchema(shareLinksTable).omit(
 );
 export type InsertShareLink = z.infer<typeof insertShareLinkSchema>;
 export type ShareLinkRow = typeof shareLinksTable.$inferSelect;
+
+// One share link can bundle edit access to several files at once — each
+// row here is one file included in the link's editing session.
+export const shareLinkFilesTable = pgTable("share_link_files", {
+  id: text("id").primaryKey(),
+  shareLinkId: text("share_link_id")
+    .notNull()
+    .references(() => shareLinksTable.id, { onDelete: "cascade" }),
+  filePath: text("file_path").notNull(),
+  position: integer("position").notNull().default(0),
+});
+
+export const insertShareLinkFileSchema = createInsertSchema(
+  shareLinkFilesTable,
+).omit({ id: true });
+export type InsertShareLinkFile = z.infer<typeof insertShareLinkFileSchema>;
+export type ShareLinkFileRow = typeof shareLinkFilesTable.$inferSelect;
 
 export const submissionsTable = pgTable("submissions", {
   id: text("id").primaryKey(),

@@ -260,7 +260,7 @@ components:
         - slug
         - repoOwner
         - repoName
-        - filePath
+        - filePaths
         - baseBranch
         - title
         - description
@@ -277,8 +277,12 @@ components:
           type: string
         repoName:
           type: string
-        filePath:
-          type: string
+        filePaths:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          description: One or more repo-relative file paths bundled into this share link's editing session.
         baseBranch:
           type: string
         title:
@@ -296,22 +300,35 @@ components:
         submissionCount:
           type: integer
 
+    RepoFileContent:
+      type: object
+      required:
+        - filePath
+        - content
+      properties:
+        filePath:
+          type: string
+        content:
+          type: string
+
     ShareLinkWithContent:
       allOf:
         - $ref: "#/components/schemas/ShareLink"
         - type: object
           required:
-            - fileContent
+            - files
           properties:
-            fileContent:
-              type: string
+            files:
+              type: array
+              items:
+                $ref: "#/components/schemas/RepoFileContent"
 
     ShareLinkInput:
       type: object
       required:
         - repoOwner
         - repoName
-        - filePath
+        - filePaths
         - title
       properties:
         repoOwner:
@@ -320,9 +337,12 @@ components:
         repoName:
           type: string
           minLength: 1
-        filePath:
-          type: string
-          minLength: 1
+        filePaths:
+          type: array
+          items:
+            type: string
+            minLength: 1
+          minItems: 1
         baseBranch:
           type: string
         title:
@@ -394,10 +414,14 @@ components:
     SubmissionInput:
       type: object
       required:
-        - content
+        - files
       properties:
-        content:
-          type: string
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/RepoFileContent"
+          minItems: 1
+          description: Edited content for every file in the share link, all landing in a single pull request.
         submitterName:
           type: string
         note:

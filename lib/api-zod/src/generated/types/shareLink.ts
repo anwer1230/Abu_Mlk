@@ -11,7 +11,11 @@ export interface ShareLink {
   slug: string;
   repoOwner: string;
   repoName: string;
-  filePath: string;
+  /**
+     * One or more repo-relative file paths bundled into this share link's editing session.
+     * @minItems 1
+     */
+  filePaths: string[];
   baseBranch: string;
   title: string;
   /** @nullable */

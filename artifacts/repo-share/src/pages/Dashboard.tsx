@@ -61,7 +61,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 const createShareSchema = z.object({
   repoOwner: z.string().min(1, "Repository owner is required"),
   repoName: z.string().min(1, "Repository name is required"),
-  filePath: z.string().min(1, "File path is required"),
+  filePaths: z.array(z.string().min(1)).min(1, "Pick at least one file"),
+  shareMode: z.enum(["single", "separate"]),
   baseBranch: z.string().optional(),
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),

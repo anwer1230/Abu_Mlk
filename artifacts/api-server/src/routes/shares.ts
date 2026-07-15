@@ -1,7 +1,12 @@
 import { Router, type IRouter } from "express";
 import { randomUUID, randomBytes } from "node:crypto";
-import { eq, count } from "drizzle-orm";
-import { db, shareLinksTable, submissionsTable } from "@workspace/db";
+import { eq, count, asc } from "drizzle-orm";
+import {
+  db,
+  shareLinksTable,
+  shareLinkFilesTable,
+  submissionsTable,
+} from "@workspace/db";
 import type { ShareLinkRow } from "@workspace/db";
 import {
   ListShareLinksResponse,
@@ -22,7 +27,7 @@ import {
   GetRepoTreeResponse,
 } from "@workspace/api-zod";
 import {
-  fetchFileContent,
+  fetchMultipleFileContents,
   fetchRepoTree,
   createPullRequestWithEdit,
 } from "../lib/github";
@@ -37,12 +42,26 @@ function isExpired(link: ShareLinkRow): boolean {
   return Boolean(link.expiresAt && link.expiresAt.getTime() < Date.now());
 }
 
-async function withSubmissionCount(link: ShareLinkRow) {
-  const [row] = await db
+async function getFilePaths(shareLinkId: string): Promise<string[]> {
+  const rows = await db
+    .select()
+    .from(shareLinkFilesTable)
+    .where(eq(shareLinkFilesTable.shareLinkId, shareLinkId))
+    .orderBy(asc(shareLinkFilesTable.position));
+  return rows.map((row) => row.filePath);
+}
+
+async function withDetails(link: ShareLinkRow) {
+  const [countRow] = await db
     .select({ value: count() })
     .from(submissionsTable)
     .where(eq(submissionsTable.shareLinkId, link.id));
-  return { ...link, submissionCount: row?.value ?? 0 };
+  const filePaths = await getFilePaths(link.id);
+  return {
+    ...link,
+    filePaths,
+    submissionCount: countRow?.value ?? 0,
+  };
 }
 
 router.get("/shares", async (_req, res): Promise<void> => {
@@ -50,7 +69,7 @@ router.get("/shares", async (_req, res): Promise<void> => {
     .select()
     .from(shareLinksTable)
     .orderBy(shareLinksTable.createdAt);
-  const withCounts = await Promise.all(links.map(withSubmissionCount));
+  const withCounts = await Promise.all(links.map(withDetails));
   res.json(ListShareLinksResponse.parse(withCounts));
 });
 
@@ -61,14 +80,15 @@ router.post("/shares", async (req, res): Promise<void> => {
     return;
   }
 
+  const linkId = randomUUID();
+
   const [link] = await db
     .insert(shareLinksTable)
     .values({
-      id: randomUUID(),
+      id: linkId,
       slug: generateSlug(),
       repoOwner: parsed.data.repoOwner,
       repoName: parsed.data.repoName,
-      filePath: parsed.data.filePath,
       baseBranch: parsed.data.baseBranch || "main",
       title: parsed.data.title,
       description: parsed.data.description,
@@ -83,9 +103,22 @@ router.post("/shares", async (req, res): Promise<void> => {
     return;
   }
 
-  res
-    .status(201)
-    .json(CreateShareLinkResponse.parse({ ...link, submissionCount: 0 }));
+  await db.insert(shareLinkFilesTable).values(
+    parsed.data.filePaths.map((filePath, position) => ({
+      id: randomUUID(),
+      shareLinkId: linkId,
+      filePath,
+      position,
+    })),
+  );
+
+  res.status(201).json(
+    CreateShareLinkResponse.parse({
+      ...link,
+      filePaths: parsed.data.filePaths,
+      submissionCount: 0,
+    }),
+  );
 });
 
 router.get("/shares/:slug", async (req, res): Promise<void> => {
@@ -107,22 +140,35 @@ router.get("/shares/:slug", async (req, res): Promise<void> => {
     return;
   }
 
-  let fileContent: string;
+  const filePaths = await getFilePaths(link.id);
+
+  let files: { filePath: string; content: string }[];
   try {
-    fileContent = await fetchFileContent(
+    files = await fetchMultipleFileContents(
       link.repoOwner,
       link.repoName,
-      link.filePath,
+      filePaths,
       link.baseBranch,
     );
   } catch (err) {
     req.log.error({ err }, "Failed to fetch file content from GitHub");
-    res.status(404).json({ error: "Could not load file from the repository" });
+    res.status(404).json({ error: "Could not load files from the repository" });
     return;
   }
 
-  const withCount = await withSubmissionCount(link);
-  res.json(GetShareLinkResponse.parse({ ...withCount, fileContent }));
+  const [countRow] = await db
+    .select({ value: count() })
+    .from(submissionsTable)
+    .where(eq(submissionsTable.shareLinkId, link.id));
+
+  res.json(
+    GetShareLinkResponse.parse({
+      ...link,
+      filePaths,
+      submissionCount: countRow?.value ?? 0,
+      files,
+    }),
+  );
 });
 
 router.patch("/shares/:slug", async (req, res): Promise<void> => {
@@ -154,8 +200,8 @@ router.patch("/shares/:slug", async (req, res): Promise<void> => {
     return;
   }
 
-  const withCount = await withSubmissionCount(link);
-  res.json(UpdateShareLinkResponse.parse(withCount));
+  const withDetail = await withDetails(link);
+  res.json(UpdateShareLinkResponse.parse(withDetail));
 });
 
 router.delete("/shares/:slug", async (req, res): Promise<void> => {
@@ -255,6 +301,16 @@ router.post("/shares/:slug/submissions", async (req, res): Promise<void> => {
     return;
   }
 
+  const linkFilePaths = await getFilePaths(link.id);
+  const submittedPaths = new Set(parsed.data.files.map((f) => f.filePath));
+  const missingPaths = linkFilePaths.filter((p) => !submittedPaths.has(p));
+  if (missingPaths.length > 0) {
+    res.status(400).json({
+      error: `Missing content for: ${missingPaths.join(", ")}`,
+    });
+    return;
+  }
+
   const branchName = `share-edit/${link.slug}-${Date.now()}`;
   const submitterLabel = parsed.data.submitterName?.trim() || "an anonymous collaborator";
 
@@ -264,8 +320,10 @@ router.post("/shares/:slug/submissions", async (req, res): Promise<void> => {
       owner: link.repoOwner,
       repo: link.repoName,
       baseBranch: link.baseBranch,
-      filePath: link.filePath,
-      newContent: parsed.data.content,
+      files: parsed.data.files.map((f) => ({
+        filePath: f.filePath,
+        newContent: f.content,
+      })),
       branchName,
       prTitle: `Edit via share link: ${link.title}`,
       prBody: [

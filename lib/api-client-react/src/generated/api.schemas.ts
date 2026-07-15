@@ -18,7 +18,11 @@ export interface ShareLink {
   slug: string;
   repoOwner: string;
   repoName: string;
-  filePath: string;
+  /**
+     * One or more repo-relative file paths bundled into this share link's editing session.
+     * @minItems 1
+     */
+  filePaths: string[];
   baseBranch: string;
   title: string;
   /** @nullable */
@@ -30,8 +34,13 @@ export interface ShareLink {
   submissionCount: number;
 }
 
+export interface RepoFileContent {
+  filePath: string;
+  content: string;
+}
+
 export type ShareLinkWithContent = ShareLink & {
-  fileContent: string;
+  files: RepoFileContent[];
 };
 
 export interface ShareLinkInput {
@@ -39,8 +48,11 @@ export interface ShareLinkInput {
   repoOwner: string;
   /** @minLength 1 */
   repoName: string;
-  /** @minLength 1 */
-  filePath: string;
+  /**
+     * @minItems 1
+     * @items.minLength 1
+     */
+  filePaths: string[];
   baseBranch?: string;
   /** @minLength 1 */
   title: string;
@@ -76,7 +88,11 @@ export interface RepoTree {
 }
 
 export interface SubmissionInput {
-  content: string;
+  /**
+     * Edited content for every file in the share link, all landing in a single pull request.
+     * @minItems 1
+     */
+  files: RepoFileContent[];
   submitterName?: string;
   note?: string;
 }
