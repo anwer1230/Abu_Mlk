@@ -1,5 +1,6 @@
 /**
  * app_ext.js — مركز سرعة إنجاز
+ * يشمل المرحلة 1 + المرحلة 2 (مجموعات، وسائط، معرض، تحميل إضافي)
  * المراحل 1-15: تفاعلات، قوائم، ردود، توجيه، بحث، سمات، ملف شخصي، إعدادات
  */
 'use strict';
@@ -697,6 +698,187 @@ function setupExtSocketEvents() {
 /* ══════════════════════════════════════════════════════════════════
    تهيئة الإضافات (يُستدعى من initPage)
    ══════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════
+   المرحلة 2: المجموعات + الوسائط + عرض الصور + تحميل إضافي
+   ══════════════════════════════════════════════════════════════════ */
+
+// ─── إنشاء المجموعة ─────────────────────────────────────────────
+function showCreateGroupModal() {
+    const modal = new bootstrap.Modal(document.getElementById('createGroupModal'));
+    modal.show();
+}
+
+async function submitCreateGroup() {
+    const title = document.getElementById('groupNameInput')?.value?.trim();
+    const type  = document.getElementById('groupTypeSelect')?.value || 'group';
+    const users = document.getElementById('groupUsersInput')?.value || '';
+    if (!title) { showToast('⚠️ أدخل اسم المجموعة', 'warning'); return; }
+
+    const btn = document.querySelector('#createGroupModal .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ جارٍ الإنشاء...'; }
+
+    try {
+        const res  = await fetch('/api/groups/create', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ title, type, users }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`✅ تم إنشاء "${title}"`, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('createGroupModal'))?.hide();
+            document.getElementById('groupNameInput').value  = '';
+            document.getElementById('groupUsersInput').value = '';
+            if (typeof refreshChats === 'function') setTimeout(refreshChats, 1500);
+        } else {
+            showToast('❌ ' + data.message, 'error');
+        }
+    } catch (_) {
+        showToast('❌ فشل الإنشاء', 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plus"></i> إنشاء'; }
+    }
+}
+
+// ─── محدد الوسائط ─────────────────────────────────────────────
+function toggleMediaPicker(event) {
+    event?.stopPropagation();
+    const picker = document.getElementById('mediaPicker');
+    if (!picker) return;
+    if (picker.style.display === 'none' || !picker.style.display) {
+        const btn  = document.getElementById('attachBtn');
+        const rect = btn?.getBoundingClientRect() || { left: 200, top: 200 };
+        picker.style.left    = rect.left + 'px';
+        picker.style.bottom  = (window.innerHeight - rect.top + 6) + 'px';
+        picker.style.top     = 'auto';
+        picker.style.display = 'block';
+        setTimeout(() => document.addEventListener('click', hideMediaPicker, { once: true }), 0);
+    } else {
+        hideMediaPicker();
+    }
+}
+function hideMediaPicker() {
+    const p = document.getElementById('mediaPicker');
+    if (p) p.style.display = 'none';
+}
+
+// ─── إرسال الوسائط ─────────────────────────────────────────────
+async function handleMediaSend(files) {
+    if (!files?.length) return;
+    const chatId = AppState?.currentChatId;
+    if (!chatId) { showToast('⚠️ اختر محادثة أولاً', 'warning'); return; }
+
+    showToast(`⏳ جارٍ إرسال ${files.length} ملف...`, 'info');
+
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    for (const f of files) form.append('files', f);
+
+    try {
+        const res  = await fetch('/api/messages/send-media', { method: 'POST', body: form });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`✅ تم إرسال ${data.message_ids?.length || 1} ملف`, 'success');
+            // تحديث الرسائل
+            setTimeout(() => {
+                if (typeof loadMessages === 'function') loadMessages(chatId);
+            }, 1000);
+        } else {
+            showToast('❌ ' + data.message, 'error');
+        }
+    } catch (_) {
+        showToast('❌ فشل الإرسال', 'error');
+    }
+}
+
+// ─── عارض الوسائط (Lightbox) ─────────────────────────────────
+function openLightbox(src, isVideo = false, caption = '') {
+    const lb  = document.getElementById('mediaLightbox');
+    const img = document.getElementById('lbImage');
+    const vid = document.getElementById('lbVideo');
+    const cap = document.getElementById('lbCaption');
+    if (!lb) return;
+
+    img.style.display = vid.style.display = 'none';
+    if (isVideo) {
+        vid.src = src; vid.style.display = 'block'; vid.play().catch(() => {});
+    } else {
+        img.src = src; img.style.display = 'block';
+    }
+    if (cap) cap.textContent = caption;
+    lb.style.display = 'flex';
+    document.addEventListener('keydown', _lbEsc);
+}
+function closeLightbox() {
+    const lb = document.getElementById('mediaLightbox');
+    if (lb) lb.style.display = 'none';
+    const vid = document.getElementById('lbVideo');
+    if (vid) { vid.pause(); vid.src = ''; }
+    document.removeEventListener('keydown', _lbEsc);
+}
+function _lbEsc(e) { if (e.key === 'Escape') closeLightbox(); }
+
+// تحميل وعرض وسائط رسالة
+async function loadAndShowMedia(chatId, msgId, isVideo) {
+    showToast('⏳ جارٍ تحميل الوسيط...', 'info');
+    try {
+        const res  = await fetch(`/api/media/${chatId}/${msgId}`);
+        const data = await res.json();
+        if (data.success) {
+            const src = `data:${data.mime};base64,${data.data}`;
+            openLightbox(src, isVideo);
+        } else {
+            showToast('❌ ' + data.message, 'error');
+        }
+    } catch (_) {
+        showToast('❌ فشل تحميل الوسيط', 'error');
+    }
+}
+
+// ─── إرسال الموقع ─────────────────────────────────────────────
+function sendCurrentLocation() {
+    if (!navigator.geolocation) { showToast('❌ المتصفح لا يدعم الموقع', 'error'); return; }
+    navigator.geolocation.getCurrentPosition(pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        const text = `📍 موقعي: https://maps.google.com/?q=${lat},${lng}`;
+        const inp  = document.getElementById('messageInput');
+        if (inp) { inp.value = text; }
+        showToast('📍 تم إدراج الموقع — اضغط إرسال', 'info');
+    }, () => showToast('❌ لم يتم السماح بالوصول للموقع', 'error'));
+}
+
+// ─── تحميل رسائل إضافية (Infinite Scroll) ─────────────────────
+let _loadingMore = false;
+
+function setupInfiniteScroll() {
+    const area = document.getElementById('messagesArea');
+    if (!area) return;
+    area.addEventListener('scroll', async () => {
+        if (area.scrollTop > 80 || _loadingMore) return;
+        const oldest = AppState?.messages?.[0];
+        if (!oldest || !AppState?.currentChatId) return;
+        _loadingMore = true;
+        try {
+            const res  = await fetch(
+                `/api/chats/${AppState.currentChatId}/messages/more?offset_id=${oldest.id}&limit=30`
+            );
+            const data = await res.json();
+            if (data.success && data.messages?.length) {
+                // دمج الرسائل القديمة في البداية
+                AppState.messages = [...data.messages.reverse(), ...AppState.messages];
+                // حفظ موضع التمرير
+                const oldH = area.scrollHeight;
+                if (typeof MsgStore !== 'undefined')
+                    data.messages.forEach(m => MsgStore.set(String(m.id), m));
+                renderMessages(AppState.messages);
+                area.scrollTop = area.scrollHeight - oldH;
+            }
+        } catch (_) {} finally {
+            _loadingMore = false;
+        }
+    });
+}
+
 async function initExt() {
     // السمة المحفوظة
     const savedTheme = localStorage.getItem('theme') || 'dark';
@@ -712,6 +894,9 @@ async function initExt() {
 
     // أحداث Socket.IO الإضافية
     setupExtSocketEvents();
+
+    // تفعيل Infinite Scroll
+    setupInfiniteScroll();
 
     // اختصار لوحة المفاتيح: Ctrl+F للبحث
     document.addEventListener('keydown', e => {

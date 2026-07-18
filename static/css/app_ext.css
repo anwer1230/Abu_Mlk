@@ -399,6 +399,45 @@
 }
 .panel-overlay.visible { display: block; }
 
+/* ══════════════════════════════════════════════════════════════════
+   المرحلة 2: وسائط الرسائل + Lightbox
+   ══════════════════════════════════════════════════════════════════ */
+.msg-media-thumb {
+    display: block; margin-top: 6px; border-radius: 8px;
+    overflow: hidden; cursor: pointer; position: relative;
+    max-width: 280px;
+}
+.msg-media-thumb img {
+    width: 100%; max-height: 220px; object-fit: cover; display: block;
+    border-radius: 8px; transition: opacity .2s;
+}
+.msg-media-thumb:hover img { opacity: .88; }
+.msg-media-thumb .play-overlay {
+    position: absolute; inset: 0; display: flex;
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,.35);
+}
+.msg-media-thumb .play-overlay i { font-size: 36px; color: #fff; opacity: .9; }
+.msg-media-load-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(0,210,255,.12); border: 1px solid rgba(0,210,255,.3);
+    color: #00d2ff; border-radius: 8px; padding: 6px 12px;
+    font-size: 13px; cursor: pointer; margin-top: 6px;
+    transition: all .2s; font-family: 'Tajawal', sans-serif;
+}
+.msg-media-load-btn:hover { background: rgba(0,210,255,.22); }
+
+/* ─── محدد نوع الوسيط ─────────────────────────────────────────── */
+#mediaPicker { animation: ctxIn .15s ease; }
+
+/* ─── قسم الإحصائيات السريعة ─────────────────────────────────── */
+.load-more-btn {
+    display: flex; align-items: center; justify-content: center;
+    gap: 6px; padding: 8px 0; color: #555; font-size: 13px;
+    cursor: pointer; transition: color .2s;
+}
+.load-more-btn:hover { color: #00d2ff; }
+
 /* ─── رد فعل ظاهر ────────────────────────────────────────────── */
 @keyframes rxPop {
     0%   { transform: scale(0); opacity:0; }

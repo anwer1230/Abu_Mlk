@@ -1215,6 +1215,216 @@ def api_translate():
 
 
 # ══════════════════════════════════════════════════════════════════
+#  المرحلة 2: إنشاء المجموعات + إرسال الوسائط
+# ══════════════════════════════════════════════════════════════════
+
+@app.route('/api/groups/create', methods=['POST'])
+@auth.login_required
+def api_create_group():
+    user_id = session.get('user_id')
+    data    = request.get_json(force=True) or {}
+    title   = (data.get('title') or '').strip()
+    gtype   = data.get('type', 'group')   # group | supergroup | channel
+    users   = [u.strip() for u in str(data.get('users', '')).split(',') if u.strip()]
+
+    if not title:
+        return jsonify({'success': False, 'message': 'اسم المجموعة مطلوب'}), 400
+
+    try:
+        async def _create(client):
+            from telethon.tl.functions.messages import CreateChatRequest
+            from telethon.tl.functions.channels import CreateChannelRequest
+
+            # حل معرفات المستخدمين
+            resolved = []
+            for u in users:
+                try:
+                    entity = await client.get_entity(u)
+                    resolved.append(entity)
+                except Exception:
+                    pass
+
+            if gtype in ('supergroup', 'channel'):
+                is_channel = (gtype == 'channel')
+                result = await client(CreateChannelRequest(
+                    title      = title,
+                    about      = '',
+                    megagroup  = not is_channel,
+                    broadcast  = is_channel,
+                ))
+                chat = result.chats[0]
+                chat_id = chat.id
+            else:
+                if not resolved:
+                    return {'success': False, 'message': 'أضف عضواً واحداً على الأقل'}
+                result = await client(CreateChatRequest(
+                    users = resolved,
+                    title = title,
+                ))
+                chat    = result.chats[0]
+                chat_id = chat.id
+
+            return {'success': True, 'chat_id': chat_id, 'title': title}
+
+        result = _run_telethon(user_id, _create)
+        if isinstance(result, dict) and not result.get('success', True):
+            return jsonify(result), 400
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f'create_group: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/groups/<int:chat_id>/leave', methods=['POST'])
+@auth.login_required
+def api_leave_group(chat_id):
+    user_id = session.get('user_id')
+    try:
+        async def _leave(client):
+            from telethon.tl.functions.channels import LeaveChannelRequest
+            from telethon.tl.functions.messages import DeleteChatUserRequest
+            try:
+                await client(LeaveChannelRequest(channel=chat_id))
+            except Exception:
+                me = await client.get_me()
+                await client(DeleteChatUserRequest(chat_id=chat_id, user_id=me))
+        _run_telethon(user_id, _leave)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/messages/send-media', methods=['POST'])
+@auth.login_required
+def api_send_media():
+    """إرسال وسائط (صور/فيديو/ملفات) عبر Telethon"""
+    import tempfile, os as _os
+    user_id = session.get('user_id')
+    chat_id = request.form.get('chat_id') or request.form.get('chat_id')
+    caption = request.form.get('caption', '')
+
+    if not chat_id:
+        return jsonify({'success': False, 'message': 'chat_id مطلوب'}), 400
+
+    files = request.files.getlist('files')
+    if not files:
+        return jsonify({'success': False, 'message': 'لا توجد ملفات'}), 400
+
+    sent_ids = []
+    for f in files:
+        tmp_path = None
+        try:
+            suffix = _os.path.splitext(f.filename or 'file')[1] or '.bin'
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                f.save(tmp)
+                tmp_path = tmp.name
+
+            def _send(tmp=tmp_path, cap=caption):
+                async def _inner(client):
+                    msg = await client.send_file(
+                        entity  = int(chat_id),
+                        file    = tmp,
+                        caption = cap or None,
+                    )
+                    return msg.id
+                return _inner
+
+            mid = _run_telethon(user_id, _send())
+            sent_ids.append(mid)
+        except Exception as e:
+            logger.error(f'send_media: {e}')
+        finally:
+            if tmp_path and _os.path.exists(tmp_path):
+                try: _os.unlink(tmp_path)
+                except Exception: pass
+
+    if sent_ids:
+        return jsonify({'success': True, 'message_ids': sent_ids})
+    return jsonify({'success': False, 'message': 'فشل الإرسال'}), 500
+
+
+@app.route('/api/media/<int:chat_id>/<int:message_id>', methods=['GET'])
+@auth.login_required
+def api_get_media(chat_id, message_id):
+    """تحميل وسيط رسالة معينة وإعادته كـ base64"""
+    import base64
+    import tempfile, os as _os
+    user_id = session.get('user_id')
+    try:
+        async def _dl(client):
+            msgs = await client.get_messages(chat_id, ids=message_id)
+            if not msgs or not msgs[0] or not msgs[0].media:
+                return None
+            msg = msgs[0]
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.bin') as tmp:
+                path = await client.download_media(msg, file=tmp)
+            return path
+
+        path = _run_telethon(user_id, _dl)
+        if not path or not _os.path.exists(path):
+            return jsonify({'success': False, 'message': 'لا يوجد وسيط'}), 404
+
+        with open(path, 'rb') as fp:
+            data = base64.b64encode(fp.read()).decode()
+        _os.unlink(path)
+
+        # تخمين نوع الوسيط
+        ext = path.rsplit('.', 1)[-1].lower() if '.' in path else 'bin'
+        mime_map = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+                    'gif': 'image/gif',  'webp': 'image/webp', 'mp4': 'video/mp4',
+                    'mp3': 'audio/mpeg', 'ogg': 'audio/ogg',  'pdf': 'application/pdf'}
+        mime = mime_map.get(ext, 'application/octet-stream')
+        return jsonify({'success': True, 'data': data, 'mime': mime})
+    except Exception as e:
+        logger.error(f'api_get_media: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/chats/<int:chat_id>/messages/more', methods=['GET'])
+@auth.login_required
+def api_load_more_messages(chat_id):
+    """تحميل رسائل أقدم (infinite scroll)"""
+    user_id   = session.get('user_id')
+    offset_id = int(request.args.get('offset_id', 0))
+    limit     = min(int(request.args.get('limit', 30)), 50)
+    try:
+        async def _load(client):
+            me   = await client.get_me()
+            msgs = await client.get_messages(
+                entity   = chat_id,
+                limit    = limit,
+                offset_id= offset_id,
+                reverse  = False,
+            )
+            result = []
+            for msg in msgs:
+                if not msg or not msg.text:
+                    continue
+                sender = await msg.get_sender()
+                sname  = getattr(sender, 'title', None) or \
+                         f"{getattr(sender,'first_name','') or ''} {getattr(sender,'last_name','') or ''}".strip() \
+                         if sender else 'مستخدم'
+                has_media = msg.media is not None
+                result.append({
+                    'id':          msg.id,
+                    'sender_id':   str(msg.sender_id or ''),
+                    'sender_name': sname,
+                    'text':        msg.message or '',
+                    'timestamp':   int(msg.date.timestamp()) if msg.date else None,
+                    'status':      'read',
+                    'chat_id':     chat_id,
+                    'media':       '📎 وسائط' if has_media else None,
+                    'has_media':   has_media,
+                    'media_type':  str(type(msg.media).__name__) if has_media else None,
+                })
+            return result
+        msgs = _run_telethon(user_id, _load)
+        return jsonify({'success': True, 'messages': msgs, 'has_more': len(msgs) == limit})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════
 #  معالجة الأخطاء
 # ══════════════════════════════════════════════════════════════════
 

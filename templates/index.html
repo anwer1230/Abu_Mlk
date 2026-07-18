@@ -722,6 +722,9 @@
                 المحادثات
             </div>
             <div class="actions">
+                <button onclick="showCreateGroupModal()" title="مجموعة جديدة">
+                    <i class="fas fa-users"></i>
+                </button>
                 <button onclick="showCreateFolderModal()" title="مجلد مشترك">
                     <i class="fas fa-folder-plus"></i>
                 </button>
@@ -845,7 +848,7 @@
                           placeholder="اكتب رسالتك..."
                           oninput="autoResize(this)"
                           onkeydown="handleKeyDown(event)"></textarea>
-                <button class="btn-icon" onclick="attachFile()" title="مرفق">
+                <button class="btn-icon" onclick="toggleMediaPicker(event)" title="مرفق" id="attachBtn">
                     <i class="fas fa-paperclip"></i>
                 </button>
             </div>
@@ -891,6 +894,81 @@
                         style="background:rgba(255,255,255,0.05); border:none;">إلغاء</button>
                 <button type="button" class="btn btn-primary" onclick="createFolder()"
                         style="background:linear-gradient(135deg, #00d2ff, #3a7bd5); border:none;">إنشاء</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ محدد الوسائط (Media Picker) ═══ -->
+<div id="mediaPicker" style="display:none; position:fixed; z-index:9000;
+     background:#1e1e32; border:1px solid rgba(255,255,255,0.08); border-radius:12px;
+     padding:8px 0; min-width:180px; box-shadow:0 8px 30px rgba(0,0,0,.5);">
+    <button class="ctx-item" onclick="hideMediaPicker(); document.getElementById('imgInput').click();">
+        <i class="fas fa-image" style="color:#00d2ff;"></i> صورة / فيديو
+    </button>
+    <button class="ctx-item" onclick="hideMediaPicker(); document.getElementById('fileInput').click();">
+        <i class="fas fa-file" style="color:#f9ca24;"></i> ملف
+    </button>
+    <button class="ctx-item" onclick="hideMediaPicker(); sendCurrentLocation();">
+        <i class="fas fa-map-marker-alt" style="color:#2ecc71;"></i> موقع
+    </button>
+</div>
+<input type="file" id="imgInput" accept="image/*,video/*" style="display:none;" multiple
+       onchange="handleMediaSend(this.files)">
+
+<!-- ═══ عارض الوسائط (Media Lightbox) ═══ -->
+<div id="mediaLightbox" style="display:none; position:fixed; inset:0; z-index:9999;
+     background:rgba(0,0,0,.92); align-items:center; justify-content:center; flex-direction:column;">
+    <button onclick="closeLightbox()" style="position:absolute;top:16px;left:16px;
+            background:rgba(255,255,255,.1);border:none;color:#fff;width:40px;height:40px;
+            border-radius:50%;cursor:pointer;font-size:18px;">✕</button>
+    <img id="lbImage" src="" style="max-width:90vw;max-height:80vh;border-radius:8px;display:none;"
+         alt="معاينة">
+    <video id="lbVideo" src="" controls style="max-width:90vw;max-height:80vh;border-radius:8px;display:none;"></video>
+    <div id="lbCaption" style="color:#ccc;font-size:14px;margin-top:10px;text-align:center;"></div>
+</div>
+
+<!-- ═══ نافذة إنشاء المجموعة ═══ -->
+<div class="modal fade" id="createGroupModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content" style="background:#1a1a2e;color:#e0e0e0;border:1px solid rgba(255,255,255,.05);">
+            <div class="modal-header" style="border-bottom:1px solid rgba(255,255,255,.05);">
+                <h5 class="modal-title">
+                    <i class="fas fa-users" style="color:#00d2ff;"></i> إنشاء مجموعة جديدة
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1);"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label style="color:#aaa;font-size:13px;">اسم المجموعة</label>
+                    <input type="text" id="groupNameInput" class="form-control"
+                           style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#e0e0e0;border-radius:10px;padding:10px;"
+                           placeholder="مثل: فريق العمل">
+                </div>
+                <div class="mb-3">
+                    <label style="color:#aaa;font-size:13px;">نوع المجموعة</label>
+                    <select id="groupTypeSelect" class="form-select"
+                            style="background:#1a1a2e;border:1px solid rgba(255,255,255,.08);color:#e0e0e0;border-radius:10px;padding:10px;">
+                        <option value="group">مجموعة عادية</option>
+                        <option value="supergroup">مجموعة كبيرة</option>
+                        <option value="channel">قناة</option>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label style="color:#aaa;font-size:13px;">أسماء المستخدمين (مفصولة بفواصل)</label>
+                    <input type="text" id="groupUsersInput" class="form-control"
+                           style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#e0e0e0;border-radius:10px;padding:10px;"
+                           placeholder="user1, user2, user3">
+                </div>
+                <small class="text-muted">أدخل معرّفات أو أرقام هواتف المشاركين</small>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid rgba(255,255,255,.05);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        style="background:rgba(255,255,255,.05);border:none;">إلغاء</button>
+                <button type="button" class="btn btn-primary" onclick="submitCreateGroup()"
+                        style="background:linear-gradient(135deg,#00d2ff,#3a7bd5);border:none;">
+                    <i class="fas fa-plus"></i> إنشاء
+                </button>
             </div>
         </div>
     </div>
@@ -1258,8 +1336,9 @@ function renderChatList(chats) {
         const preview  = (chat.last_message || 'لا توجد رسائل');
         const trunc    = preview.length > 40 ? preview.substring(0, 40) + '...' : preview;
         return `
-            <div class="chat-item ${isActive ? 'active' : ''}"
-                 onclick="selectChat(${chat.id})" data-chat-id="${chat.id}">
+            <div class="chat-item ${isActive ? 'active' : ''} ${typeof _archived!=='undefined'&&_archived.has(String(chat.id))?'archived':''} ${typeof _muted!=='undefined'&&_muted.has(String(chat.id))?'muted':''}"
+                 onclick="selectChat(${chat.id})" data-chat-id="${chat.id}"
+                 oncontextmenu="return typeof ChatCtx!=='undefined'&&ChatCtx.show(event,${chat.id})">
                 <div class="chat-avatar" style="background:${color}">
                     ${initial}
                     ${chat.is_online ? '<span class="online-dot"></span>' : ''}
@@ -1391,7 +1470,7 @@ function renderMessages(messages) {
                 <div class="message ${isSent ? 'sent' : 'received'}">
                     ${!isSent ? `<div class="sender-name">${esc(msg.sender_name||'مستخدم')}</div>` : ''}
                     <span class="msg-text">${esc(msg.text||'')}</span>
-                    ${msg.media ? `<div class="msg-media">📎 ${esc(msg.media)}</div>` : ''}
+                    ${msg.has_media ? _renderMsgMedia(msg) : ''}
                     <div class="time-row">
                         ${time}
                         ${icon}
@@ -2034,6 +2113,41 @@ async function initPage() {
 // ─── تشغيل التطبيق ─────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', initPage);
+
+// ─── عرض وسائط الرسالة ──────────────────────────────────────────
+function _renderMsgMedia(msg) {
+    const chatId = msg.chat_id || AppState?.currentChatId;
+    const msgId  = msg.id;
+    const mtype  = (msg.media_type || '').toLowerCase();
+    const isImg  = mtype.includes('photo') || mtype.includes('image');
+    const isVid  = mtype.includes('video');
+    const isAudio= mtype.includes('audio') || mtype.includes('document') && mtype.includes('mp3');
+
+    if (isImg) {
+        return `<div class="msg-media-thumb"
+                     onclick="loadAndShowMedia(${chatId},${msgId},false)">
+                    <div style="background:rgba(0,210,255,.08);border-radius:8px;height:120px;
+                                display:flex;align-items:center;justify-content:center;margin-top:6px;">
+                        <i class="fas fa-image" style="font-size:32px;color:rgba(0,210,255,.4);"></i>
+                    </div>
+                </div>`;
+    }
+    if (isVid) {
+        return `<div class="msg-media-thumb"
+                     onclick="loadAndShowMedia(${chatId},${msgId},true)">
+                    <div style="background:rgba(108,92,231,.08);border-radius:8px;height:120px;
+                                display:flex;align-items:center;justify-content:center;margin-top:6px;">
+                        <div class="play-overlay"><i class="fas fa-play-circle"></i></div>
+                    </div>
+                </div>`;
+    }
+    // ملف عام
+    return `<button class="msg-media-load-btn"
+                    onclick="loadAndShowMedia(${chatId},${msgId},false)">
+                <i class="fas fa-download"></i>
+                ${msg.media || 'تحميل الوسيط'}
+            </button>`;
+}
 
 // دالة تحميل المحفوظات
 async function loadBookmarks() {
