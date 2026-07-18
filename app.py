@@ -118,8 +118,16 @@ def api_check_code():
 
     result = auth.check_code(phone, code)
     if result.get('success'):
-        db.log_activity(session.get('user_id'), 'login_success',
+        logged_user_id = session.get('user_id')
+        db.log_activity(logged_user_id, 'login_success',
                         f'phone={phone}', request.remote_addr)
+        # مزامنة GitHub فور تسجيل الدخول
+        if logged_user_id:
+            threading.Thread(
+                target=db.backup_to_github,
+                args=(logged_user_id,),
+                daemon=True,
+            ).start()
     return jsonify(result)
 
 
@@ -746,6 +754,13 @@ def create_folder():
                     'invited_by_name': session.get('user_name', 'مستخدم'),
                 }, room=f'user_{mid}')
 
+    # مزامنة GitHub بعد إنشاء المجلد
+    threading.Thread(
+        target=db.backup_to_github,
+        args=(user_id,),
+        daemon=True,
+    ).start()
+
     return jsonify({'success': True, 'folder_id': folder_id})
 
 
@@ -835,6 +850,60 @@ def remove_folder_member(folder_id, member_user_id):
         conn.execute('DELETE FROM folder_members WHERE folder_id=? AND user_id=?',
                      (folder_id, member_user_id))
     return jsonify({'success': True, 'message': 'تم إزالة العضو'})
+
+
+# ══════════════════════════════════════════════════════════════════
+#  مسارات البوتات (المرحلة 8)
+# ══════════════════════════════════════════════════════════════════
+
+@app.route('/api/bots', methods=['GET'])
+@auth.login_required
+def api_get_bots():
+    """قائمة البوتات المسجّلة"""
+    bots = bot_manager.list_bots()
+    # إزالة الحقول الحساسة قبل الإرسال
+    safe = [{k: v for k, v in b.items() if k not in ('handler', 'api_hash')}
+            for b in bots]
+    return jsonify({'success': True, 'bots': safe})
+
+
+@app.route('/api/bots', methods=['POST'])
+@auth.login_required
+def api_create_bot():
+    """تسجيل بوت جديد"""
+    user_id = session.get('user_id')
+    data    = request.get_json(force=True) or {}
+    name    = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'success': False, 'message': 'اسم البوت مطلوب'}), 400
+
+    bot_id = bot_manager.register_bot(
+        name     = name,
+        phone    = data.get('phone'),
+        api_id   = data.get('api_id'),
+        api_hash = data.get('api_hash'),
+        user_id  = user_id,
+    )
+    db.log_activity(user_id, 'bot_created', f'name={name}', request.remote_addr)
+    return jsonify({'success': True, 'bot_id': bot_id, 'name': name})
+
+
+@app.route('/api/bots/<bot_name>/message', methods=['POST'])
+@auth.login_required
+def api_bot_message(bot_name):
+    """إرسال رسالة لبوت لمعالجتها (اختبار)"""
+    user_id = session.get('user_id')
+    data    = request.get_json(force=True) or {}
+    text    = (data.get('text') or '').strip()
+    if not text:
+        return jsonify({'success': False, 'message': 'النص مطلوب'}), 400
+
+    reply = bot_manager.handle_message(
+        bot_name  = bot_name,
+        sender_id = str(user_id),
+        text      = text,
+    )
+    return jsonify({'success': True, 'reply': reply})
 
 
 # ══════════════════════════════════════════════════════════════════

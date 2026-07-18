@@ -1591,6 +1591,164 @@ function attachFile() {
     document.getElementById('fileInput').click();
 }
 
+// ================================================================
+//  الجزء 7: رفع الملفات المتدفق بالأجزاء (Chunked Upload)
+// ================================================================
+
+const CHUNK_SIZE = 2 * 1024 * 1024;   // 2 MB لكل جزء
+
+function formatBytes(bytes) {
+    if (bytes < 1024)        return bytes + ' B';
+    if (bytes < 1048576)     return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1073741824)  return (bytes / 1048576).toFixed(1) + ' MB';
+    return (bytes / 1073741824).toFixed(2) + ' GB';
+}
+
+function createFileItem(file) {
+    const id   = 'fi_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const ext  = file.name.split('.').pop().toUpperCase();
+    const icon = {
+        PDF:'fa-file-pdf', DOC:'fa-file-word', DOCX:'fa-file-word',
+        XLS:'fa-file-excel', XLSX:'fa-file-excel',
+        JPG:'fa-file-image', JPEG:'fa-file-image', PNG:'fa-file-image', GIF:'fa-file-image',
+        MP4:'fa-file-video', AVI:'fa-file-video', MOV:'fa-file-video',
+        MP3:'fa-file-audio', WAV:'fa-file-audio',
+        ZIP:'fa-file-archive', RAR:'fa-file-archive', '7Z':'fa-file-archive',
+    }[ext] || 'fa-file';
+
+    const el = document.createElement('div');
+    el.className = 'file-item';
+    el.id = id;
+    el.innerHTML = `
+        <div class="file-info">
+            <i class="fas ${icon}"></i>
+            <div>
+                <div class="name">${file.name}</div>
+                <div class="size">${formatBytes(file.size)}</div>
+            </div>
+        </div>
+        <div class="progress-wrap"><div class="bar" id="${id}_bar"></div></div>
+        <div class="file-status" id="${id}_status">0%</div>
+        <a id="${id}_link" href="#" style="display:none; font-size:12px; color:#00d2ff; margin-right:6px;">⬇ تحميل</a>
+    `;
+    document.getElementById('uploadQueue').appendChild(el);
+    return id;
+}
+
+async function uploadFileChunked(file) {
+    const itemId   = createFileItem(file);
+    const barEl    = document.getElementById(itemId + '_bar');
+    const statEl   = document.getElementById(itemId + '_status');
+    const linkEl   = document.getElementById(itemId + '_link');
+
+    const setStatus = (pct, text, cls = '') => {
+        if (barEl)  barEl.style.width = pct + '%';
+        if (statEl) { statEl.textContent = text; statEl.className = 'file-status ' + cls; }
+    };
+
+    try {
+        // 1) بدء جلسة الرفع
+        const startRes = await fetch('/api/upload/start', {
+            method:  'POST',
+            headers: {'Content-Type': 'application/json'},
+            body:    JSON.stringify({
+                filename:  file.name,
+                size:      file.size,
+                chunkSize: CHUNK_SIZE,
+            }),
+        });
+        const startData = await startRes.json();
+        if (!startData.success) throw new Error(startData.message || 'فشل بدء الرفع');
+
+        const { upload_id, total_chunks } = startData;
+
+        // 2) رفع الأجزاء
+        for (let i = 0; i < total_chunks; i++) {
+            const start = i * CHUNK_SIZE;
+            const end   = Math.min(start + CHUNK_SIZE, file.size);
+            const chunk = file.slice(start, end);
+
+            const fd = new FormData();
+            fd.append('upload_id',   upload_id);
+            fd.append('chunk_index', i);
+            fd.append('chunk',       chunk, file.name);
+
+            const chunkRes  = await fetch('/api/upload/chunk', { method: 'POST', body: fd });
+            const chunkData = await chunkRes.json();
+            if (!chunkData.success) throw new Error(chunkData.message || 'فشل رفع الجزء');
+
+            const pct = Math.round((i + 1) / total_chunks * 100);
+            setStatus(pct, pct + '%');
+        }
+
+        // 3) إتمام الرفع
+        const completeRes  = await fetch('/api/upload/complete', {
+            method:  'POST',
+            headers: {'Content-Type': 'application/json'},
+            body:    JSON.stringify({ upload_id }),
+        });
+        const completeData = await completeRes.json();
+        if (!completeData.success) throw new Error(completeData.message || 'فشل إتمام الرفع');
+
+        setStatus(100, '✅ مكتمل', 'success');
+
+        if (linkEl && completeData.url) {
+            linkEl.href    = completeData.url;
+            linkEl.style.display = 'inline';
+            linkEl.download = completeData.original || file.name;
+        }
+
+        showToast(`✅ تم رفع "${file.name}" بنجاح`, 'success');
+
+    } catch (err) {
+        setStatus(0, '❌ فشل', 'error');
+        showToast(`❌ فشل رفع "${file.name}": ${err.message}`, 'error');
+        console.error('uploadFileChunked error:', err);
+    }
+}
+
+function setupFileUpload() {
+    const fileInput = document.getElementById('fileInput');
+    if (!fileInput) return;
+
+    fileInput.addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+
+        // إظهار منطقة الرفع
+        const zone = document.getElementById('uploadZone');
+        if (zone) zone.style.display = 'none';
+
+        // رفع الملفات بشكل متسلسل
+        for (const file of files) {
+            await uploadFileChunked(file);
+        }
+        // إعادة ضبط حقل الملفات
+        fileInput.value = '';
+    });
+
+    // دعم السحب والإفلات على منطقة الرفع
+    const uploadZone = document.getElementById('uploadZone');
+    if (uploadZone) {
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        uploadZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            uploadZone.style.display = 'none';
+            const files = Array.from(e.dataTransfer.files || []);
+            for (const file of files) {
+                await uploadFileChunked(file);
+            }
+        });
+    }
+}
+
 function toggleMute()   { showToast('🔇 تم كتم الإشعارات', 'info'); }
 function pinChat()      { showToast('📌 تم تثبيت المحادثة', 'info'); }
 function searchInChat() { showToast('🔍 بحث في المحادثة', 'info'); }
@@ -1636,6 +1794,7 @@ async function initPage() {
         await loadFolders();
 
         setupFolderSocketEvents();
+        setupFileUpload();
 
         // مستمع مؤشر الكتابة
         messageInput.addEventListener('input', handleTyping);

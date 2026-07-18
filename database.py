@@ -161,6 +161,61 @@ class Database:
                 )
             ''')
 
+            # ── رفع الملفات (المرحلة 7) ──────────────────────────────────────
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS uploads (
+                    id              TEXT PRIMARY KEY,
+                    filename        TEXT NOT NULL,
+                    original_name   TEXT,
+                    size            INTEGER DEFAULT 0,
+                    total_chunks    INTEGER DEFAULT 0,
+                    uploaded_chunks INTEGER DEFAULT 0,
+                    user_id         TEXT NOT NULL,
+                    status          TEXT DEFAULT 'pending',
+                    url             TEXT,
+                    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    completed_at    DATETIME
+                )
+            ''')
+
+            # ── البوتات التفاعلية (المرحلة 8) ────────────────────────────────
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS bots (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name         TEXT NOT NULL,
+                    phone        TEXT,
+                    api_id       TEXT,
+                    api_hash     TEXT,
+                    session_file TEXT,
+                    user_id      TEXT,
+                    is_active    BOOLEAN DEFAULT 1,
+                    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS bot_commands (
+                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bot_id           INTEGER NOT NULL,
+                    command          TEXT NOT NULL,
+                    description      TEXT,
+                    handler_function TEXT,
+                    is_active        BOOLEAN DEFAULT 1,
+                    FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+                )
+            ''')
+
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS bot_callbacks (
+                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bot_id           INTEGER NOT NULL,
+                    callback_data    TEXT NOT NULL,
+                    handler_function TEXT,
+                    is_active        BOOLEAN DEFAULT 1,
+                    FOREIGN KEY (bot_id) REFERENCES bots(id) ON DELETE CASCADE
+                )
+            ''')
+
             conn.commit()
             logger.info("✅ تم تهيئة قاعدة البيانات بنجاح")
 
