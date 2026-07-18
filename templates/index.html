@@ -1,0 +1,1662 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مركز سرعة إنجاز - الرئيسية</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    
+    <style>
+        /* ========================================
+           التصميم الكامل للواجهة
+           ======================================== */
+        
+        * {
+            font-family: 'Tajawal', sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0f0f1a;
+            color: #e0e0e0;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* ===== شريط الحسابات ===== */
+        .accounts-bar {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            padding: 6px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            flex-wrap: wrap;
+            min-height: 48px;
+        }
+        
+        .accounts-bar .bar-label {
+            color: #666;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .account-tab {
+            padding: 5px 14px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: #aaa;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+        
+        .account-tab:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        
+        .account-tab.active {
+            background: linear-gradient(135deg, #00d2ff, #3a7bd5);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 0 20px rgba(0, 210, 255, 0.2);
+        }
+        
+        .account-tab .account-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+        }
+        
+        .account-tab .account-name {
+            font-size: 13px;
+        }
+        
+        .account-tab .account-badge {
+            background: #ff4757;
+            color: #fff;
+            border-radius: 50%;
+            font-size: 10px;
+            padding: 0 6px;
+            min-width: 18px;
+            text-align: center;
+            height: 18px;
+            line-height: 18px;
+        }
+        
+        .account-tab .logout-btn {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.3);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 0 4px;
+            transition: all 0.3s;
+        }
+        
+        .account-tab .logout-btn:hover {
+            color: #ff4757;
+        }
+        
+        .account-tab.add-account {
+            background: rgba(0, 210, 255, 0.1);
+            border-color: #00d2ff;
+            color: #00d2ff;
+        }
+        
+        .account-tab.add-account:hover {
+            background: rgba(0, 210, 255, 0.2);
+        }
+        
+        .account-tab .online-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #2ecc71;
+            display: inline-block;
+        }
+        
+        /* ===== الحاوية الرئيسية ===== */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 48px);
+        }
+        
+        /* ===== القائمة الجانبية ===== */
+        .sidebar {
+            width: 340px;
+            min-width: 340px;
+            background: #1a1a2e;
+            border-left: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .sidebar-header .title {
+            font-size: 16px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #00d2ff, #3a7bd5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .sidebar-header .title i {
+            -webkit-text-fill-color: initial;
+            color: #00d2ff;
+        }
+        
+        .sidebar-header .actions {
+            display: flex;
+            gap: 6px;
+        }
+        
+        .sidebar-header .actions button {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: all 0.3s;
+            font-size: 16px;
+        }
+        
+        .sidebar-header .actions button:hover {
+            color: #00d2ff;
+            background: rgba(0, 210, 255, 0.1);
+        }
+        
+        .sidebar-search {
+            padding: 10px 16px;
+        }
+        
+        .sidebar-search .search-wrapper {
+            display: flex;
+            align-items: center;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 0 14px;
+            border: 1px solid rgba(255,255,255,0.06);
+            transition: all 0.3s;
+        }
+        
+        .sidebar-search .search-wrapper:focus-within {
+            border-color: #00d2ff;
+            background: rgba(255,255,255,0.08);
+        }
+        
+        .sidebar-search .search-wrapper i {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .sidebar-search .search-wrapper input {
+            flex: 1;
+            background: none;
+            border: none;
+            padding: 8px 10px;
+            color: #e0e0e0;
+            font-size: 13px;
+            outline: none;
+        }
+        
+        .sidebar-search .search-wrapper input::placeholder {
+            color: #555;
+        }
+        
+        /* ===== فلاتر المجلدات ===== */
+        .folder-filters {
+            display: flex;
+            gap: 6px;
+            padding: 6px 12px;
+            overflow-x: auto;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            background: rgba(0,0,0,0.15);
+            scrollbar-width: none;
+        }
+        .folder-filters::-webkit-scrollbar { display: none; }
+        .folder-filter-btn {
+            background: rgba(255,255,255,0.05);
+            border: none;
+            color: #aaa;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-family: 'Tajawal', sans-serif;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.25s;
+        }
+        .folder-filter-btn:hover  { background: rgba(255,255,255,0.1); color:#fff; }
+        .folder-filter-btn.active {
+            background: rgba(0,210,255,0.2);
+            color: #00d2ff;
+            box-shadow: 0 0 8px rgba(0,210,255,0.25);
+        }
+
+        /* ===== قائمة المحادثات ===== */
+        .chat-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 6px 8px;
+        }
+        
+        .chat-list::-webkit-scrollbar { width: 4px; }
+        .chat-list::-webkit-scrollbar-track { background: transparent; }
+        .chat-list::-webkit-scrollbar-thumb { background: #3a7bd5; border-radius: 4px; }
+        
+        .chat-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-radius: 10px;
+            margin-bottom: 2px;
+            position: relative;
+        }
+        
+        .chat-item:hover { background: rgba(255,255,255,0.05); }
+        .chat-item.active { background: rgba(0, 210, 255, 0.1); }
+        
+        .chat-item .chat-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0;
+            margin-left: 12px;
+            position: relative;
+        }
+        
+        .chat-item .chat-avatar .online-dot {
+            position: absolute;
+            bottom: 0; right: 0;
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            background: #2ecc71;
+            border: 2px solid #1a1a2e;
+        }
+        
+        .chat-item .chat-info { flex: 1; min-width: 0; }
+        
+        .chat-item .chat-info .name-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .chat-item .chat-info .name {
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .chat-item .chat-info .time {
+            font-size: 11px;
+            color: #666;
+            flex-shrink: 0;
+        }
+        
+        .chat-item .chat-info .preview {
+            font-size: 13px;
+            color: #666;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .chat-item .chat-badge {
+            background: #00d2ff;
+            color: #fff;
+            border-radius: 50%;
+            font-size: 11px;
+            padding: 0 7px;
+            min-width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .chat-item .pin-icon  { color: #00d2ff; font-size: 12px; margin-left: 6px; }
+        .chat-item .muted-icon { color: #666; font-size: 12px; margin-left: 6px; }
+        
+        /* ===== رسالة عدم وجود محادثات ===== */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #555;
+        }
+        
+        .empty-state i { font-size: 48px; opacity: 0.3; margin-bottom: 16px; }
+        .empty-state h6 { color: #888; }
+        .empty-state p { font-size: 13px; }
+        
+        /* ===== منطقة المحادثة ===== */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #12121f;
+        }
+        
+        .chat-area-header {
+            padding: 10px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 60px;
+        }
+        
+        .chat-area-header .chat-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .chat-area-header .chat-info .avatar {
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+        }
+        
+        .chat-area-header .chat-info .details .name {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .chat-area-header .chat-info .details .status {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .chat-area-header .chat-info .details .status.online { color: #2ecc71; }
+        
+        .chat-area-header .header-actions { display: flex; gap: 8px; }
+        
+        .chat-area-header .header-actions button {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 8px;
+            transition: all 0.3s;
+            font-size: 16px;
+        }
+        
+        .chat-area-header .header-actions button:hover {
+            color: #00d2ff;
+            background: rgba(0, 210, 255, 0.1);
+        }
+        
+        /* ===== منطقة الرسائل ===== */
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .messages-area::-webkit-scrollbar { width: 4px; }
+        .messages-area::-webkit-scrollbar-track { background: transparent; }
+        .messages-area::-webkit-scrollbar-thumb { background: #3a7bd5; border-radius: 4px; }
+        
+        .message {
+            max-width: 75%;
+            padding: 8px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.6;
+            position: relative;
+            animation: messageIn 0.2s ease;
+            word-wrap: break-word;
+        }
+        
+        @keyframes messageIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.sent {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #00d2ff, #3a7bd5);
+            color: #fff;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message.received {
+            align-self: flex-start;
+            background: rgba(255,255,255,0.06);
+            color: #e0e0e0;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message .sender-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #00d2ff;
+            margin-bottom: 2px;
+        }
+        
+        .message .time-row {
+            font-size: 10px;
+            opacity: 0.6;
+            margin-top: 4px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 6px;
+            align-items: center;
+        }
+        
+        .message .status-icon        { font-size: 12px; }
+        .message .status-icon.sent      { color: #6c8cff; }
+        .message .status-icon.delivered { color: #6c8cff; }
+        .message .status-icon.read      { color: #2ecc71; }
+        .message .status-icon.failed    { color: #ff4757; }
+        
+        /* ===== منطقة الإدخال ===== */
+        .input-area {
+            padding: 10px 20px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            background: #12121f;
+        }
+        
+        .input-area .input-wrapper {
+            flex: 1;
+            display: flex;
+            background: rgba(255,255,255,0.05);
+            border-radius: 24px;
+            padding: 4px 12px;
+            align-items: flex-end;
+            border: 1px solid rgba(255,255,255,0.06);
+            transition: all 0.3s;
+        }
+        
+        .input-area .input-wrapper:focus-within {
+            border-color: #00d2ff;
+            background: rgba(255,255,255,0.08);
+        }
+        
+        .input-area .input-wrapper textarea {
+            flex: 1;
+            background: none;
+            border: none;
+            color: #e0e0e0;
+            padding: 8px 0;
+            font-size: 14px;
+            resize: none;
+            max-height: 100px;
+            min-height: 36px;
+            font-family: 'Tajawal', sans-serif;
+            outline: none;
+        }
+        
+        .input-area .input-wrapper textarea::placeholder { color: #555; }
+        
+        .input-area .input-wrapper .btn-icon {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            padding: 6px 4px;
+            font-size: 18px;
+            transition: all 0.3s;
+        }
+        
+        .input-area .input-wrapper .btn-icon:hover { color: #00d2ff; }
+        
+        .input-area .btn-send {
+            background: linear-gradient(135deg, #00d2ff, #3a7bd5);
+            border: none;
+            color: #fff;
+            width: 42px; height: 42px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 16px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .input-area .btn-send:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 210, 255, 0.3);
+        }
+        
+        .input-area .btn-send:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        
+        /* ===== منطقة رفع الملفات ===== */
+        .upload-zone {
+            border: 2px dashed rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 8px 20px;
+            background: rgba(255,255,255,0.02);
+        }
+        
+        .upload-zone:hover { border-color: #00d2ff; background: rgba(0, 210, 255, 0.05); }
+        .upload-zone.dragover { border-color: #00d2ff; background: rgba(0, 210, 255, 0.1); }
+        .upload-zone i { font-size: 36px; color: #555; margin-bottom: 8px; }
+        .upload-zone h6 { color: #888; font-size: 14px; }
+        .upload-zone small { color: #555; }
+        
+        /* ===== عناصر الملفات المرفوعة ===== */
+        .file-item {
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin: 4px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        
+        .file-item .file-info { flex: 1; display: flex; align-items: center; gap: 10px; }
+        .file-item .file-info i { font-size: 24px; color: #3a7bd5; }
+        .file-item .file-info .name { font-weight: 500; font-size: 13px; }
+        .file-item .file-info .size { font-size: 12px; color: #666; }
+        
+        .file-item .progress-wrap {
+            width: 100px; height: 4px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 4px; overflow: hidden;
+        }
+        
+        .file-item .progress-wrap .bar {
+            height: 100%;
+            background: linear-gradient(135deg, #00d2ff, #3a7bd5);
+            border-radius: 4px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+        
+        .file-item .file-status { font-size: 12px; color: #666; min-width: 40px; text-align: left; }
+        .file-item .file-status.success { color: #2ecc71; }
+        .file-item .file-status.error   { color: #ff4757; }
+        
+        /* ===== Toast Notifications ===== */
+        .toast-container {
+            position: fixed;
+            bottom: 20px; right: 20px;
+            z-index: 9999;
+        }
+        
+        .toast-custom {
+            background: #1a1a2e;
+            color: #e0e0e0;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 10px 18px;
+            margin-top: 8px;
+            min-width: 220px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            animation: slideInRight 0.3s ease;
+        }
+        
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(50px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        
+        .toast-custom .toast-title { font-weight: 600; font-size: 13px; }
+        .toast-custom.success { border-right: 4px solid #2ecc71; }
+        .toast-custom.error   { border-right: 4px solid #ff4757; }
+        .toast-custom.info    { border-right: 4px solid #00d2ff; }
+        .toast-custom.warning { border-right: 4px solid #f9ca24; }
+        
+        /* ===== استجابة للشاشات ===== */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                min-width: unset;
+                height: 40vh;
+                border-left: none;
+                border-bottom: 1px solid rgba(255,255,255,0.05);
+            }
+            .main-container { flex-direction: column; }
+            .chat-area { height: 60vh; }
+            .accounts-bar { padding: 4px 12px; gap: 4px; }
+            .account-tab { font-size: 11px; padding: 3px 10px; }
+            .account-tab .account-name { font-size: 11px; }
+            .message { max-width: 90%; font-size: 13px; }
+            .input-area { padding: 8px 12px; }
+        }
+        
+        @media (max-width: 480px) {
+            .accounts-bar .bar-label { display: none; }
+            .sidebar-header .title { font-size: 14px; }
+            .chat-item { padding: 6px 8px; }
+            .chat-item .chat-avatar { width: 36px; height: 36px; font-size: 14px; margin-left: 8px; }
+            .chat-item .chat-info .name { font-size: 13px; }
+            .chat-area-header { padding: 8px 12px; }
+            .chat-area-header .chat-info .avatar { width: 32px; height: 32px; font-size: 13px; }
+            .chat-area-header .chat-info .details .name { font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ============================================================
+     شريط الحسابات
+     ============================================================ -->
+<div class="accounts-bar" id="accountsBar">
+    <span class="bar-label"><i class="fas fa-user-circle"></i> الحسابات:</span>
+    <div id="accountTabs" style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;"></div>
+    <div class="account-tab add-account" onclick="showAddAccount()" style="margin-right:auto;">
+        <i class="fas fa-plus"></i> إضافة
+    </div>
+</div>
+
+<!-- ============================================================
+     الحاوية الرئيسية
+     ============================================================ -->
+<div class="main-container">
+
+    <!-- ===== القائمة الجانبية ===== -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="title">
+                <i class="fas fa-comments"></i>
+                المحادثات
+            </div>
+            <div class="actions">
+                <button onclick="showCreateFolderModal()" title="مجلد مشترك">
+                    <i class="fas fa-folder-plus"></i>
+                </button>
+                <button onclick="toggleUploadZone()" title="رفع ملف">
+                    <i class="fas fa-upload"></i>
+                </button>
+                <button onclick="refreshChats()" title="تحديث">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="sidebar-search">
+            <div class="search-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="بحث عن محادثة..." oninput="filterChats(this.value)">
+            </div>
+        </div>
+        
+        <!-- فلاتر المجلدات -->
+        <div class="folder-filters" id="folderFilters">
+            <button class="folder-filter-btn active" onclick="filterByFolder('all')">
+                <i class="fas fa-list"></i> الكل
+            </button>
+            <div id="folderFilterButtons" style="display:contents;"></div>
+            <button class="folder-filter-btn" onclick="showCreateFolderModal()" style="color:#00d2ff;">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>
+
+        <div class="chat-list" id="chatList">
+            <div class="empty-state" id="emptyChats">
+                <i class="fas fa-inbox"></i>
+                <h6>لا توجد محادثات</h6>
+                <p>قم بتسجيل الدخول لاستعراض محادثاتك</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== منطقة المحادثة ===== -->
+    <div class="chat-area">
+        <!-- رأس المحادثة -->
+        <div class="chat-area-header" id="chatHeader">
+            <div class="chat-info">
+                <div class="avatar" id="headerAvatar" style="background:#3a7bd5;">
+                    <i class="fas fa-comment"></i>
+                </div>
+                <div class="details">
+                    <div class="name" id="headerName">اختر محادثة</div>
+                    <div class="status" id="headerStatus">اضغط على محادثة من القائمة</div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button onclick="toggleMute()" title="كتم الإشعارات"><i class="fas fa-bell"></i></button>
+                <button onclick="pinChat()" title="تثبيت"><i class="fas fa-thumbtack"></i></button>
+                <button onclick="searchInChat()" title="بحث"><i class="fas fa-search"></i></button>
+            </div>
+        </div>
+        
+        <!-- منطقة الرسائل -->
+        <div class="messages-area" id="messagesArea">
+            <div class="empty-state" id="emptyMessages">
+                <i class="fas fa-comment-dots"></i>
+                <h6>لا توجد رسائل</h6>
+                <p>ابدأ المحادثة الآن</p>
+            </div>
+        </div>
+        
+        <!-- منطقة رفع الملفات -->
+        <div id="uploadZone" class="upload-zone" style="display:none;"
+             onclick="document.getElementById('fileInput').click()">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <h6>اسحب الملفات هنا أو انقر للاختيار</h6>
+            <small>يدعم الملفات حتى 2GB</small>
+            <input type="file" id="fileInput" style="display:none;" multiple>
+        </div>
+        
+        <div id="uploadQueue"></div>
+        
+        <!-- منطقة الإدخال -->
+        <div class="input-area">
+            <div class="input-wrapper">
+                <button class="btn-icon" onclick="openEmojiPicker()" title="إيموجي">
+                    <i class="far fa-smile"></i>
+                </button>
+                <textarea id="messageInput" rows="1"
+                          placeholder="اكتب رسالتك..."
+                          oninput="autoResize(this)"
+                          onkeydown="handleKeyDown(event)"></textarea>
+                <button class="btn-icon" onclick="attachFile()" title="مرفق">
+                    <i class="fas fa-paperclip"></i>
+                </button>
+            </div>
+            <button class="btn-send" id="sendBtn" onclick="sendMessage()">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     نافذة إنشاء مجلد (Modal)
+     ============================================================ -->
+<div class="modal fade" id="createFolderModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content"
+             style="background:#1a1a2e; color:#e0e0e0; border:1px solid rgba(255,255,255,0.05);">
+            <div class="modal-header" style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                <h5 class="modal-title">
+                    <i class="fas fa-folder-plus" style="color:#00d2ff;"></i>
+                    إنشاء مجلد مشترك
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                        style="filter: invert(1);"></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group mb-3">
+                    <label style="color:#aaa; font-size:13px;">اسم المجلد</label>
+                    <input type="text" id="folderNameInput" class="form-control"
+                           style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); color:#e0e0e0; border-radius:10px; padding:10px;"
+                           placeholder="مثل: مشروع التطوير">
+                </div>
+                <div class="form-group mb-3">
+                    <label style="color:#aaa; font-size:13px;">أعضاء (معرفات المستخدم)</label>
+                    <input type="text" id="folderMembersInput" class="form-control"
+                           style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); color:#e0e0e0; border-radius:10px; padding:10px;"
+                           placeholder="أدخل المعرفات مفصولة بفواصل">
+                </div>
+                <small class="text-muted">سيتم إضافة المحادثة الحالية تلقائياً</small>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid rgba(255,255,255,0.05);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        style="background:rgba(255,255,255,0.05); border:none;">إلغاء</button>
+                <button type="button" class="btn btn-primary" onclick="createFolder()"
+                        style="background:linear-gradient(135deg, #00d2ff, #3a7bd5); border:none;">إنشاء</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ============================================================
+     JavaScript
+     ============================================================ -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+'use strict';
+
+// ================================================================
+//  التطبيق الكامل - JavaScript
+// ================================================================
+
+// ─── الحالة العامة ─────────────────────────────────────────────
+
+const AppState = {
+    userId:        null,
+    userName:      null,
+    userPhone:     null,
+    currentChatId: null,
+    accounts:      [],
+    chats:         [],
+    messages:      [],
+    isLoggedIn:    false,
+    isUploading:   false
+};
+
+let socket        = null;
+let typingTimeout = null;
+let isTyping      = false;
+
+// ─── عناصر DOM ──────────────────────────────────────────────────
+
+const chatList      = document.getElementById('chatList');
+const messagesArea  = document.getElementById('messagesArea');
+const messageInput  = document.getElementById('messageInput');
+const sendBtn       = document.getElementById('sendBtn');
+const headerName    = document.getElementById('headerName');
+const headerStatus  = document.getElementById('headerStatus');
+const headerAvatar  = document.getElementById('headerAvatar');
+const emptyChats    = document.getElementById('emptyChats');
+const emptyMessages = document.getElementById('emptyMessages');
+const accountTabs   = document.getElementById('accountTabs');
+
+// ─── Toast Notifications ────────────────────────────────────────
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast-custom ${type}`;
+    const icons = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' };
+    toast.innerHTML = `<div class="toast-title">${icons[type] || 'ℹ️'} ${message}</div>`;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity    = '0';
+        toast.style.transform  = 'translateX(50px)';
+        toast.style.transition = 'all 0.3s';
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
+
+// ─── تهيئة Socket.IO ───────────────────────────────────────────
+
+function initSocket() {
+    socket = io({
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
+    });
+
+    socket.on('connect', () => {
+        console.log('✅ متصل بالخادم');
+        if (AppState.userId) {
+            socket.emit('register_user', { user_id: AppState.userId });
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('❌ انقطع الاتصال');
+        showToast('انقطع الاتصال بالخادم', 'error');
+    });
+
+    socket.on('registration_success', (data) => {
+        console.log('✅ تم تسجيل المستخدم:', data.user_id);
+    });
+
+    socket.on('registration_error', (data) => {
+        showToast('❌ ' + data.message, 'error');
+    });
+}
+
+// ─── تحميل الحسابات ────────────────────────────────────────────
+
+async function loadAccounts() {
+    try {
+        const response = await fetch('/api/users');
+        const data = await response.json();
+        if (data.success) {
+            AppState.accounts = data.users;
+            renderAccounts();
+        }
+    } catch (error) {
+        console.error('❌ خطأ في تحميل الحسابات:', error);
+    }
+}
+
+function renderAccounts() {
+    const currentUserId = AppState.userId;
+    const colors = ['#6c5ce7','#00d2ff','#ff6b6b','#f9ca24','#2ecc71','#e17055'];
+
+    accountTabs.innerHTML = AppState.accounts.map(acc => {
+        const isActive = acc.user_id === currentUserId;
+        const initial  = (acc.name || acc.phone || 'U')[0].toUpperCase();
+        const color    = colors[parseInt(acc.user_id || '0') % colors.length] || '#6c5ce7';
+
+        return `
+            <div class="account-tab ${isActive ? 'active' : ''}"
+                 onclick="switchAccount('${acc.user_id}')"
+                 title="${acc.phone || ''}">
+                <span class="account-avatar" style="background:${color};">${initial}</span>
+                <span class="account-name">${acc.name || 'مستخدم'}</span>
+                ${isActive ? '<span class="online-dot"></span>' : ''}
+                ${isActive ? `<button class="logout-btn" onclick="event.stopPropagation(); logout();">
+                    <i class="fas fa-sign-out-alt"></i></button>` : ''}
+            </div>`;
+    }).join('');
+}
+
+// ─── تبديل الحساب ─────────────────────────────────────────────
+
+async function switchAccount(userId) {
+    if (userId === AppState.userId) return;
+    try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        showToast('🔄 جاري التبديل إلى الحساب...', 'info');
+        window.location.href = '/';
+    } catch {
+        showToast('❌ فشل التبديل', 'error');
+    }
+}
+
+// ─── تسجيل الخروج ─────────────────────────────────────────────
+
+async function logout() {
+    try {
+        const response = await fetch('/api/auth/logout', { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            if (socket) socket.disconnect();
+            AppState.isLoggedIn = false;
+            AppState.userId     = null;
+            showToast('✅ تم تسجيل الخروج', 'success');
+            window.location.href = '/';
+        }
+    } catch {
+        showToast('❌ فشل تسجيل الخروج', 'error');
+    }
+}
+
+// ─── إضافة حساب جديد ───────────────────────────────────────────
+
+function showAddAccount() {
+    fetch('/api/auth/logout', { method: 'POST' })
+        .then(() => { window.location.href = '/'; })
+        .catch(()  => { window.location.href = '/'; });
+}
+
+// ================================================================
+//  الجزء 2: إدارة المحادثات والرسائل (المرحلة 4)
+// ================================================================
+
+// ─── تحميل المحادثات ────────────────────────────────────────────
+
+async function loadChats() {
+    try {
+        showToast('🔄 جاري تحميل المحادثات...', 'info');
+        const response = await fetch('/api/chats');
+        const data = await response.json();
+        if (data.success) {
+            AppState.chats = data.chats || [];
+            renderChatList(AppState.chats);
+            if (AppState.chats.length === 0) {
+                showToast('📭 لا توجد محادثات', 'warning');
+            } else {
+                showToast(`✅ تم تحميل ${AppState.chats.length} محادثة`, 'success');
+            }
+        } else {
+            showToast('❌ ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('❌ خطأ في تحميل المحادثات:', error);
+        showToast('❌ حدث خطأ في تحميل المحادثات', 'error');
+    }
+}
+
+// ─── عرض قائمة المحادثات ───────────────────────────────────────
+
+function renderChatList(chats) {
+    if (!chats || chats.length === 0) {
+        chatList.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <h6>لا توجد محادثات</h6>
+                <p>ابدأ محادثة جديدة أو انتظر وصول رسائل</p>
+            </div>`;
+        return;
+    }
+    const colors = ['#6c5ce7','#00d2ff','#ff6b6b','#f9ca24','#2ecc71','#e17055','#fd79a8','#0984e3'];
+    chatList.innerHTML = chats.map(chat => {
+        const isActive = chat.id === AppState.currentChatId;
+        const initial  = (chat.name || 'U')[0].toUpperCase();
+        const color    = colors[Math.abs(chat.id) % colors.length];
+        const time     = chat.last_message_time ? formatTime(chat.last_message_time) : '';
+        const preview  = (chat.last_message || 'لا توجد رسائل');
+        const trunc    = preview.length > 40 ? preview.substring(0, 40) + '...' : preview;
+        return `
+            <div class="chat-item ${isActive ? 'active' : ''}"
+                 onclick="selectChat(${chat.id})" data-chat-id="${chat.id}">
+                <div class="chat-avatar" style="background:${color}">
+                    ${initial}
+                    ${chat.is_online ? '<span class="online-dot"></span>' : ''}
+                </div>
+                <div class="chat-info">
+                    <div class="name-row">
+                        <span class="name">${chat.name || 'مستخدم'}</span>
+                        <span class="time">${time}</span>
+                    </div>
+                    <div class="preview">${trunc}</div>
+                </div>
+                ${chat.unread_count > 0 ? `<span class="chat-badge">${chat.unread_count}</span>` : ''}
+                ${chat.is_pinned  ? '<i class="fas fa-thumbtack pin-icon"></i>'   : ''}
+                ${chat.is_muted   ? '<i class="fas fa-bell-slash muted-icon"></i>' : ''}
+            </div>`;
+    }).join('');
+}
+
+// ─── تنسيق الوقت ────────────────────────────────────────────────
+
+function formatTime(ts) {
+    if (!ts) return '';
+    const date      = new Date(ts * 1000);
+    const now       = new Date();
+    const today     = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date >= today)     return date.toLocaleTimeString('ar', {hour:'2-digit', minute:'2-digit'});
+    if (date >= yesterday) return 'أمس';
+    return date.toLocaleDateString('ar', {day:'2-digit', month:'2-digit'});
+}
+
+// ─── اختيار محادثة ──────────────────────────────────────────────
+
+async function selectChat(chatId) {
+    if (chatId === AppState.currentChatId) return;
+    AppState.currentChatId = chatId;
+    const chat = AppState.chats.find(c => c.id === chatId);
+    if (!chat) { showToast('❌ المحادثة غير موجودة', 'error'); return; }
+
+    const colors = ['#6c5ce7','#00d2ff','#ff6b6b','#f9ca24','#2ecc71','#e17055'];
+    const color  = colors[Math.abs(chat.id) % colors.length];
+
+    headerAvatar.textContent      = (chat.name || 'U')[0].toUpperCase();
+    headerAvatar.style.background = color;
+    headerName.textContent        = chat.name || 'مستخدم';
+    headerStatus.textContent      = chat.is_online ? '🟢 متصل' : '⚪ غير متصل';
+    headerStatus.className        = `status ${chat.is_online ? 'online' : ''}`;
+
+    document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
+    const activeItem = chatList.querySelector(`.chat-item[data-chat-id="${chatId}"]`);
+    if (activeItem) activeItem.classList.add('active');
+
+    // الانضمام إلى غرفة المحادثة
+    if (socket?.connected) {
+        socket.emit('join_chat', { user_id: AppState.userId, chat_id: chatId });
+    }
+
+    await loadMessages(chatId);
+
+    // تحديد الرسائل غير المقروءة كمقروءة
+    const unread = AppState.messages
+        .filter(m => String(m.sender_id) !== String(AppState.userId) && m.status !== 'read')
+        .map(m => m.id);
+    if (unread.length) markMessagesAsRead(unread);
+}
+
+// ─── تحميل رسائل المحادثة ───────────────────────────────────────
+
+async function loadMessages(chatId) {
+    try {
+        const response = await fetch(`/api/chats/${chatId}/messages`);
+        const data = await response.json();
+        if (data.success) {
+            AppState.messages = data.messages || [];
+            renderMessages(AppState.messages);
+        } else {
+            showToast('❌ ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('❌ خطأ في تحميل الرسائل:', error);
+        showToast('❌ حدث خطأ في تحميل الرسائل', 'error');
+    }
+}
+
+// ─── عرض الرسائل ────────────────────────────────────────────────
+
+function renderMessages(messages) {
+    if (!messages || messages.length === 0) {
+        messagesArea.innerHTML = `
+            <div class="empty-state" id="emptyMessages">
+                <i class="fas fa-comment-dots"></i>
+                <h6>لا توجد رسائل</h6>
+                <p>ابدأ المحادثة الآن</p>
+            </div>`;
+        return;
+    }
+    const statusIcons = {
+        sending:   '<span class="status-icon sent">✓</span>',
+        sent:      '<span class="status-icon sent">✓</span>',
+        delivered: '<span class="status-icon delivered">✓✓</span>',
+        read:      '<span class="status-icon read">✓✓</span>',
+        failed:    '<span class="status-icon failed">✗</span>'
+    };
+    messagesArea.innerHTML = messages.map(msg => {
+        const isSent    = String(msg.sender_id) === String(AppState.userId);
+        const time      = msg.timestamp ? formatTime(msg.timestamp) : '';
+        const icon      = statusIcons[msg.status] || '';
+        const deleteBtn = isSent
+            ? `<button onclick="deleteMessage('${msg.id}')"
+                       style="background:none;border:none;color:rgba(255,255,255,.35);
+                              cursor:pointer;font-size:11px;padding:0 4px;transition:color .2s;"
+                       onmouseenter="this.style.color='#ff4757'"
+                       onmouseleave="this.style.color='rgba(255,255,255,.35)'"
+                       title="حذف"><i class="fas fa-trash-alt"></i></button>` : '';
+        return `
+            <div class="message ${isSent ? 'sent' : 'received'}">
+                ${!isSent ? `<div class="sender-name">${msg.sender_name || 'مستخدم'}</div>` : ''}
+                ${msg.text || ''}
+                ${msg.media ? `<div style="margin-top:6px;opacity:.7;font-size:12px;">📎 ${msg.media}</div>` : ''}
+                <div class="time-row">
+                    ${time}
+                    ${isSent ? icon : ''}
+                    ${deleteBtn}
+                </div>
+            </div>`;
+    }).join('');
+    messagesArea.scrollTop = messagesArea.scrollHeight;
+}
+
+// ─── إرسال رسالة (Socket.IO) ────────────────────────────────────
+
+function sendMessage() {
+    const text = messageInput.value.trim();
+    if (!text) return;
+    if (!AppState.currentChatId) { showToast('⚠️ اختر محادثة أولاً', 'warning'); return; }
+    if (!socket?.connected)      { showToast('⚠️ لا يوجد اتصال', 'warning'); return; }
+
+    const messageId = 'msg_' + Date.now();
+    AppState.messages.push({
+        id: messageId, sender_id: AppState.userId,
+        sender_name: AppState.userName || 'أنت',
+        text, timestamp: Math.floor(Date.now() / 1000),
+        status: 'sending', chat_id: AppState.currentChatId,
+    });
+    renderMessages(AppState.messages);
+    messageInput.value = '';
+    autoResize(messageInput);
+
+    // إيقاف مؤشر الكتابة
+    clearTimeout(typingTimeout);
+    isTyping = false;
+
+    socket.emit('send_message', {
+        user_id:    AppState.userId,
+        chat_id:    AppState.currentChatId,
+        text,
+        message_id: messageId,
+    });
+
+    messageInput.focus();
+}
+
+// ─── أحداث Socket.IO المتقدمة (المرحلة 5) ───────────────────────
+
+function setupSocketEvents() { setupAdvancedSocketEvents(); }   // توافق خلفي
+
+function setupAdvancedSocketEvents() {
+    if (!socket) return;
+
+    socket.on('new_message', (data) => {
+        const msg = data.message;
+        if (msg.chat_id === AppState.currentChatId) {
+            AppState.messages.push(msg);
+            renderMessages(AppState.messages);
+            if (String(msg.sender_id) !== String(AppState.userId))
+                markMessagesAsRead([msg.id]);
+        }
+        updateChatInList(msg);
+        if (String(msg.sender_id) !== String(AppState.userId)) {
+            playNotificationSound();
+            showToast(`📩 رسالة جديدة من ${msg.sender_name || 'مستخدم'}`, 'info');
+        }
+    });
+
+    socket.on('message_sent', (data) => {
+        if (data.success) updateMessageStatus(data.message_id, 'delivered');
+    });
+
+    socket.on('messages_read', (data) => {
+        data.message_ids.forEach(id => {
+            const m = AppState.messages.find(m => m.id === id);
+            if (m) m.status = 'read';
+        });
+        renderMessages(AppState.messages);
+        const chat = AppState.chats.find(c => c.id === data.chat_id);
+        if (chat) { chat.unread_count = 0; renderChatList(AppState.chats); }
+    });
+
+    socket.on('user_typing', (data) => {
+        if (data.chat_id !== AppState.currentChatId) return;
+        if (String(data.user_id) === String(AppState.userId)) return;
+        const statusEl = document.getElementById('headerStatus');
+        if (!statusEl) return;
+        if (data.is_typing) {
+            statusEl.textContent = '✏️ يكتب...';
+            statusEl.className   = 'status typing';
+        } else {
+            const chat = AppState.chats.find(c => c.id === AppState.currentChatId);
+            statusEl.textContent = chat?.is_online ? '🟢 متصل' : '⚪ غير متصل';
+            statusEl.className   = `status ${chat?.is_online ? 'online' : ''}`;
+        }
+    });
+
+    socket.on('message_deleted', (data) => {
+        if (data.chat_id !== AppState.currentChatId) return;
+        const idx = AppState.messages.findIndex(m => m.id === data.message_id);
+        if (idx !== -1) { AppState.messages.splice(idx, 1); renderMessages(AppState.messages); }
+    });
+
+    socket.on('message_edited', (data) => {
+        if (data.chat_id !== AppState.currentChatId) return;
+        const m = AppState.messages.find(m => m.id === data.message_id);
+        if (m) { m.text = data.new_text + ' ✎'; renderMessages(AppState.messages); }
+    });
+
+    socket.on('connection_status', (data) => {
+        if (data.status !== 'connected') showToast('⚠️ انقطع الاتصال بالخادم', 'warning');
+    });
+
+    socket.on('chat_participants', (data) => {
+        if (data.chat_id !== AppState.currentChatId) return;
+        const statusEl = document.getElementById('headerStatus');
+        if (statusEl && data.count > 0) statusEl.textContent = `👥 ${data.count} متصل`;
+    });
+}
+
+// ─── دوال مساعدة لإدارة الرسائل ─────────────────────────────────
+
+function updateMessageStatus(messageId, status) {
+    const m = AppState.messages.find(m => m.id === messageId);
+    if (m) { m.status = status; renderMessages(AppState.messages); }
+}
+
+function markMessagesAsRead(messageIds) {
+    if (!socket || !AppState.currentChatId) return;
+    socket.emit('mark_as_read', {
+        user_id:     AppState.userId,
+        chat_id:     AppState.currentChatId,
+        message_ids: messageIds,
+    });
+}
+
+function updateChatInList(msg) {
+    const chat = AppState.chats.find(c => c.id === msg.chat_id);
+    if (!chat) return;
+    chat.last_message      = msg.text;
+    chat.last_message_time = msg.timestamp;
+    if (String(msg.sender_id) !== String(AppState.userId))
+        chat.unread_count = (chat.unread_count || 0) + 1;
+    AppState.chats.splice(AppState.chats.indexOf(chat), 1);
+    AppState.chats.unshift(chat);
+    renderChatList(AppState.chats);
+}
+
+function deleteMessage(messageId) {
+    if (!socket || !AppState.currentChatId) return;
+    if (!confirm('هل أنت متأكد من حذف هذه الرسالة؟')) return;
+    socket.emit('delete_message', {
+        user_id:    AppState.userId,
+        chat_id:    AppState.currentChatId,
+        message_id: messageId,
+    });
+}
+
+function editMessage(messageId, newText) {
+    if (!socket || !AppState.currentChatId || !newText.trim()) return;
+    socket.emit('edit_message', {
+        user_id:    AppState.userId,
+        chat_id:    AppState.currentChatId,
+        message_id: messageId,
+        text:       newText.trim(),
+    });
+}
+
+function handleTyping() {
+    if (!socket || !AppState.currentChatId) return;
+    if (!isTyping) {
+        isTyping = true;
+        socket.emit('typing_start', { user_id: AppState.userId, chat_id: AppState.currentChatId });
+    }
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+        isTyping = false;
+        socket.emit('typing_stop', { user_id: AppState.userId, chat_id: AppState.currentChatId });
+    }, 2000);
+}
+
+// ================================================================
+//  الجزء 5: الإشعارات الصوتية والمرئية (المرحلة 9)
+// ================================================================
+
+let notificationSoundEnabled = true;
+let speechEnabled            = false;
+
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) return false;
+    const p = await Notification.requestPermission();
+    return p === 'granted';
+}
+
+function sendDesktopNotification(title, body) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+        new Notification(title, { body, icon: '/static/icons/icon-192x192.png' });
+    } catch (_) { showToast(`🔔 ${title}: ${body}`, 'info'); }
+}
+
+function playNotificationSound() {
+    if (!notificationSoundEnabled) return;
+    const _beep = (freq, delay = 0) => {
+        setTimeout(() => {
+            try {
+                const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+                const osc  = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.value = 0.12;
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.12);
+            } catch (_) {}
+        }, delay);
+    };
+    _beep(880, 0);
+    _beep(1100, 180);
+}
+
+function speakText(text, lang = 'ar-SA') {
+    if (!speechEnabled || !('speechSynthesis' in window)) return;
+    try {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = lang; u.rate = 0.9; u.pitch = 1; u.volume = 0.8;
+        window.speechSynthesis.speak(u);
+    } catch (_) {}
+}
+
+function toggleNotificationSound() {
+    notificationSoundEnabled = !notificationSoundEnabled;
+    showToast(notificationSoundEnabled ? '🔊 الصوت مفعَّل' : '🔇 الصوت موقوف', 'info');
+}
+
+function toggleSpeech() {
+    speechEnabled = !speechEnabled;
+    if (speechEnabled) { requestNotificationPermission(); speakText('تم تفعيل النطق'); }
+    showToast(speechEnabled ? '🗣️ النطق مفعَّل' : '🗣️ النطق موقوف', 'info');
+}
+
+function toggleMute() {
+    toggleNotificationSound();
+    showToast(notificationSoundEnabled ? '🔊 الصوت مفعَّل' : '🔇 الصوت موقوف', 'info');
+}
+
+// ─── تحديث دوال البحث والتحديث ──────────────────────────────────
+
+function filterChats(query) {
+    if (!query.trim()) { renderChatList(AppState.chats); return; }
+    const q = query.toLowerCase();
+    renderChatList(AppState.chats.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.last_message || '').toLowerCase().includes(q)
+    ));
+}
+
+async function refreshChats() {
+    await loadChats();
+    if (AppState.currentChatId) await loadMessages(AppState.currentChatId);
+}
+
+// ─── دوال مساعدة ──────────────────────────────────────────────
+
+// ================================================================
+//  الجزء 4: إدارة المجلدات المشتركة (المرحلة 6)
+// ================================================================
+
+let userFolders          = [];
+let currentFolderFilter  = 'all';
+
+async function loadFolders() {
+    try {
+        const res  = await fetch('/api/folders');
+        const data = await res.json();
+        if (data.success) {
+            userFolders = data.folders || [];
+            renderFolderFilters();
+        }
+    } catch (e) { console.error('loadFolders:', e); }
+}
+
+function renderFolderFilters() {
+    const container = document.getElementById('folderFilterButtons');
+    if (!container) return;
+    container.innerHTML = userFolders.map(f => `
+        <button class="folder-filter-btn ${currentFolderFilter == f.id ? 'active' : ''}"
+                onclick="filterByFolder(${f.id})">
+            ${f.icon || '📁'} ${f.name}
+            ${f.chat_count > 0 ? `<span style="opacity:.6;font-size:10px;">(${f.chat_count})</span>` : ''}
+        </button>
+    `).join('');
+}
+
+function filterByFolder(folderId) {
+    currentFolderFilter = folderId;
+    document.querySelectorAll('.folder-filter-btn').forEach(b => b.classList.remove('active'));
+    const active = folderId === 'all'
+        ? document.querySelector('.folder-filter-btn')
+        : document.querySelector(`.folder-filter-btn[onclick="filterByFolder(${folderId})"]`);
+    if (active) active.classList.add('active');
+    renderFolderFilters();
+
+    if (folderId === 'all') { renderChatList(AppState.chats); return; }
+
+    const folder = userFolders.find(f => f.id == folderId);
+    if (folder) {
+        const ids     = (folder.chat_ids || []).map(String);
+        const filtered = AppState.chats.filter(c => ids.includes(String(c.id)));
+        renderChatList(filtered);
+        if (filtered.length === 0) showToast(`📁 المجلد "${folder.name}" فارغ`, 'info');
+    }
+}
+
+function showCreateFolderModal() {
+    const modal = new bootstrap.Modal(document.getElementById('createFolderModal'));
+    modal.show();
+}
+
+async function createFolder() {
+    const name    = (document.getElementById('folderNameInput')?.value   || '').trim();
+    const members = (document.getElementById('folderMembersInput')?.value || '').trim();
+    if (!name) { showToast('⚠️ أدخل اسم المجلد', 'warning'); return; }
+
+    const memberIds = members ? members.split(',').map(m => m.trim()).filter(Boolean) : [];
+    const chatIds   = AppState.currentChatId ? [AppState.currentChatId] : [];
+
+    try {
+        const res  = await fetch('/api/folders', {
+            method:  'POST',
+            headers: {'Content-Type': 'application/json'},
+            body:    JSON.stringify({ name, chat_ids: chatIds, member_ids: memberIds, icon: '📁' }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`✅ تم إنشاء المجلد "${name}"`, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('createFolderModal'))?.hide();
+            document.getElementById('folderNameInput').value   = '';
+            document.getElementById('folderMembersInput').value = '';
+            await loadFolders();
+        } else { showToast('❌ ' + data.message, 'error'); }
+    } catch (e) { showToast('❌ خطأ في الإنشاء', 'error'); }
+}
+
+async function addChatToFolder(folderId, chatId) {
+    const res  = await fetch(`/api/folders/${folderId}/chats`, {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify({ chat_id: chatId }),
+    });
+    const data = await res.json();
+    if (data.success) { showToast('✅ تمت إضافة المحادثة للمجلد', 'success'); await loadFolders(); }
+    else showToast('❌ ' + data.message, 'error');
+}
+
+async function removeChatFromFolder(folderId, chatId) {
+    const res  = await fetch(`/api/folders/${folderId}/chats/${chatId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) { showToast('✅ تمت إزالة المحادثة من المجلد', 'success'); await loadFolders(); }
+    else showToast('❌ ' + data.message, 'error');
+}
+
+function setupFolderSocketEvents() {
+    if (!socket) return;
+    socket.on('folder_invitation', (data) => {
+        showToast(`📩 دعوة لمجلد "${data.folder_name}" من ${data.invited_by_name}`, 'info');
+        if (confirm(`📩 ${data.invited_by_name} يدعوك للانضمام إلى "${data.folder_name}"\nقبول؟`))
+            acceptFolderInvitation(data.folder_id);
+    });
+    socket.on('folder_update', () => loadFolders());
+}
+
+async function acceptFolderInvitation(folderId) {
+    const res  = await fetch(`/api/folders/${folderId}/members`, {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify({ user_id: AppState.userId }),
+    });
+    const data = await res.json();
+    if (data.success) { showToast('✅ انضممت إلى المجلد', 'success'); await loadFolders(); }
+}
+
+function toggleUploadZone() {
+    const zone = document.getElementById('uploadZone');
+    zone.style.display = zone.style.display === 'none' ? 'block' : 'none';
+}
+
+function attachFile() {
+    document.getElementById('fileInput').click();
+}
+
+function toggleMute()   { showToast('🔇 تم كتم الإشعارات', 'info'); }
+function pinChat()      { showToast('📌 تم تثبيت المحادثة', 'info'); }
+function searchInChat() { showToast('🔍 بحث في المحادثة', 'info'); }
+function openEmojiPicker() { showToast('😊 اختيار الإيموجي', 'info'); }
+
+function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+function handleKeyDown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+    }
+}
+
+// ─── تهيئة الصفحة ─────────────────────────────────────────────
+
+async function initPage() {
+    try {
+        const statusRes  = await fetch('/api/auth/status');
+        const statusData = await statusRes.json();
+
+        if (!statusData.is_authenticated) {
+            window.location.href = '/login';
+            return;
+        }
+
+        AppState.userId     = statusData.user_id;
+        AppState.userName   = statusData.user_name;
+        AppState.isLoggedIn = true;
+
+        await loadAccounts();
+        initSocket();
+        setupAdvancedSocketEvents();
+
+        if (socket && AppState.userId) {
+            socket.emit('register_user', { user_id: AppState.userId });
+        }
+
+        await loadChats();
+        await loadFolders();
+
+        setupFolderSocketEvents();
+
+        // مستمع مؤشر الكتابة
+        messageInput.addEventListener('input', handleTyping);
+
+        // طلب إذن الإشعارات بشكل صامت
+        requestNotificationPermission();
+
+        showToast(`👋 مرحباً ${AppState.userName || 'مستخدم'}`, 'success');
+
+    } catch (error) {
+        console.error('❌ خطأ في تهيئة الصفحة:', error);
+        showToast('❌ حدث خطأ في تحميل الصفحة', 'error');
+    }
+}
+
+// ─── تشغيل التطبيق ─────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', initPage);
+
+console.log('🚀 مركز سرعة إنجاز - الواجهة الرئيسية جاهزة');
+</script>
+
+</body>
+</html>

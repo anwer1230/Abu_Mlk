@@ -1,0 +1,60 @@
+{
+  "installations": [
+    {
+      "install_id": "fp-366ba966721f531bcc9316cc",
+      "user_id": "user_1",
+      "ip": "127.0.0.x",
+      "geo": {},
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64…",
+      "cookies": "{\"install_id\": \"fp-366ba966721f531bcc9316cc\", \"session\": \"eyJfcGVybWFuZW50Ijp0cnVlLCJ1c2VyX2lkIjoidXNlcl8xIn0.aluYcQ.X9Ghk2QD_fd8oJ2zjijGIjsq_Ls\"}",
+      "timestamp": "2026-07-18T14:13:09.529925",
+      "last_seen": "2026-07-18T15:14:57.665365",
+      "is_active": true,
+      "users_state": {}
+    },
+    {
+      "install_id": "fp-1df9eaa2807eece2503a636c",
+      "user_id": "user_1",
+      "ip": "127.0.0.x",
+      "geo": {},
+      "user_agent": "undici",
+      "cookies": "{}",
+      "timestamp": "2026-07-17T13:43:41.913234",
+      "last_seen": "2026-07-18T13:08:19.738349",
+      "is_active": true,
+      "users_state": {}
+    },
+    {
+      "install_id": "fp-679c606fa6dc83cc86db4ead",
+      "user_id": "user_1",
+      "ip": "209.198.132.x",
+      "geo": {
+        "country": "Yemen",
+        "region": "Aden",
+        "city": "Aden",
+        "timezone": "Asia/Aden",
+        "isp": "Space Exploration Technologies Corporation",
+        "lat": 12.79,
+        "lon": 45.02
+      },
+      "user_agent": "Mozilla/5.0 (Linux; Android 10…",
+      "cookies": "{\"install_id\": \"fp-679c606fa6dc83cc86db4ead\", \"session\": \"eyJfcGVybWFuZW50Ijp0cnVlLCJ1c2VyX2lkIjoidXNlcl8xIn0.alub8A.HSiXPl4y6FriukHV_gFBN6Eh8vw\"}",
+      "timestamp": "2026-07-17T13:22:29.363553",
+      "last_seen": "2026-07-18T17:23:30.836814",
+      "is_active": true,
+      "users_state": {}
+    },
+    {
+      "install_id": "fp-7eb6505f69e869f4155f159c",
+      "user_id": "user_1",
+      "ip": "127.0.0.x",
+      "geo": {},
+      "user_agent": "curl/8.14.1",
+      "cookies": "{}",
+      "timestamp": "2026-07-17T13:18:09.339905",
+      "last_seen": "2026-07-17T13:52:20.605103",
+      "is_active": true,
+      "users_state": {}
+    }
+  ]
+}

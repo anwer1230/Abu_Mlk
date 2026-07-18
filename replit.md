@@ -1,45 +1,50 @@
-# [Project name]
+# مركز سرعة إنجاز — Abu_Mlk
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+تطبيق خدمات طلابية وأكاديمية مبني على Flask + SocketIO مع تكامل Telegram.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `python main.py` — تشغيل التطبيق (المنفذ 5000)
+- **Workflow:** Flask App (يعمل على المنفذ 5000)
+- المستودع الأصلي: https://github.com/anwer1230/Abu_Mlk
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Python 3.13 + Flask 3 + Flask-SocketIO
+- SQLite (قاعدة بيانات محلية) + مزامنة GitHub
+- Telethon (Telegram API)
+- Groq AI
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `main.py` — نقطة الدخول الرئيسية
+- `app.py` — التطبيق الرئيسي (Flask routes + SocketIO)
+- `auth.py` — نظام المصادقة عبر Telegram
+- `database.py` — قاعدة البيانات SQLite
+- `config.py` — الإعدادات المركزية
+- `bot_manager.py` — إدارة البوتات
+- `upload_handler.py` — رفع الملفات
+- `github_db.py` — تخزين البيانات على GitHub
+- `card_system.py` — نظام البطاقات والقسائم
+- `gps_tracking.py` — تتبع الموقع الجغرافي
+- `install_tracker.py` — تتبع التثبيتات
+- `isolation_system.py` — عزل بيانات المستخدمين
+- `templates/` — قوالب HTML
+- `static/` — CSS + JS + صور
+- `sessions/` — جلسات المستخدمين
+- `data/` — بيانات JSON
 
-## Architecture decisions
+## Environment Variables (required)
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
-
-## Product
-
-_Describe the high-level user-facing capabilities of this app once they exist._
+- `SESSION_SECRET` — مفتاح الجلسة (مضبوط)
+- `GITHUB_TOKEN` — رمز GitHub للمزامنة (اختياري)
+- `GROQ_API_KEY` — مفتاح Groq AI (اختياري)
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+_Populate as you build._
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- تثبيت الحزم: `pip install --break-system-packages --user -r requirements.txt`
+- التطبيق يعمل على المنفذ 5000

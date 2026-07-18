@@ -1,0 +1,31 @@
+{
+  "links": [
+    {
+      "id": "5287d289",
+      "url": "https://t.me/test_group",
+      "title": "مجموعة تجريبية",
+      "category": "تعليمي",
+      "date_saved": "2026-06-25T16:07:13.062704",
+      "source": "يدوي",
+      "notes": "اختبار"
+    },
+    {
+      "id": "4ce2dd4f",
+      "url": "https://t.me/group1",
+      "title": "https://t.me/group1",
+      "category": "جامعي",
+      "date_saved": "2026-06-25T16:07:14.408374",
+      "source": "بحث",
+      "notes": ""
+    },
+    {
+      "id": "e4cf612c",
+      "url": "https://t.me/group2",
+      "title": "https://t.me/group2",
+      "category": "جامعي",
+      "date_saved": "2026-06-25T16:07:14.408437",
+      "source": "بحث",
+      "notes": ""
+    }
+  ]
+}

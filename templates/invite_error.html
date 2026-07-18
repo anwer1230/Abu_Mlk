@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>رابط الدعوة غير صالح — مركز سرعة انجاز</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1e3c78 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            direction: rtl;
+        }
+        .card {
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 20px;
+            padding: 48px 36px;
+            max-width: 440px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            display: block;
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #fca5a5;
+        }
+        p {
+            color: rgba(255,255,255,0.75);
+            font-size: 0.95rem;
+            line-height: 1.7;
+            margin-bottom: 8px;
+        }
+        .reason {
+            background: rgba(239,68,68,0.15);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin: 20px 0;
+            font-size: 0.9rem;
+            color: #fca5a5;
+        }
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+            text-decoration: none;
+            padding: 12px 30px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-top: 8px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(16,185,129,0.4); color: #fff; }
+        .whatsapp {
+            margin-top: 24px;
+            font-size: 0.82rem;
+            color: rgba(255,255,255,0.55);
+        }
+        .whatsapp a { color: #4ade80; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <span class="icon">🔗</span>
+        <h1>رابط الدعوة غير صالح</h1>
+        <p>الرابط الذي استخدمته غير صالح أو انتهت صلاحيته.</p>
+
+        <div class="reason">
+            {% if reason == 'used' %}
+                🔵 تم استخدام هذا الرابط مسبقاً — كل رابط صالح لمرة واحدة فقط.
+            {% elif reason == 'expired' %}
+                🔴 انتهت صلاحية هذا الرابط — الروابط تنتهي بعد 7 أيام.
+            {% elif reason == 'not_found' %}
+                ❓ هذا الرابط غير موجود في النظام.
+            {% else %}
+                ⚠️ رابط الدعوة غير صالح أو تالف.
+            {% endif %}
+        </div>
+
+        <p>للحصول على رابط دعوة جديد، تواصل مع مزود الخدمة.</p>
+        <a href="/" class="btn">🏠 العودة للرئيسية</a>
+
+        <div class="whatsapp">
+            هل تحتاج مساعدة؟
+            <a href="https://wa.me/+966510349663" target="_blank">تواصل معنا عبر واتساب</a>
+        </div>
+    </div>
+</body>
+</html>

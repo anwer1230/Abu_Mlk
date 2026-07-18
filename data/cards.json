@@ -1,0 +1,252 @@
+{
+  "plans": [
+    {
+      "id": 1,
+      "name": "يومية",
+      "time_limit": 86400,
+      "data_limit": 5368709120,
+      "profile_name": "daily"
+    },
+    {
+      "id": 2,
+      "name": "أسبوعية",
+      "time_limit": 604800,
+      "data_limit": 10737418240,
+      "profile_name": "weekly"
+    },
+    {
+      "id": 3,
+      "name": "شهرية",
+      "time_limit": 2592000,
+      "data_limit": 32212254720,
+      "profile_name": "monthly"
+    }
+  ],
+  "vouchers": [
+    {
+      "code_hash": "e61f626032b6fb08ab4077ab4d468fdc45c6e5221ff186aec4b79d4e9cec1ec5",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185565",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "e80ae38814c06d196f43846d5f414c39baf63a0fcea76fd6b53d45b5a89bafef",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185578",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "84f1837badd51b5e9441a5e4609dc32ded615adfeeb298c87bef3533954e0b6c",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185585",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "65b7611d60b7d03e9eac7a99f9d5d628ca0c867448a1f6826ad320b3f68325cc",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185591",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "6a6c7c5a0de1e0abe9c7e8f7003489e6916ce7026e7e8b7affbf8ea60dd5e934",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185596",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "8ec7e928c6de906da2a03bca249566cdbf00cc1d5e6f35a75bd125f25748099d",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185600",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "2fc8275d6827fba1c25859209ae65a576b798db4c5fff6b37b4a04221aaf3987",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185604",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "8185b9504401c77d45ecd28dd022bd6b0399a8cfff5b2afade674629169742cb",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185612",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "ef471e9e3a406ed07920f755dc604d62cd065a62c4b0b47666db25cbcee9d4e2",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185617",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "23317095bdf4781364230ef0424844e7ec8df39439d45e6301ffc77f43f7dc29",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185621",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "706862c784472c68a9c4047537a4bd8f853a7d9d8768449865efc531e1673615",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185625",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "fcf880ddc9d2ab9c327c150e9befd9ace7841567ab9871d0ef0f76fa0bf8b125",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185629",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "96286ad85dd4a324b8f97454896892d9bdecae693078d2782b123979fcc6e9f8",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185634",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "d40ed9b19479a6cee80d31bf74996c7e65031a807b00da22ca3922ccca8f7750",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185638",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "9003c2b6b36bfb23cb7a5f9b080039b0ba6c4388fa2db1771e272af8a72a44b3",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185642",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "9d5c948c4d6c75b6a460a5bf39c9478bfe18d87200a2ae67c87e261f64354285",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185646",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "45501ab33664efaaa14b35317291d525892001c31c9397282c4a330b5414cb1d",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185650",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "0dccce7be8f04ea2c4fcdb096dac450f10f8679c2dfd54043c2e7e46c00dac98",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185654",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "5b574db04070944a565cd7ef83859c29abe89f502af70287510ba4a4829d0203",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185658",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "4f7238e1711904859f80276fffd6ad4006acb1aed72a9dfeaaaed13dc626333d",
+      "plan_id": 1,
+      "status": "unused",
+      "created_at": "2026-06-24T19:36:52.185662",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "3d0939085ca559c2578112d44020a42a05102f2205626ae7f81667192632b92c",
+      "plan_id": 1,
+      "plan_name": "يومية",
+      "status": "unused",
+      "created_at": "2026-06-25T16:59:21.635887",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "fb98dab3db7f00091ab38ad187141beddcf1650318b4fff9389cfda30374ff47",
+      "plan_id": 1,
+      "plan_name": "يومية",
+      "status": "unused",
+      "created_at": "2026-06-25T16:59:21.635900",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "c0e110a8c4c73ec0d61f690e9da1326d9b74acff457ee9f70850dce10dcfe723",
+      "plan_id": 1,
+      "plan_name": "يومية",
+      "status": "unused",
+      "created_at": "2026-06-25T16:59:21.635905",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "5f2a2be278072adb17d38187c72a735c5ca7beb36983845a6e48111966cbc7e6",
+      "plan_id": 1,
+      "plan_name": "يومية",
+      "status": "unused",
+      "created_at": "2026-06-25T17:00:02.303427",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "c3e9f006f5cb99eb5171ca9374e1cb5e981192dd1022ea7b5dce755164bddc64",
+      "plan_id": 1,
+      "plan_name": "يومية",
+      "status": "unused",
+      "created_at": "2026-06-25T17:00:02.303442",
+      "used_at": null,
+      "expires_at": null
+    },
+    {
+      "code_hash": "d7458460ae809811618ebc8b119a45973b37c50bbbfd5b65bf3e8dc47a5b2e06",
+      "plan_id": 2,
+      "plan_name": "أسبوعية",
+      "status": "used",
+      "created_at": "2026-06-25T17:00:56.679619",
+      "used_at": "2026-06-25T17:00:56.751002",
+      "expires_at": "2026-07-02T17:00:56.751002"
+    },
+    {
+      "code_hash": "7e979444031167181dbe97e50c982e1ab776c1744668482b229f9a4ca082b79d",
+      "plan_id": 2,
+      "plan_name": "أسبوعية",
+      "status": "unused",
+      "created_at": "2026-06-25T17:00:56.679635",
+      "used_at": null,
+      "expires_at": null
+    }
+  ],
+  "active_sessions": [],
+  "active_card_sessions": []
+}
