@@ -216,6 +216,64 @@ class Database:
                 )
             ''')
 
+            # ── المرحلة 1: تفاعلات الرسائل ─────────────────────────────────
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS message_reactions (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    message_id TEXT NOT NULL,
+                    user_id    TEXT NOT NULL,
+                    reaction   TEXT NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (message_id, user_id)
+                )
+            ''')
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS message_bookmarks (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    message_id TEXT NOT NULL,
+                    chat_id    TEXT,
+                    user_id    TEXT NOT NULL,
+                    text       TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (message_id, user_id)
+                )
+            ''')
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS pinned_messages (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    chat_id    TEXT NOT NULL,
+                    message_id TEXT NOT NULL,
+                    user_id    TEXT NOT NULL,
+                    pinned_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (chat_id, message_id)
+                )
+            ''')
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS archived_chats (
+                    chat_id     TEXT NOT NULL,
+                    user_id     TEXT NOT NULL,
+                    archived_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (chat_id, user_id)
+                )
+            ''')
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS muted_chats (
+                    chat_id     TEXT NOT NULL,
+                    user_id     TEXT NOT NULL,
+                    muted_until DATETIME,
+                    muted_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (chat_id, user_id)
+                )
+            ''')
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS blocked_users (
+                    user_id         TEXT NOT NULL,
+                    blocked_user_id TEXT NOT NULL,
+                    blocked_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (user_id, blocked_user_id)
+                )
+            ''')
+
             conn.commit()
             logger.info("✅ تم تهيئة قاعدة البيانات بنجاح")
 

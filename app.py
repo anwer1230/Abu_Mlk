@@ -907,6 +907,314 @@ def api_bot_message(bot_name):
 
 
 # ══════════════════════════════════════════════════════════════════
+#  المرحلة 1: تفاعلات + سياق الرسائل + بحث + ملف شخصي + إعدادات
+# ══════════════════════════════════════════════════════════════════
+
+@app.route('/api/messages/reaction', methods=['POST'])
+@auth.login_required
+def api_msg_reaction():
+    user_id = session.get('user_id')
+    data    = request.get_json(force=True) or {}
+    msg_id  = str(data.get('message_id', ''))
+    reaction= (data.get('reaction') or '').strip()
+    action  = data.get('action', 'add')
+    chat_id = data.get('chat_id')
+    if not msg_id or not reaction:
+        return jsonify({'success': False, 'message': 'بيانات ناقصة'}), 400
+    with db.get_connection() as conn:
+        if action == 'add':
+            conn.execute('INSERT OR REPLACE INTO message_reactions (message_id,user_id,reaction) VALUES (?,?,?)',
+                         (msg_id, user_id, reaction))
+        else:
+            conn.execute('DELETE FROM message_reactions WHERE message_id=? AND user_id=? AND reaction=?',
+                         (msg_id, user_id, reaction))
+        rows = conn.execute('SELECT user_id, reaction FROM message_reactions WHERE message_id=?',
+                            (msg_id,)).fetchall()
+    rxns = [{'user_id': r['user_id'], 'reaction': r['reaction']} for r in rows]
+    if chat_id:
+        socketio.emit('message_reaction_update',
+                      {'message_id': msg_id, 'reactions': rxns},
+                      room=f'chat_{chat_id}')
+    return jsonify({'success': True, 'reactions': rxns})
+
+
+@app.route('/api/messages/reactions', methods=['GET'])
+@auth.login_required
+def api_get_reactions():
+    raw  = request.args.get('ids', '')
+    ids  = [i.strip() for i in raw.split(',') if i.strip()]
+    if not ids:
+        return jsonify({'success': True, 'reactions': {}})
+    result = {}
+    with db.get_connection() as conn:
+        for mid in ids:
+            rows = conn.execute('SELECT user_id, reaction FROM message_reactions WHERE message_id=?',
+                                (mid,)).fetchall()
+            if rows:
+                result[mid] = [{'user_id': r['user_id'], 'reaction': r['reaction']} for r in rows]
+    return jsonify({'success': True, 'reactions': result})
+
+
+@app.route('/api/messages/forward', methods=['POST'])
+@auth.login_required
+def api_forward_messages():
+    user_id     = session.get('user_id')
+    data        = request.get_json(force=True) or {}
+    to_chat_id  = data.get('to_chat_id')
+    from_chat_id= data.get('from_chat_id')
+    message_ids = data.get('message_ids', [])
+    if not to_chat_id or not message_ids:
+        return jsonify({'success': False, 'message': 'بيانات ناقصة'}), 400
+    try:
+        async def _fwd(client):
+            from telethon.errors import FloodWaitError
+            results = []
+            for mid in message_ids:
+                try:
+                    msgs = await client.forward_messages(
+                        entity   = int(to_chat_id),
+                        messages = [int(mid)],
+                        from_peer= int(from_chat_id) if from_chat_id else int(to_chat_id),
+                    )
+                    results.append(msgs[0].id if msgs else None)
+                except Exception:
+                    pass
+            return results
+        ids = _run_telethon(user_id, _fwd)
+        return jsonify({'success': True, 'forwarded': len(ids)})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/messages/pin', methods=['POST'])
+@auth.login_required
+def api_pin_message():
+    user_id = session.get('user_id')
+    data    = request.get_json(force=True) or {}
+    msg_id  = data.get('message_id')
+    chat_id = data.get('chat_id')
+    if not msg_id or not chat_id:
+        return jsonify({'success': False, 'message': 'بيانات ناقصة'}), 400
+    with db.get_connection() as conn:
+        conn.execute('INSERT OR IGNORE INTO pinned_messages (chat_id,message_id,user_id) VALUES (?,?,?)',
+                     (str(chat_id), str(msg_id), user_id))
+    try:
+        async def _pin(client):
+            await client.pin_message(entity=int(chat_id), message=int(msg_id))
+        _run_telethon(user_id, _pin)
+    except Exception as e:
+        logger.warning(f'pin_message Telethon: {e}')
+    return jsonify({'success': True, 'message': 'تم تثبيت الرسالة'})
+
+
+@app.route('/api/messages/bookmark', methods=['POST'])
+@auth.login_required
+def api_bookmark_message():
+    user_id = session.get('user_id')
+    data    = request.get_json(force=True) or {}
+    msg_id  = str(data.get('message_id', ''))
+    chat_id = str(data.get('chat_id', ''))
+    text    = (data.get('text') or '')[:1000]
+    if not msg_id:
+        return jsonify({'success': False, 'message': 'message_id مطلوب'}), 400
+    with db.get_connection() as conn:
+        conn.execute('INSERT OR REPLACE INTO message_bookmarks (message_id,chat_id,user_id,text) VALUES (?,?,?,?)',
+                     (msg_id, chat_id, user_id, text))
+    return jsonify({'success': True, 'message': 'تم الحفظ'})
+
+
+@app.route('/api/messages/bookmarks', methods=['GET'])
+@auth.login_required
+def api_get_bookmarks():
+    user_id = session.get('user_id')
+    with db.get_connection() as conn:
+        rows = conn.execute(
+            'SELECT * FROM message_bookmarks WHERE user_id=? ORDER BY created_at DESC LIMIT 100',
+            (user_id,)
+        ).fetchall()
+    return jsonify({'success': True, 'bookmarks': [dict(r) for r in rows]})
+
+
+@app.route('/api/chats/<int:chat_id>/archive', methods=['POST'])
+@auth.login_required
+def api_archive_chat(chat_id):
+    user_id = session.get('user_id')
+    data    = request.get_json(force=True) or {}
+    action  = data.get('action', 'archive')
+    with db.get_connection() as conn:
+        if action == 'archive':
+            conn.execute('INSERT OR IGNORE INTO archived_chats (chat_id,user_id) VALUES (?,?)',
+                         (str(chat_id), user_id))
+        else:
+            conn.execute('DELETE FROM archived_chats WHERE chat_id=? AND user_id=?',
+                         (str(chat_id), user_id))
+    return jsonify({'success': True})
+
+
+@app.route('/api/chats/<int:chat_id>/mute', methods=['POST'])
+@auth.login_required
+def api_mute_chat(chat_id):
+    user_id = session.get('user_id')
+    data    = request.get_json(force=True) or {}
+    action  = data.get('action', 'mute')
+    hours   = int(data.get('hours', 8))
+    with db.get_connection() as conn:
+        if action == 'mute':
+            from datetime import timedelta
+            until = (time.strftime('%Y-%m-%d %H:%M:%S',
+                                   time.gmtime(time.time() + hours * 3600)))
+            conn.execute('INSERT OR REPLACE INTO muted_chats (chat_id,user_id,muted_until) VALUES (?,?,?)',
+                         (str(chat_id), user_id, until))
+        else:
+            conn.execute('DELETE FROM muted_chats WHERE chat_id=? AND user_id=?',
+                         (str(chat_id), user_id))
+    return jsonify({'success': True})
+
+
+@app.route('/api/chats/states', methods=['GET'])
+@auth.login_required
+def api_chat_states():
+    user_id = session.get('user_id')
+    with db.get_connection() as conn:
+        arc = [r['chat_id'] for r in conn.execute(
+            'SELECT chat_id FROM archived_chats WHERE user_id=?', (user_id,)).fetchall()]
+        muted = [r['chat_id'] for r in conn.execute(
+            'SELECT chat_id FROM muted_chats WHERE user_id=?', (user_id,)).fetchall()]
+    return jsonify({'success': True, 'archived': arc, 'muted': muted})
+
+
+@app.route('/api/users/<int:target_user_id>/block', methods=['POST', 'DELETE'])
+@auth.login_required
+def api_block_user(target_user_id):
+    user_id = session.get('user_id')
+    is_block = request.method == 'POST'
+    with db.get_connection() as conn:
+        if is_block:
+            conn.execute('INSERT OR IGNORE INTO blocked_users (user_id,blocked_user_id) VALUES (?,?)',
+                         (user_id, str(target_user_id)))
+        else:
+            conn.execute('DELETE FROM blocked_users WHERE user_id=? AND blocked_user_id=?',
+                         (user_id, str(target_user_id)))
+    try:
+        async def _blk(client):
+            from telethon.tl.functions.contacts import BlockRequest, UnblockRequest
+            if is_block:
+                await client(BlockRequest(id=target_user_id))
+            else:
+                await client(UnblockRequest(id=target_user_id))
+        _run_telethon(user_id, _blk)
+    except Exception as e:
+        logger.warning(f'block_user Telethon: {e}')
+    msg = 'تم الحظر' if is_block else 'تم إلغاء الحظر'
+    return jsonify({'success': True, 'message': msg})
+
+
+@app.route('/api/search', methods=['GET'])
+@auth.login_required
+def api_search():
+    user_id = session.get('user_id')
+    q       = (request.args.get('q') or '').strip()
+    chat_id = request.args.get('chat_id')
+    if not q:
+        return jsonify({'success': False, 'message': 'كلمة البحث مطلوبة'}), 400
+    try:
+        async def _search(client):
+            entity = int(chat_id) if chat_id else 'me'
+            msgs   = await client.get_messages(entity, search=q, limit=40)
+            results = []
+            me = await client.get_me()
+            for msg in msgs:
+                sender = await msg.get_sender()
+                sname  = getattr(sender, 'title', None) or \
+                         f"{getattr(sender,'first_name','') or ''} {getattr(sender,'last_name','') or ''}".strip() \
+                         if sender else 'مستخدم'
+                results.append({
+                    'id':          msg.id,
+                    'chat_id':     chat_id or str(me.id),
+                    'sender_name': sname,
+                    'text':        msg.message or '',
+                    'timestamp':   int(msg.date.timestamp()) if msg.date else None,
+                })
+            return results
+        results = _run_telethon(user_id, _search)
+        return jsonify({'success': True, 'results': results})
+    except Exception as e:
+        logger.error(f'api_search: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/profile/<int:target_id>', methods=['GET'])
+@auth.login_required
+def api_get_profile(target_id):
+    user_id = session.get('user_id')
+    try:
+        async def _prof(client):
+            entity = await client.get_entity(target_id)
+            return {
+                'id':       target_id,
+                'name':     getattr(entity, 'title', None) or
+                            f"{getattr(entity,'first_name','') or ''} {getattr(entity,'last_name','') or ''}".strip(),
+                'username': getattr(entity, 'username', None),
+                'phone':    getattr(entity, 'phone', None),
+                'bio':      getattr(getattr(entity, 'full', None), 'about', None),
+            }
+        profile = _run_telethon(user_id, _prof)
+        return jsonify({'success': True, 'profile': profile})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/settings', methods=['GET'])
+@auth.login_required
+def api_get_settings():
+    user_id = session.get('user_id')
+    settings = db.get_all_settings(user_id)
+    return jsonify({'success': True, 'settings': settings})
+
+
+@app.route('/api/settings', methods=['POST'])
+@auth.login_required
+def api_update_setting():
+    user_id = session.get('user_id')
+    data    = request.get_json(force=True) or {}
+    key     = (data.get('key') or '').strip()
+    value   = data.get('value')
+    if not key:
+        return jsonify({'success': False, 'message': 'key مطلوب'}), 400
+    db.set_setting(user_id, key, value)
+    return jsonify({'success': True})
+
+
+@app.route('/api/translate', methods=['POST'])
+@auth.login_required
+def api_translate():
+    """ترجمة نص — يستخدم Groq إن كان متاحاً"""
+    data = request.get_json(force=True) or {}
+    text = (data.get('text') or '').strip()
+    if not text:
+        return jsonify({'success': False, 'message': 'النص مطلوب'}), 400
+    groq_key = os.environ.get('GROQ_API_KEY')
+    if not groq_key:
+        return jsonify({'success': True, 'translation': f'[ترجمة] {text}'})
+    try:
+        import requests as req_lib
+        resp = req_lib.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            headers={'Authorization': f'Bearer {groq_key}',
+                     'Content-Type': 'application/json'},
+            json={'model': 'llama3-8b-8192',
+                  'messages': [{'role': 'user',
+                                'content': f'ترجم هذا النص إلى العربية فقط بدون شرح:\n{text}'}],
+                  'max_tokens': 300},
+            timeout=10,
+        )
+        translation = resp.json()['choices'][0]['message']['content'].strip()
+        return jsonify({'success': True, 'translation': translation})
+    except Exception as e:
+        return jsonify({'success': True, 'translation': text, 'note': str(e)})
+
+
+# ══════════════════════════════════════════════════════════════════
 #  معالجة الأخطاء
 # ══════════════════════════════════════════════════════════════════
 

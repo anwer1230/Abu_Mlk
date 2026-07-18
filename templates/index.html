@@ -694,6 +694,7 @@
             .chat-area-header .chat-info .details .name { font-size: 14px; }
         }
     </style>
+    <link rel="stylesheet" href="/static/css/app_ext.css">
 </head>
 <body>
 
@@ -729,6 +730,15 @@
                 </button>
                 <button onclick="refreshChats()" title="تحديث">
                     <i class="fas fa-sync-alt"></i>
+                </button>
+                <button onclick="showSearch()" title="بحث متقدم (Ctrl+F)">
+                    <i class="fas fa-search"></i>
+                </button>
+                <button onclick="showSettings()" title="الإعدادات">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button onclick="toggleTheme()" title="تبديل السمة" id="themeToggleBtn">
+                    <i class="fas fa-moon"></i>
                 </button>
             </div>
         </div>
@@ -774,9 +784,10 @@
                 </div>
             </div>
             <div class="header-actions">
-                <button onclick="toggleMute()" title="كتم الإشعارات"><i class="fas fa-bell"></i></button>
-                <button onclick="pinChat()" title="تثبيت"><i class="fas fa-thumbtack"></i></button>
-                <button onclick="searchInChat()" title="بحث"><i class="fas fa-search"></i></button>
+                <button onclick="showSearch()" title="بحث في المحادثة"><i class="fas fa-search"></i></button>
+                <button onclick="if(AppState.currentChatId)showProfile(AppState.currentChatId)" title="الملف الشخصي"><i class="fas fa-user"></i></button>
+                <button onclick="if(AppState.currentChatId)toggleMuteChat(AppState.currentChatId)" title="كتم"><i class="fas fa-bell"></i></button>
+                <button onclick="if(AppState.currentChatId)toggleArchiveChat(AppState.currentChatId)" title="أرشفة"><i class="fas fa-archive"></i></button>
             </div>
         </div>
         
@@ -802,6 +813,30 @@
         
         <!-- منطقة الإدخال -->
         <div class="input-area">
+            <!-- شريط الرد -->
+            <div id="replyStrip" style="display:none;">
+                <div>
+                    <span class="rs-name"></span>
+                    <span class="rs-text"></span>
+                </div>
+                <button class="rs-cancel" onclick="Replies.cancel()">✕</button>
+            </div>
+            <!-- شريط التعديل -->
+            <div id="editStrip" style="display:none;">
+                <span class="es-label">✏️ تعديل الرسالة</span>
+                <button class="es-cancel" onclick="Edits.cancel()">✕</button>
+            </div>
+            <!-- شريط إعادة التوجيه -->
+            <div id="fwdBar" style="display:none; background:rgba(108,92,231,.12); border-radius:8px; padding:8px 14px; margin-bottom:4px; justify-content:space-between; align-items:center;">
+                <span style="color:#6c5ce7; font-size:13px;">
+                    <i class="fas fa-share"></i> إعادة توجيه
+                    (<span class="fwd-cnt">0</span>)
+                </span>
+                <div style="display:flex; gap:6px;">
+                    <button onclick="Forward.cancel()" style="background:rgba(255,255,255,.05);border:none;color:#aaa;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:Tajawal,sans-serif;font-size:12px;">إلغاء</button>
+                    <button onclick="Forward.send()" style="background:linear-gradient(135deg,#00d2ff,#3a7bd5);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:Tajawal,sans-serif;font-size:12px;">إرسال هنا</button>
+                </div>
+            </div>
             <div class="input-wrapper">
                 <button class="btn-icon" onclick="openEmojiPicker()" title="إيموجي">
                     <i class="far fa-smile"></i>
@@ -857,6 +892,150 @@
                 <button type="button" class="btn btn-primary" onclick="createFolder()"
                         style="background:linear-gradient(135deg, #00d2ff, #3a7bd5); border:none;">إنشاء</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ Overlay للوحات الجانبية ═══ -->
+<div class="panel-overlay" id="panelOverlay"></div>
+
+<!-- ═══ قائمة سياق الرسائل ═══ -->
+<div id="msgCtxMenu" style="display:none;">
+    <button class="ctx-item" data-a="reply"     onclick="MsgCtx.act('reply')">    <i class="fas fa-reply"></i>     ردّ</button>
+    <button class="ctx-item" data-a="forward"   onclick="MsgCtx.act('forward')">  <i class="fas fa-share"></i>     إعادة توجيه</button>
+    <button class="ctx-item" data-a="copy"      onclick="MsgCtx.act('copy')">     <i class="fas fa-copy"></i>      نسخ النص</button>
+    <button class="ctx-item" data-a="react"     onclick="MsgCtx.act('react')">    <i class="far fa-smile"></i>     تفاعل</button>
+    <button class="ctx-item" data-a="pin"       onclick="MsgCtx.act('pin')">      <i class="fas fa-thumbtack"></i> تثبيت</button>
+    <button class="ctx-item" data-a="bookmark"  onclick="MsgCtx.act('bookmark')"> <i class="fas fa-bookmark"></i>  حفظ</button>
+    <button class="ctx-item" data-a="translate" onclick="MsgCtx.act('translate')"><i class="fas fa-language"></i>  ترجمة</button>
+    <button class="ctx-item" data-a="select"    onclick="MsgCtx.act('select')">   <i class="fas fa-check-square"></i> تحديد</button>
+    <hr class="ctx-sep">
+    <button class="ctx-item" data-a="edit"   onclick="MsgCtx.act('edit')">  <i class="fas fa-pencil-alt"></i> تعديل</button>
+    <button class="ctx-item danger" data-a="delete" onclick="MsgCtx.act('delete')"><i class="fas fa-trash-alt"></i> حذف</button>
+</div>
+
+<!-- ═══ قائمة سياق المحادثات ═══ -->
+<div id="chatCtxMenu" style="display:none;">
+    <button class="ctx-item" onclick="ChatCtx.act('archive')"><i class="fas fa-archive"></i>     أرشفة</button>
+    <button class="ctx-item" onclick="ChatCtx.act('mute')">   <i class="fas fa-bell-slash"></i>  كتم</button>
+    <button class="ctx-item" onclick="ChatCtx.act('pin-chat')"><i class="fas fa-thumbtack"></i>  تثبيت</button>
+    <hr class="ctx-sep">
+    <button class="ctx-item danger" onclick="ChatCtx.act('block')"><i class="fas fa-ban"></i> حظر المستخدم</button>
+</div>
+
+<!-- ═══ منتقي التفاعلات ═══ -->
+<div id="reactPicker" style="display:none;">
+    <button class="rx-pick-btn" onclick="ReactPicker.pick('👍')">👍</button>
+    <button class="rx-pick-btn" onclick="ReactPicker.pick('❤️')">❤️</button>
+    <button class="rx-pick-btn" onclick="ReactPicker.pick('😂')">😂</button>
+    <button class="rx-pick-btn" onclick="ReactPicker.pick('😮')">😮</button>
+    <button class="rx-pick-btn" onclick="ReactPicker.pick('🔥')">🔥</button>
+    <button class="rx-pick-btn" onclick="ReactPicker.pick('👎')">👎</button>
+    <button class="rx-pick-btn" onclick="ReactPicker.pick('🎉')">🎉</button>
+    <button class="rx-pick-btn" onclick="ReactPicker.pick('💯')">💯</button>
+</div>
+
+<!-- ═══ الملف الشخصي ═══ -->
+<div id="profilePanel">
+    <button class="profile-close-btn" onclick="closeProfile()">✕</button>
+    <div class="profile-header-bg" style="background:linear-gradient(135deg,#1a1a2e,#0f3460);">
+        <div class="profile-avatar-lg" style="background:#3a7bd5;">A</div>
+    </div>
+    <div class="profile-body">
+        <div class="profile-name">اسم المستخدم</div>
+        <div class="profile-sub"></div>
+        <div class="profile-chat-id" style="font-size:11px;color:#555;margin-top:3px;"></div>
+        <div class="profile-phone" style="font-size:13px;color:#888;margin-top:6px;"></div>
+        <div class="profile-bio"   style="font-size:13px;color:#aaa;margin-top:6px;font-style:italic;"></div>
+        <hr class="profile-divider">
+        <button class="profile-action-btn"
+                onclick="closeProfile(); if(AppState.currentChatId) showSearch();">
+            <i class="fas fa-search"></i> بحث في المحادثة
+        </button>
+        <button class="profile-action-btn"
+                onclick="closeProfile(); if(AppState.currentChatId) toggleMuteChat(AppState.currentChatId);">
+            <i class="fas fa-bell-slash"></i> كتم الإشعارات
+        </button>
+        <button class="profile-action-btn"
+                onclick="closeProfile(); if(AppState.currentChatId) toggleArchiveChat(AppState.currentChatId);">
+            <i class="fas fa-archive"></i> أرشفة المحادثة
+        </button>
+        <hr class="profile-divider">
+        <button class="profile-action-btn danger"
+                onclick="closeProfile(); if(AppState.currentChatId) blockUser(AppState.currentChatId);">
+            <i class="fas fa-ban"></i> حظر المستخدم
+        </button>
+    </div>
+</div>
+
+<!-- ═══ الإعدادات ═══ -->
+<div id="settingsPanel">
+    <div class="settings-header">
+        <h5><i class="fas fa-cog" style="color:#00d2ff;"></i> الإعدادات</h5>
+        <button class="settings-close-btn" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="settings-section">
+        <div class="settings-section-title">المظهر</div>
+        <div class="settings-row">
+            <span><i class="fas fa-moon"></i> السمة الفاتحة</span>
+            <label class="toggle-sw">
+                <input type="checkbox" id="sw-theme" onchange="applyTheme(this.checked?'light':'dark');">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+    <div class="settings-section">
+        <div class="settings-section-title">الإشعارات</div>
+        <div class="settings-row">
+            <span><i class="fas fa-volume-up"></i> صوت الإشعارات</span>
+            <label class="toggle-sw">
+                <input type="checkbox" id="sw-sound" checked onchange="onSwSound(this.checked);">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="settings-row">
+            <span><i class="fas fa-comment-dots"></i> نطق الرسائل</span>
+            <label class="toggle-sw">
+                <input type="checkbox" id="sw-speech" onchange="onSwSpeech(this.checked);">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+    <div class="settings-section">
+        <div class="settings-section-title">الحساب</div>
+        <div class="settings-row" style="cursor:pointer;" onclick="closeSettings(); showToast('قريباً: الجلسات النشطة','info');">
+            <span><i class="fas fa-shield-alt"></i> الجلسات النشطة</span>
+            <i class="fas fa-chevron-left" style="color:#444;"></i>
+        </div>
+        <div class="settings-row" style="cursor:pointer;" onclick="closeSettings(); showToast('قريباً: التحقق بخطوتين','info');">
+            <span><i class="fas fa-lock"></i> التحقق بخطوتين</span>
+            <i class="fas fa-chevron-left" style="color:#444;"></i>
+        </div>
+    </div>
+    <div class="settings-section">
+        <div class="settings-section-title">المحفوظات</div>
+        <div class="settings-row" style="cursor:pointer;" onclick="closeSettings(); loadBookmarks();">
+            <span><i class="fas fa-bookmark"></i> الرسائل المحفوظة</span>
+            <i class="fas fa-chevron-left" style="color:#444;"></i>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ البحث المتقدم ═══ -->
+<div id="searchPanel" style="display:none;">
+    <div class="search-box">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <h5 style="margin:0;"><i class="fas fa-search" style="color:#00d2ff;"></i> بحث متقدم</h5>
+            <button class="search-close-btn" onclick="closeSearch()">✕ إغلاق</button>
+        </div>
+        <div class="search-input-wrap">
+            <i class="fas fa-search" style="color:#555;"></i>
+            <input type="text" id="searchQueryInput" placeholder="ابحث في الرسائل..." 
+                   onkeydown="if(event.key==='Enter')execSearch(); if(event.key==='Escape')closeSearch();">
+            <button onclick="execSearch()">بحث</button>
+        </div>
+        <div id="searchResults" class="search-results">
+            <div class="search-empty">اكتب كلمة للبحث ثم اضغط Enter</div>
         </div>
     </div>
 </div>
@@ -1185,30 +1364,49 @@ function renderMessages(messages) {
         read:      '<span class="status-icon read">✓✓</span>',
         failed:    '<span class="status-icon failed">✗</span>'
     };
+    const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                                  .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    // تحديث مخزن الرسائل
+    if (typeof MsgStore !== 'undefined') {
+        messages.forEach(m => MsgStore.set(String(m.id), m));
+    }
     messagesArea.innerHTML = messages.map(msg => {
-        const isSent    = String(msg.sender_id) === String(AppState.userId);
-        const time      = msg.timestamp ? formatTime(msg.timestamp) : '';
-        const icon      = statusIcons[msg.status] || '';
-        const deleteBtn = isSent
-            ? `<button onclick="deleteMessage('${msg.id}')"
-                       style="background:none;border:none;color:rgba(255,255,255,.35);
-                              cursor:pointer;font-size:11px;padding:0 4px;transition:color .2s;"
-                       onmouseenter="this.style.color='#ff4757'"
-                       onmouseleave="this.style.color='rgba(255,255,255,.35)'"
-                       title="حذف"><i class="fas fa-trash-alt"></i></button>` : '';
+        const isSent = String(msg.sender_id) === String(AppState.userId);
+        const time   = msg.timestamp ? formatTime(msg.timestamp) : '';
+        const icon   = isSent ? (statusIcons[msg.status] || '') : '';
+        const replyBar = msg.reply_to_text
+            ? `<div class="msg-reply-ref">
+                   <span class="reply-sender">${esc(msg.reply_to_name||'')}</span>
+                   <span class="reply-text">${esc(msg.reply_to_text)}</span>
+               </div>` : '';
+        const fwdBadge = msg.forwarded
+            ? `<div class="msg-fwd-badge"><i class="fas fa-share"></i> مُعاد توجيهه</div>` : '';
         return `
-            <div class="message ${isSent ? 'sent' : 'received'}">
-                ${!isSent ? `<div class="sender-name">${msg.sender_name || 'مستخدم'}</div>` : ''}
-                ${msg.text || ''}
-                ${msg.media ? `<div style="margin-top:6px;opacity:.7;font-size:12px;">📎 ${msg.media}</div>` : ''}
-                <div class="time-row">
-                    ${time}
-                    ${isSent ? icon : ''}
-                    ${deleteBtn}
+            <div class="msg-wrap ${isSent?'is-mine':''}"
+                 data-id="${esc(msg.id)}"
+                 data-sid="${esc(msg.sender_id)}"
+                 oncontextmenu="if(typeof MsgCtx!=='undefined')return MsgCtx.show(event,this);">
+                ${replyBar}
+                ${fwdBadge}
+                <div class="message ${isSent ? 'sent' : 'received'}">
+                    ${!isSent ? `<div class="sender-name">${esc(msg.sender_name||'مستخدم')}</div>` : ''}
+                    <span class="msg-text">${esc(msg.text||'')}</span>
+                    ${msg.media ? `<div class="msg-media">📎 ${esc(msg.media)}</div>` : ''}
+                    <div class="time-row">
+                        ${time}
+                        ${icon}
+                        <button class="msg-ctx-btn"
+                                onclick="if(typeof MsgCtx!=='undefined')MsgCtx.show(event,this.closest('.msg-wrap'))">⋮</button>
+                    </div>
                 </div>
+                <div class="msg-rxns" id="rxn_${esc(msg.id)}"></div>
             </div>`;
     }).join('');
     messagesArea.scrollTop = messagesArea.scrollHeight;
+    // تحميل التفاعلات
+    if (typeof loadVisibleReactions !== 'undefined') {
+        loadVisibleReactions(messages.map(m => m.id));
+    }
 }
 
 // ─── إرسال رسالة (Socket.IO) ────────────────────────────────────
@@ -1217,18 +1415,37 @@ function sendMessage() {
     const text = messageInput.value.trim();
     if (!text) return;
     if (!AppState.currentChatId) { showToast('⚠️ اختر محادثة أولاً', 'warning'); return; }
-    if (!socket?.connected)      { showToast('⚠️ لا يوجد اتصال', 'warning'); return; }
+
+    // وضع التعديل
+    if (typeof _editId !== 'undefined' && _editId) {
+        Edits.save(text);
+        messageInput.value = '';
+        autoResize(messageInput);
+        return;
+    }
+
+    if (!socket?.connected) { showToast('⚠️ لا يوجد اتصال', 'warning'); return; }
 
     const messageId = 'msg_' + Date.now();
+    const replyInfo = (typeof _replyTo !== 'undefined' && _replyTo) ? {
+        reply_to_id:   _replyTo.id,
+        reply_to_text: _replyTo.text,
+        reply_to_name: _replyTo.sender_name,
+    } : {};
+
     AppState.messages.push({
         id: messageId, sender_id: AppState.userId,
         sender_name: AppState.userName || 'أنت',
         text, timestamp: Math.floor(Date.now() / 1000),
         status: 'sending', chat_id: AppState.currentChatId,
+        ...replyInfo,
     });
     renderMessages(AppState.messages);
     messageInput.value = '';
     autoResize(messageInput);
+
+    // إلغاء الرد
+    if (typeof Replies !== 'undefined') Replies.cancel();
 
     // إيقاف مؤشر الكتابة
     clearTimeout(typingTimeout);
@@ -1239,6 +1456,7 @@ function sendMessage() {
         chat_id:    AppState.currentChatId,
         text,
         message_id: messageId,
+        ...replyInfo,
     });
 
     messageInput.focus();
@@ -1796,6 +2014,9 @@ async function initPage() {
         setupFolderSocketEvents();
         setupFileUpload();
 
+        // تهيئة إضافات المرحلة 1-15
+        if (typeof initExt === 'function') await initExt();
+
         // مستمع مؤشر الكتابة
         messageInput.addEventListener('input', handleTyping);
 
@@ -1814,8 +2035,32 @@ async function initPage() {
 
 document.addEventListener('DOMContentLoaded', initPage);
 
+// دالة تحميل المحفوظات
+async function loadBookmarks() {
+    try {
+        const res  = await fetch('/api/messages/bookmarks');
+        const data = await res.json();
+        if (!data.success || !data.bookmarks?.length) {
+            showToast('📌 لا توجد رسائل محفوظة', 'info');
+            return;
+        }
+        const items = data.bookmarks.map(b => `
+            <div style="padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.04);
+                        font-size:13px; color:#ccc; cursor:pointer;"
+                 onclick="jumpToMsg && jumpToMsg('${b.message_id}','${b.chat_id||''}')">
+                <div style="color:#f9ca24; font-size:11px; margin-bottom:3px;">
+                    ⭐ ${new Date(b.created_at).toLocaleDateString('ar')}
+                </div>
+                ${b.text || 'رسالة'}
+            </div>`).join('');
+        showToast(`📌 لديك ${data.bookmarks.length} رسالة محفوظة`, 'info');
+        console.log('bookmarks:', data.bookmarks);
+    } catch (_) { showToast('❌ فشل تحميل المحفوظات', 'error'); }
+}
+
 console.log('🚀 مركز سرعة إنجاز - الواجهة الرئيسية جاهزة');
 </script>
 
+<script src="/static/js/app_ext.js"></script>
 </body>
 </html>

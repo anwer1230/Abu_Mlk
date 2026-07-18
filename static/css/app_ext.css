@@ -1,0 +1,408 @@
+/*
+ * app_ext.css — مركز سرعة إنجاز
+ * المراحل 1-15: تفاعلات، قوائم، ملف شخصي، بحث، سمات، مزيد
+ */
+
+/* ══════════════════════════════════════════════════════════════════
+   السمة الفاتحة
+   ══════════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+    --bg-main:    #f0f4f8;
+    --bg-sidebar: #ffffff;
+    --bg-chat:    #e8edf2;
+    --bg-msg-in:  #ffffff;
+    --bg-msg-out: #dcf3ff;
+    --text-main:  #1a1a2e;
+    --text-muted: #666;
+    --border:     rgba(0,0,0,0.08);
+}
+[data-theme="light"] body               { background: var(--bg-main); color: var(--text-main); }
+[data-theme="light"] .sidebar          { background: var(--bg-sidebar); }
+[data-theme="light"] .accounts-bar     { background: #fff; border-bottom: 1px solid var(--border); }
+[data-theme="light"] .chat-area        { background: var(--bg-chat); }
+[data-theme="light"] .input-area       { background: var(--bg-sidebar); border-top: 1px solid var(--border); }
+[data-theme="light"] .message.received { background: var(--bg-msg-in); color: var(--text-main); box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+[data-theme="light"] .message.sent     { background: linear-gradient(135deg,#00b4d8,#0077b6); }
+[data-theme="light"] .chat-item:hover  { background: rgba(0,0,0,0.04); }
+[data-theme="light"] .chat-item.active { background: rgba(0,150,220,0.12); }
+[data-theme="light"] .sidebar-header   { border-bottom: 1px solid var(--border); }
+[data-theme="light"] .account-tab      { background: rgba(0,0,0,0.05); color: #333; }
+[data-theme="light"] .chat-item .chat-info .name { color: var(--text-main); }
+[data-theme="light"] .chat-item .chat-info .preview { color: var(--text-muted); }
+[data-theme="light"] .sidebar-search .search-wrapper { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.08); }
+[data-theme="light"] .sidebar-search .search-wrapper input { color: var(--text-main); }
+[data-theme="light"] .folder-filters   { background: rgba(0,0,0,0.03); }
+[data-theme="light"] .folder-filter-btn { color: #555; }
+[data-theme="light"] .chat-area-header { border-bottom: 1px solid var(--border); }
+[data-theme="light"] .chat-area-header .chat-info .details .name { color: var(--text-main); }
+[data-theme="light"] .messages-area    { background: var(--bg-chat); }
+[data-theme="light"] .input-area .input-wrapper { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.08); }
+[data-theme="light"] .input-area .input-wrapper textarea { color: var(--text-main); }
+
+/* ══════════════════════════════════════════════════════════════════
+   غلاف الرسائل (message-wrapper)
+   ══════════════════════════════════════════════════════════════════ */
+.msg-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 2px;
+}
+.msg-wrap.is-mine { align-items: flex-end; }
+.msg-wrap:not(.is-mine) { align-items: flex-start; }
+
+.msg-wrap.selected > .message {
+    outline: 2px solid #00d2ff;
+    box-shadow: 0 0 12px rgba(0,210,255,0.25);
+}
+
+/* ─── زر ⋮ لقائمة الرسالة ────────────────────────────────────── */
+.msg-ctx-btn {
+    display: none;
+    background: rgba(0,0,0,0.3);
+    border: none;
+    color: #ccc;
+    font-size: 13px;
+    padding: 0 6px;
+    border-radius: 50%;
+    cursor: pointer;
+    line-height: 1;
+    height: 22px;
+    transition: all 0.2s;
+    margin-right: 4px;
+}
+.msg-wrap:hover .msg-ctx-btn,
+.msg-wrap:focus-within .msg-ctx-btn { display: inline-flex; align-items: center; }
+.msg-ctx-btn:hover { background: rgba(0,210,255,0.3); color: #fff; }
+
+/* ── نص الرسالة ───────────────────────────────────────────────── */
+.msg-text { white-space: pre-wrap; word-break: break-word; }
+.msg-media { margin-top: 6px; opacity: .75; font-size: 12px; }
+
+/* ─── مرجع الرد ────────────────────────────────────────────────── */
+.msg-reply-ref {
+    font-size: 12px;
+    border-right: 3px solid #00d2ff;
+    padding: 4px 8px;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    background: rgba(0,210,255,0.08);
+    max-width: 80%;
+    cursor: pointer;
+}
+.msg-reply-ref .reply-sender { color: #00d2ff; font-weight: 600; display: block; }
+.msg-reply-ref .reply-text   { color: #aaa; overflow: hidden; text-overflow: ellipsis;
+                                white-space: nowrap; display: block; }
+
+/* ─── شارة إعادة التوجيه ────────────────────────────────────── */
+.msg-fwd-badge {
+    font-size: 11px; color: #6c5ce7;
+    display: flex; align-items: center; gap: 4px;
+    margin-bottom: 3px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   قائمة سياق الرسالة
+   ══════════════════════════════════════════════════════════════════ */
+#msgCtxMenu {
+    position: fixed;
+    z-index: 9998;
+    background: #1e1e32;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 6px 0;
+    min-width: 200px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    animation: ctxIn .15s ease;
+}
+@keyframes ctxIn {
+    from { opacity:0; transform:scale(.9) translateY(-6px); }
+    to   { opacity:1; transform:scale(1)  translateY(0); }
+}
+.ctx-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px;
+    color: #e0e0e0;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: 'Tajawal', sans-serif;
+    border: none; background: none; width: 100%; text-align: right;
+    transition: background .15s;
+}
+.ctx-item:hover { background: rgba(255,255,255,0.06); }
+.ctx-item i     { width: 18px; text-align: center; }
+.ctx-item.danger { color: #ff4757; }
+.ctx-sep { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 4px 0; }
+
+/* ══════════════════════════════════════════════════════════════════
+   منتقي التفاعلات
+   ══════════════════════════════════════════════════════════════════ */
+#reactPicker {
+    position: fixed; z-index: 9999;
+    background: #1e1e32;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 24px;
+    padding: 8px 12px;
+    display: flex; gap: 6px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    animation: ctxIn .15s ease;
+}
+.rx-pick-btn {
+    font-size: 22px; background: none; border: none;
+    cursor: pointer; border-radius: 50%;
+    padding: 4px; line-height: 1;
+    transition: transform .2s;
+}
+.rx-pick-btn:hover { transform: scale(1.3); }
+
+/* ─── صف التفاعلات تحت الرسالة ─────────────────────────────── */
+.msg-rxns { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.rx-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px; padding: 2px 7px;
+    font-size: 13px; cursor: pointer;
+    transition: all .2s;
+    color: #ccc;
+}
+.rx-badge.mine { background: rgba(0,210,255,0.15); border-color: #00d2ff; color: #00d2ff; }
+.rx-badge:hover { transform: scale(1.08); }
+.rx-badge .rx-cnt { font-size: 11px; }
+
+/* ══════════════════════════════════════════════════════════════════
+   شريط الرد (Reply Strip)
+   ══════════════════════════════════════════════════════════════════ */
+#replyStrip {
+    display: none;
+    background: rgba(0,210,255,0.08);
+    border-right: 3px solid #00d2ff;
+    padding: 6px 14px;
+    margin: 0 0 4px;
+    font-size: 13px;
+    border-radius: 4px;
+    justify-content: space-between;
+    align-items: center;
+}
+#replyStrip .rs-name { color: #00d2ff; font-weight: 600; display: block; }
+#replyStrip .rs-text { color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
+#replyStrip .rs-cancel { background: none; border: none; color: #ff4757; cursor: pointer; font-size: 16px; }
+
+/* ══════════════════════════════════════════════════════════════════
+   شريط التعديل (Edit Strip)
+   ══════════════════════════════════════════════════════════════════ */
+#editStrip {
+    display: none;
+    background: rgba(249,202,36,0.08);
+    border-right: 3px solid #f9ca24;
+    padding: 6px 14px;
+    margin: 0 0 4px;
+    font-size: 13px;
+    border-radius: 4px;
+    justify-content: space-between;
+    align-items: center;
+}
+#editStrip .es-label { color: #f9ca24; }
+#editStrip .es-cancel { background: none; border: none; color: #ff4757; cursor: pointer; font-size: 16px; }
+
+/* ══════════════════════════════════════════════════════════════════
+   قائمة سياق المحادثة (Chat Context Menu)
+   ══════════════════════════════════════════════════════════════════ */
+#chatCtxMenu {
+    position: fixed; z-index: 9997;
+    background: #1e1e32;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 6px 0; min-width: 180px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    animation: ctxIn .15s ease;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   نافذة الملف الشخصي
+   ══════════════════════════════════════════════════════════════════ */
+#profilePanel {
+    position: fixed; top: 0; right: -340px;
+    width: 320px; height: 100vh;
+    background: #1a1a2e;
+    border-left: 1px solid rgba(255,255,255,0.06);
+    z-index: 8000;
+    transition: right .3s ease;
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+}
+#profilePanel.open { right: 0; }
+.profile-header-bg {
+    height: 160px;
+    display: flex; align-items: flex-end; padding: 16px;
+    position: relative;
+}
+.profile-close-btn {
+    position: absolute; top: 12px; left: 12px;
+    background: rgba(0,0,0,0.4); border: none;
+    color: #fff; width: 32px; height: 32px;
+    border-radius: 50%; cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+}
+.profile-avatar-lg {
+    width: 80px; height: 80px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; font-weight: 700; color: #fff;
+    border: 3px solid rgba(255,255,255,0.2);
+}
+.profile-body { padding: 16px; }
+.profile-name { font-size: 20px; font-weight: 700; color: #fff; }
+.profile-sub  { font-size: 13px; color: #888; margin-top: 2px; }
+.profile-divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 14px 0; }
+.profile-action-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; color: #ccc; font-size: 14px;
+    cursor: pointer; transition: color .2s;
+    background: none; border: none; width: 100%; text-align: right;
+}
+.profile-action-btn:hover { color: #00d2ff; }
+.profile-action-btn.danger:hover { color: #ff4757; }
+.profile-action-btn i { width: 20px; text-align: center; }
+
+/* ══════════════════════════════════════════════════════════════════
+   نافذة الإعدادات
+   ══════════════════════════════════════════════════════════════════ */
+#settingsPanel {
+    position: fixed; top: 0; right: -340px;
+    width: 320px; height: 100vh;
+    background: #1a1a2e;
+    border-left: 1px solid rgba(255,255,255,0.06);
+    z-index: 8000;
+    transition: right .3s ease;
+    overflow-y: auto;
+}
+#settingsPanel.open { right: 0; }
+.settings-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex; align-items: center; justify-content: space-between;
+}
+.settings-header h5 { margin: 0; font-size: 17px; font-weight: 700; color: #fff; }
+.settings-close-btn {
+    background: none; border: none; color: #888; font-size: 18px; cursor: pointer;
+}
+.settings-section { padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.settings-section-title { font-size: 12px; font-weight: 600; color: #666; text-transform: uppercase;
+                           letter-spacing: .6px; margin-bottom: 12px; }
+.settings-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0; color: #ccc; font-size: 14px;
+}
+.settings-row i { color: #666; margin-left: 8px; width: 18px; text-align: center; }
+/* iOS-style toggle */
+.toggle-sw { position: relative; width: 40px; height: 22px; }
+.toggle-sw input { opacity:0; width:0; height:0; }
+.toggle-sw .slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: rgba(255,255,255,0.12); border-radius: 22px;
+    transition: .3s;
+}
+.toggle-sw .slider::before {
+    content: ''; position: absolute;
+    height: 16px; width: 16px; left: 3px; bottom: 3px;
+    background: #fff; border-radius: 50%; transition: .3s;
+}
+.toggle-sw input:checked + .slider { background: #00d2ff; }
+.toggle-sw input:checked + .slider::before { transform: translateX(18px); }
+
+/* ══════════════════════════════════════════════════════════════════
+   نافذة البحث المتقدم
+   ══════════════════════════════════════════════════════════════════ */
+#searchPanel {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 8500; display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+    animation: fadeIn .2s ease;
+}
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.search-box {
+    background: #1a1a2e;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; padding: 24px;
+    width: 90%; max-width: 520px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+}
+.search-box h5 { color: #fff; font-weight: 700; margin-bottom: 16px; font-size: 17px; }
+.search-input-wrap {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px; padding: 4px 12px; margin-bottom: 16px;
+}
+.search-input-wrap input {
+    flex: 1; background: none; border: none;
+    color: #e0e0e0; font-size: 14px; padding: 8px 0;
+    font-family: 'Tajawal', sans-serif; outline: none;
+}
+.search-input-wrap input::placeholder { color: #555; }
+.search-input-wrap button {
+    background: linear-gradient(135deg,#00d2ff,#3a7bd5);
+    border: none; color: #fff; border-radius: 8px;
+    padding: 6px 14px; cursor: pointer; font-size: 13px;
+    font-family: 'Tajawal', sans-serif;
+}
+.search-results { max-height: 320px; overflow-y: auto; }
+.search-result-item {
+    padding: 10px 12px; border-radius: 8px; cursor: pointer;
+    transition: background .15s; margin-bottom: 4px;
+}
+.search-result-item:hover { background: rgba(255,255,255,0.05); }
+.search-result-item .sr-sender { font-size: 12px; color: #00d2ff; font-weight: 600; }
+.search-result-item .sr-text { font-size: 13px; color: #ccc; margin-top: 2px; }
+.search-result-item .sr-time { font-size: 11px; color: #555; float: left; }
+.search-close-btn {
+    background: none; border: none; color: #888;
+    font-size: 14px; cursor: pointer; float: left;
+}
+.search-empty { text-align: center; color: #555; padding: 24px; font-size: 14px; }
+
+/* ══════════════════════════════════════════════════════════════════
+   شريط التقدم الشامل + حالات المحادثة
+   ══════════════════════════════════════════════════════════════════ */
+.chat-item.archived { opacity: 0.6; }
+.chat-item.archived .chat-avatar::after {
+    content: '📦'; position: absolute; bottom: -2px; left: -2px;
+    font-size: 11px; background: #1a1a2e; border-radius: 50%;
+}
+.chat-item.muted .muted-icon { color: #f9ca24; }
+.chat-item.pinned-chat { border-right: 3px solid #00d2ff; }
+
+/* ══════════════════════════════════════════════════════════════════
+   إشعار الرسائل الفائتة (typing + online)
+   ══════════════════════════════════════════════════════════════════ */
+.typing-dots { display: inline-flex; gap: 3px; }
+.typing-dots span {
+    width: 6px; height: 6px; background: #00d2ff;
+    border-radius: 50%; animation: typBounce 1.2s infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay: .15s; }
+.typing-dots span:nth-child(3) { animation-delay: .30s; }
+@keyframes typBounce {
+    0%,80%,100% { transform: scale(0.7); opacity:.5; }
+    40%         { transform: scale(1);   opacity:1; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   رسومات متحركة عامة
+   ══════════════════════════════════════════════════════════════════ */
+.panel-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 7999;
+    display: none;
+}
+.panel-overlay.visible { display: block; }
+
+/* ─── رد فعل ظاهر ────────────────────────────────────────────── */
+@keyframes rxPop {
+    0%   { transform: scale(0); opacity:0; }
+    50%  { transform: scale(1.4); }
+    100% { transform: scale(1); opacity:1; }
+}
+.rx-pop-anim { animation: rxPop .3s ease; }
