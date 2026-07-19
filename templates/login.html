@@ -101,19 +101,19 @@
         }
 
         /* ========================================
-           حقل الهاتف المدمج مع كود الدولة
+           حقل الهاتف الموحَّد مع كشف الدولة
            ======================================== */
-        .phone-field-wrapper {
-            margin-bottom: 20px;
-        }
+        .phone-field-wrapper { margin-bottom: 20px; }
+
         .phone-input-row {
             display: flex;
-            align-items: stretch;
+            align-items: center;
             background: rgba(255,255,255,.04);
             border: 1.5px solid rgba(255,255,255,.08);
             border-radius: 14px;
-            overflow: hidden;
+            padding: 0 16px;
             transition: all .25s;
+            gap: 10px;
         }
         .phone-input-row:focus-within {
             border-color: rgba(0,210,255,.5);
@@ -121,100 +121,18 @@
             box-shadow: 0 0 0 4px rgba(0,210,255,.08);
         }
 
-        /* جزء الدولة */
-        .country-part {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 0 14px;
-            border-left: 1.5px solid rgba(255,255,255,.08);
-            cursor: pointer;
-            white-space: nowrap;
-            flex-shrink: 0;
-            min-width: 110px;
-            position: relative;
-            user-select: none;
-            transition: background .2s;
-        }
-        [dir="rtl"] .country-part {
-            border-left: none;
-            border-right: 1.5px solid rgba(255,255,255,.08);
-        }
-        .country-part:hover { background: rgba(255,255,255,.04); }
-        .country-flag { font-size: 20px; line-height: 1; }
-        .country-code-text {
-            font-size: 15px; font-weight: 700;
-            color: #00d2ff; direction: ltr;
-        }
-        .country-arrow {
-            font-size: 9px; color: #3d4878;
-            transition: transform .2s;
-        }
-        .country-part.open .country-arrow { transform: rotate(180deg); }
+        /* أيقونة الهاتف */
+        .phone-icon { color: #3d4878; font-size: 17px; flex-shrink: 0; }
 
-        /* قائمة الدول */
-        .country-dropdown {
-            display: none;
-            position: absolute;
-            top: calc(100% + 8px);
-            right: 0;
-            left: 0;
-            width: 320px;
-            background: #1a1a2e;
-            border: 1px solid rgba(255,255,255,.1);
-            border-radius: 14px;
-            box-shadow: 0 20px 60px rgba(0,0,0,.7);
-            z-index: 999;
-            overflow: hidden;
-            max-height: 320px;
-            flex-direction: column;
-        }
-        [dir="rtl"] .country-dropdown { right: auto; left: 0; }
-        .country-dropdown.open { display: flex; }
-        .country-search-wrap {
-            padding: 10px;
-            border-bottom: 1px solid rgba(255,255,255,.06);
-            flex-shrink: 0;
-        }
-        .country-search-wrap input {
-            width: 100%; background: rgba(255,255,255,.06);
-            border: 1px solid rgba(255,255,255,.08); border-radius: 8px;
-            padding: 7px 12px; color: #e8eaf6; font-size: 13px;
-            font-family: 'Tajawal',sans-serif; outline: none;
-        }
-        .country-search-wrap input::placeholder { color: #3d4878; }
-        .country-list {
-            overflow-y: auto; flex: 1;
-        }
-        .country-list::-webkit-scrollbar { width: 3px; }
-        .country-list::-webkit-scrollbar-thumb { background: #00d2ff40; border-radius: 3px; }
-        .country-option {
-            display: flex; align-items: center; gap: 10px;
-            padding: 9px 14px; cursor: pointer;
-            transition: background .15s;
-            font-size: 14px; color: #c8d0e8;
-        }
-        .country-option:hover { background: rgba(0,210,255,.08); }
-        .country-option.selected { background: rgba(0,210,255,.12); color: #00d2ff; }
-        .country-option .opt-flag { font-size: 18px; }
-        .country-option .opt-name { flex: 1; }
-        .country-option .opt-code { color: #00d2ff; font-weight: 700; font-size: 13px; direction: ltr; }
-
-        /* جزء الرقم */
-        .phone-number-part {
-            flex: 1;
-            display: flex;
-            align-items: center;
-        }
-        .phone-number-part input {
-            width: 100%; padding: 14px 16px;
-            background: none; border: none;
-            color: #e8eaf6; font-size: 16px;
+        /* حقل الإدخال الموحَّد */
+        .phone-input-row input {
+            flex: 1; background: none; border: none;
+            color: #e8eaf6; font-size: 17px;
             font-family: 'Tajawal', monospace;
-            outline: none; direction: ltr;
-            letter-spacing: 1px;
+            padding: 14px 0; outline: none;
+            direction: ltr; letter-spacing: 1px;
         }
-        .phone-number-part input::placeholder { color: #3d4878; }
+        .phone-input-row input::placeholder { color: #3d4878; }
 
         /* مؤشر الدولة المكتشفة */
         .detected-country {
@@ -222,15 +140,18 @@
             align-items: center;
             gap: 6px;
             margin-top: 8px;
-            padding: 6px 12px;
+            padding: 7px 14px;
             background: rgba(0,210,255,.08);
-            border-radius: 8px;
-            border: 1px solid rgba(0,210,255,.15);
-            font-size: 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(0,210,255,.18);
+            font-size: 13px;
             color: #5dddff;
             animation: fadeIn .3s ease;
         }
         .detected-country.show { display: flex; }
+        .detected-country .d-flag { font-size: 20px; }
+        .detected-country .d-name { flex: 1; font-weight: 600; }
+        .detected-country .d-code { color: #00d2ff; font-weight: 700; direction: ltr; }
 
         /* حقول عادية */
         .input-wrap { position: relative; margin-bottom: 20px; }
@@ -369,47 +290,29 @@
             <div class="step-dot"        id="dot3"></div>
         </div>
 
-        <!-- ══ الخطوة 1: رقم الهاتف مع كود الدولة ══ -->
+        <!-- ══ الخطوة 1: رقم الهاتف ══ -->
         <div class="step active" id="step1">
             <div class="phone-field-wrapper">
                 <label class="field-label">
-                    <i class="fas fa-mobile-alt"></i> رقم الهاتف مع كود الدولة
+                    <i class="fas fa-mobile-alt"></i> رقم الهاتف مع رمز الدولة
                 </label>
 
-                <div class="phone-input-row" id="phoneInputRow">
-                    <!-- جزء الدولة -->
-                    <div class="country-part" id="countryPart" onclick="toggleCountryDropdown()">
-                        <span class="country-flag" id="selectedFlag">🌍</span>
-                        <span class="country-code-text" id="selectedCode">+</span>
-                        <i class="fas fa-chevron-down country-arrow" id="countryArrow"></i>
-
-                        <!-- قائمة الدول -->
-                        <div class="country-dropdown" id="countryDropdown">
-                            <div class="country-search-wrap">
-                                <input type="text" id="countrySearch"
-                                       placeholder="ابحث عن دولة..."
-                                       oninput="filterCountries(this.value)"
-                                       onclick="event.stopPropagation()" />
-                            </div>
-                            <div class="country-list" id="countryList"></div>
-                        </div>
-                    </div>
-
-                    <!-- جزء الرقم -->
-                    <div class="phone-number-part">
-                        <input type="tel" id="phoneNumberInput"
-                               placeholder="5xxxxxxxx"
-                               oninput="onPhoneInput(this.value)"
-                               autocomplete="tel-national"
-                               inputmode="tel" />
-                    </div>
+                <div class="phone-input-row">
+                    <i class="fas fa-phone phone-icon"></i>
+                    <input type="tel" id="phoneInput"
+                           placeholder="+966512345678"
+                           oninput="onPhoneInput(this.value)"
+                           autocomplete="tel"
+                           inputmode="tel"
+                           autofocus />
                 </div>
 
                 <!-- مؤشر الدولة المكتشفة تلقائياً -->
                 <div class="detected-country" id="detectedCountry">
-                    <span id="detectedFlag">🌍</span>
-                    <span id="detectedName">جاري الكشف...</span>
-                    <i class="fas fa-check-circle" style="color:#2ecc71;margin-right:auto"></i>
+                    <span class="d-flag" id="detectedFlag">🌍</span>
+                    <span class="d-name" id="detectedName"></span>
+                    <span class="d-code" id="detectedCode"></span>
+                    <i class="fas fa-check-circle" style="color:#2ecc71;font-size:14px;"></i>
                 </div>
             </div>
 
@@ -477,173 +380,88 @@
 'use strict';
 
 // ═══════════════════════════════════════════════════════════════
-//  قاموس مفاتيح الدول (مفتاح الدولة ← كود، اسم، علم)
+//  قاموس الدول — مرتّب من الأطول كوداً للأقصر لمنع التعارض
 // ═══════════════════════════════════════════════════════════════
 const COUNTRIES = [
-    { code: '+966', name: 'السعودية',           flag: '🇸🇦', iso: 'SA', prefix: ['5'] },
-    { code: '+971', name: 'الإمارات',            flag: '🇦🇪', iso: 'AE', prefix: ['5','2','4','6','9'] },
-    { code: '+20',  name: 'مصر',                 flag: '🇪🇬', iso: 'EG', prefix: ['1'] },
-    { code: '+964', name: 'العراق',              flag: '🇮🇶', iso: 'IQ', prefix: ['7'] },
-    { code: '+962', name: 'الأردن',              flag: '🇯🇴', iso: 'JO', prefix: ['7','3'] },
-    { code: '+963', name: 'سوريا',               flag: '🇸🇾', iso: 'SY', prefix: ['9','5'] },
-    { code: '+965', name: 'الكويت',              flag: '🇰🇼', iso: 'KW', prefix: ['5','6','9'] },
-    { code: '+968', name: 'عُمان',               flag: '🇴🇲', iso: 'OM', prefix: ['9','7'] },
-    { code: '+974', name: 'قطر',                 flag: '🇶🇦', iso: 'QA', prefix: ['3','5','6','7'] },
-    { code: '+973', name: 'البحرين',             flag: '🇧🇭', iso: 'BH', prefix: ['3','6','9'] },
-    { code: '+967', name: 'اليمن',               flag: '🇾🇪', iso: 'YE', prefix: ['7'] },
-    { code: '+218', name: 'ليبيا',               flag: '🇱🇾', iso: 'LY', prefix: ['9'] },
-    { code: '+216', name: 'تونس',                flag: '🇹🇳', iso: 'TN', prefix: ['2','5','9'] },
-    { code: '+213', name: 'الجزائر',             flag: '🇩🇿', iso: 'DZ', prefix: ['5','6','7'] },
-    { code: '+212', name: 'المغرب',              flag: '🇲🇦', iso: 'MA', prefix: ['6','7'] },
-    { code: '+249', name: 'السودان',             flag: '🇸🇩', iso: 'SD', prefix: ['9'] },
-    { code: '+252', name: 'الصومال',             flag: '🇸🇴', iso: 'SO', prefix: ['6','7'] },
-    { code: '+253', name: 'جيبوتي',             flag: '🇩🇯', iso: 'DJ', prefix: ['7'] },
-    { code: '+222', name: 'موريتانيا',           flag: '🇲🇷', iso: 'MR', prefix: ['2','3','4'] },
-    { code: '+961', name: 'لبنان',               flag: '🇱🇧', iso: 'LB', prefix: ['3','7'] },
-    { code: '+970', name: 'فلسطين',              flag: '🇵🇸', iso: 'PS', prefix: ['5','9'] },
-    { code: '+90',  name: 'تركيا',               flag: '🇹🇷', iso: 'TR', prefix: ['5'] },
-    { code: '+98',  name: 'إيران',               flag: '🇮🇷', iso: 'IR', prefix: ['9'] },
-    { code: '+1',   name: 'الولايات المتحدة',    flag: '🇺🇸', iso: 'US', prefix: [] },
-    { code: '+44',  name: 'بريطانيا',            flag: '🇬🇧', iso: 'GB', prefix: ['7'] },
-    { code: '+33',  name: 'فرنسا',               flag: '🇫🇷', iso: 'FR', prefix: ['6','7'] },
-    { code: '+49',  name: 'ألمانيا',             flag: '🇩🇪', iso: 'DE', prefix: ['1'] },
-    { code: '+7',   name: 'روسيا',               flag: '🇷🇺', iso: 'RU', prefix: ['9'] },
-    { code: '+86',  name: 'الصين',               flag: '🇨🇳', iso: 'CN', prefix: ['1'] },
-    { code: '+91',  name: 'الهند',               flag: '🇮🇳', iso: 'IN', prefix: ['6','7','8','9'] },
-    { code: '+92',  name: 'باكستان',             flag: '🇵🇰', iso: 'PK', prefix: ['3'] },
-    { code: '+880', name: 'بنغلاديش',            flag: '🇧🇩', iso: 'BD', prefix: ['1'] },
-    { code: '+62',  name: 'إندونيسيا',           flag: '🇮🇩', iso: 'ID', prefix: ['8'] },
-    { code: '+234', name: 'نيجيريا',             flag: '🇳🇬', iso: 'NG', prefix: ['7','8','9'] },
-    { code: '+254', name: 'كينيا',               flag: '🇰🇪', iso: 'KE', prefix: ['7'] },
-    { code: '+55',  name: 'البرازيل',            flag: '🇧🇷', iso: 'BR', prefix: [] },
-    { code: '+52',  name: 'المكسيك',             flag: '🇲🇽', iso: 'MX', prefix: ['1'] },
-    { code: '+27',  name: 'جنوب أفريقيا',        flag: '🇿🇦', iso: 'ZA', prefix: ['6','7','8'] },
-    { code: '+61',  name: 'أستراليا',            flag: '🇦🇺', iso: 'AU', prefix: ['4'] },
-    { code: '+81',  name: 'اليابان',             flag: '🇯🇵', iso: 'JP', prefix: ['7','8','9'] },
-    { code: '+82',  name: 'كوريا الجنوبية',      flag: '🇰🇷', iso: 'KR', prefix: ['1'] },
+    { code: '+966', name: 'السعودية',         flag: '🇸🇦' },
+    { code: '+971', name: 'الإمارات',          flag: '🇦🇪' },
+    { code: '+974', name: 'قطر',               flag: '🇶🇦' },
+    { code: '+973', name: 'البحرين',           flag: '🇧🇭' },
+    { code: '+968', name: 'عُمان',             flag: '🇴🇲' },
+    { code: '+965', name: 'الكويت',            flag: '🇰🇼' },
+    { code: '+967', name: 'اليمن',             flag: '🇾🇪' },
+    { code: '+964', name: 'العراق',            flag: '🇮🇶' },
+    { code: '+963', name: 'سوريا',             flag: '🇸🇾' },
+    { code: '+962', name: 'الأردن',            flag: '🇯🇴' },
+    { code: '+961', name: 'لبنان',             flag: '🇱🇧' },
+    { code: '+970', name: 'فلسطين',            flag: '🇵🇸' },
+    { code: '+218', name: 'ليبيا',             flag: '🇱🇾' },
+    { code: '+216', name: 'تونس',              flag: '🇹🇳' },
+    { code: '+213', name: 'الجزائر',           flag: '🇩🇿' },
+    { code: '+212', name: 'المغرب',            flag: '🇲🇦' },
+    { code: '+249', name: 'السودان',           flag: '🇸🇩' },
+    { code: '+252', name: 'الصومال',           flag: '🇸🇴' },
+    { code: '+253', name: 'جيبوتي',           flag: '🇩🇯' },
+    { code: '+222', name: 'موريتانيا',         flag: '🇲🇷' },
+    { code: '+234', name: 'نيجيريا',           flag: '🇳🇬' },
+    { code: '+254', name: 'كينيا',             flag: '🇰🇪' },
+    { code: '+880', name: 'بنغلاديش',          flag: '🇧🇩' },
+    { code: '+998', name: 'أوزبكستان',         flag: '🇺🇿' },
+    { code: '+994', name: 'أذربيجان',          flag: '🇦🇿' },
+    { code: '+993', name: 'تركمانستان',        flag: '🇹🇲' },
+    { code: '+992', name: 'طاجيكستان',         flag: '🇹🇯' },
+    { code: '+996', name: 'قيرغيزستان',        flag: '🇰🇬' },
+    { code: '+20',  name: 'مصر',               flag: '🇪🇬' },
+    { code: '+27',  name: 'جنوب أفريقيا',      flag: '🇿🇦' },
+    { code: '+44',  name: 'بريطانيا',          flag: '🇬🇧' },
+    { code: '+33',  name: 'فرنسا',             flag: '🇫🇷' },
+    { code: '+49',  name: 'ألمانيا',           flag: '🇩🇪' },
+    { code: '+39',  name: 'إيطاليا',           flag: '🇮🇹' },
+    { code: '+34',  name: 'إسبانيا',           flag: '🇪🇸' },
+    { code: '+31',  name: 'هولندا',            flag: '🇳🇱' },
+    { code: '+90',  name: 'تركيا',             flag: '🇹🇷' },
+    { code: '+98',  name: 'إيران',             flag: '🇮🇷' },
+    { code: '+92',  name: 'باكستان',           flag: '🇵🇰' },
+    { code: '+91',  name: 'الهند',             flag: '🇮🇳' },
+    { code: '+86',  name: 'الصين',             flag: '🇨🇳' },
+    { code: '+81',  name: 'اليابان',           flag: '🇯🇵' },
+    { code: '+82',  name: 'كوريا الجنوبية',    flag: '🇰🇷' },
+    { code: '+62',  name: 'إندونيسيا',         flag: '🇮🇩' },
+    { code: '+55',  name: 'البرازيل',          flag: '🇧🇷' },
+    { code: '+52',  name: 'المكسيك',           flag: '🇲🇽' },
+    { code: '+61',  name: 'أستراليا',          flag: '🇦🇺' },
+    { code: '+7',   name: 'روسيا / كازاخستان', flag: '🇷🇺' },
+    { code: '+1',   name: 'الولايات المتحدة',  flag: '🇺🇸' },
 ];
-
-// ترتيب حسب طول الكود تنازلياً (أولاً الأطول لمنع التعارض)
-const SORTED_BY_CODE_LEN = [...COUNTRIES].sort((a,b) => b.code.length - a.code.length);
-
-// ═══════════════════════════════════════════════════════════════
-//  الحالة العامة
-// ═══════════════════════════════════════════════════════════════
-let selectedCountry = COUNTRIES[0]; // السعودية افتراضياً
-let loginPhone      = '';
-let currentStep     = 1;
-let dropdownOpen    = false;
+// مرتّب من الأطول كوداً للأقصر — ضروري لضمان دقة الكشف
+const SORTED = [...COUNTRIES].sort((a, b) => b.code.length - a.code.length);
 
 // ═══════════════════════════════════════════════════════════════
-//  بناء قائمة الدول
+//  الحالة
 // ═══════════════════════════════════════════════════════════════
-function buildCountryList(filter = '') {
-    const list = document.getElementById('countryList');
-    const q    = filter.toLowerCase();
-    const filtered = q
-        ? COUNTRIES.filter(c => c.name.includes(q) || c.code.includes(q) || c.iso.toLowerCase().includes(q))
-        : COUNTRIES;
+let loginPhone  = '';
+let currentStep = 1;
 
-    list.innerHTML = filtered.map(c => `
-        <div class="country-option ${c.iso === selectedCountry.iso ? 'selected' : ''}"
-             onclick="selectCountry('${c.iso}')">
-            <span class="opt-flag">${c.flag}</span>
-            <span class="opt-name">${c.name}</span>
-            <span class="opt-code">${c.code}</span>
-        </div>
-    `).join('');
+// ═══════════════════════════════════════════════════════════════
+//  كشف الدولة تلقائياً من الرقم
+// ═══════════════════════════════════════════════════════════════
+function detectCountry(val) {
+    const v = val.trim();
+    if (!v.startsWith('+')) return null;
+    return SORTED.find(c => v.startsWith(c.code)) || null;
 }
 
-function selectCountry(iso) {
-    const c = COUNTRIES.find(x => x.iso === iso);
-    if (!c) return;
-    selectedCountry = c;
-    document.getElementById('selectedFlag').textContent = c.flag;
-    document.getElementById('selectedCode').textContent = c.code;
-    closeCountryDropdown();
-    updateDetectedCountry(c);
-    document.getElementById('phoneNumberInput').focus();
-}
-
-function updateDetectedCountry(c) {
-    if (!c) {
-        document.getElementById('detectedCountry').classList.remove('show');
-        return;
-    }
-    document.getElementById('detectedFlag').textContent = c.flag;
-    document.getElementById('detectedName').textContent = c.name + ' (' + c.code + ')';
-    document.getElementById('detectedCountry').classList.add('show');
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  الكشف التلقائي عن الدولة من الرقم المكتوب
-// ═══════════════════════════════════════════════════════════════
 function onPhoneInput(val) {
-    // تنظيف: اترك الأرقام فقط
-    const cleaned = val.replace(/\D/g, '');
-
-    // إذا بدأ المستخدم بـ + نكتشف من الكود الكامل
-    const rawInput = document.getElementById('phoneNumberInput').value;
-    if (rawInput.startsWith('+')) {
-        const withPlus = rawInput;
-        const found = SORTED_BY_CODE_LEN.find(c => withPlus.startsWith(c.code));
-        if (found) {
-            selectedCountry = found;
-            document.getElementById('selectedFlag').textContent = found.flag;
-            document.getElementById('selectedCode').textContent = found.code;
-            updateDetectedCountry(found);
-            // اقتطع الكود من حقل الرقم
-            document.getElementById('phoneNumberInput').value = withPlus.slice(found.code.length).trim();
-        }
-        return;
+    const c   = detectCountry(val);
+    const box = document.getElementById('detectedCountry');
+    if (c) {
+        document.getElementById('detectedFlag').textContent = c.flag;
+        document.getElementById('detectedName').textContent = c.name;
+        document.getElementById('detectedCode').textContent = c.code;
+        box.classList.add('show');
+    } else {
+        box.classList.remove('show');
     }
-
-    // اكتشاف من أول رقم مع الكود المختار مسبقاً
-    updateDetectedCountry(selectedCountry);
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  التحكم في قائمة الدول
-// ═══════════════════════════════════════════════════════════════
-function toggleCountryDropdown() {
-    dropdownOpen ? closeCountryDropdown() : openCountryDropdown();
-}
-
-function openCountryDropdown() {
-    dropdownOpen = true;
-    document.getElementById('countryDropdown').classList.add('open');
-    document.getElementById('countryPart').classList.add('open');
-    buildCountryList();
-    setTimeout(() => document.getElementById('countrySearch').focus(), 50);
-}
-
-function closeCountryDropdown() {
-    dropdownOpen = false;
-    document.getElementById('countryDropdown').classList.remove('open');
-    document.getElementById('countryPart').classList.remove('open');
-    document.getElementById('countrySearch').value = '';
-}
-
-function filterCountries(q) {
-    buildCountryList(q);
-}
-
-// إغلاق عند النقر خارجاً
-document.addEventListener('click', (e) => {
-    if (dropdownOpen && !document.getElementById('countryPart').contains(e.target)) {
-        closeCountryDropdown();
-    }
-});
-
-// ═══════════════════════════════════════════════════════════════
-//  بناء الرقم الكامل
-// ═══════════════════════════════════════════════════════════════
-function buildFullPhone() {
-    const num = document.getElementById('phoneNumberInput').value.replace(/\s/g, '');
-    if (!num) return '';
-    // تجنب التكرار إذا أدخل المستخدم الكود مع الرقم
-    if (num.startsWith('+')) return num;
-    return selectedCountry.code + num;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -661,12 +479,10 @@ function showStep(n) {
     currentStep = n;
 }
 
-function goBack() {
-    if (currentStep > 1) showStep(currentStep - 1);
-}
+function goBack() { if (currentStep > 1) showStep(currentStep - 1); }
 
 // ═══════════════════════════════════════════════════════════════
-//  دوال مساعدة
+//  أدوات مساعدة
 // ═══════════════════════════════════════════════════════════════
 function showMsg(id, text, type = 'error') {
     const el = document.getElementById(id);
@@ -694,24 +510,22 @@ function toast(message, type = 'info') {
     el.innerHTML = `<div class="toast-title">${icon} ${message}</div>`;
     wrap.appendChild(el);
     setTimeout(() => {
-        el.style.opacity = '0';
-        el.style.transform = 'translateX(40px)';
+        el.style.opacity = '0'; el.style.transform = 'translateX(40px)';
         setTimeout(() => el.remove(), 300);
     }, 4500);
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  الخطوة 1: إرسال الكود
+//  الخطوة 1 — إرسال الكود
 // ═══════════════════════════════════════════════════════════════
 async function doSendCode() {
-    const phone = buildFullPhone();
-    if (!phone || phone.length < 7) {
-        showMsg('phoneMsg', '⚠️ يرجى إدخال رقم الهاتف مع كود الدولة');
+    const phone = document.getElementById('phoneInput').value.trim();
+    if (!phone.startsWith('+') || phone.length < 8) {
+        showMsg('phoneMsg', '⚠️ يرجى إدخال الرقم مع رمز الدولة — مثال: +966512345678');
         return;
     }
     clearMsg('phoneMsg');
     setLoading('sendCodeBtn', true, 'إرسال كود التحقق');
-
     try {
         const res  = await fetch('/api/auth/send-code', {
             method: 'POST',
@@ -719,7 +533,6 @@ async function doSendCode() {
             body: JSON.stringify({ phone })
         });
         const data = await res.json();
-
         if (data.success) {
             loginPhone = phone;
             document.getElementById('codePhoneDisplay').textContent = phone;
@@ -728,24 +541,21 @@ async function doSendCode() {
             toast('تم إرسال الكود إلى ' + phone, 'success');
         } else {
             showMsg('phoneMsg', '❌ ' + data.message, 'error');
-            toast(data.message, 'error');
         }
     } catch {
         showMsg('phoneMsg', '❌ حدث خطأ في الاتصال بالخادم', 'error');
-        toast('خطأ في الاتصال', 'error');
     }
     setLoading('sendCodeBtn', false, 'إرسال كود التحقق');
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  الخطوة 2: التحقق من الكود
+//  الخطوة 2 — التحقق من الكود
 // ═══════════════════════════════════════════════════════════════
 async function doCheckCode() {
     const code = document.getElementById('codeInput').value.trim();
     if (!code) { showMsg('codeMsg', '⚠️ يرجى إدخال الكود'); return; }
     clearMsg('codeMsg');
     setLoading('checkCodeBtn', true, 'تأكيد الكود');
-
     try {
         const res  = await fetch('/api/auth/check-code', {
             method: 'POST',
@@ -753,17 +563,14 @@ async function doCheckCode() {
             body: JSON.stringify({ phone: loginPhone, code })
         });
         const data = await res.json();
-
         if (data.success) {
             toast('مرحباً! تم تسجيل الدخول بنجاح 🎉', 'success');
             setTimeout(() => window.location.href = '/', 800);
         } else if (data.requires_password) {
             showStep(3);
             setTimeout(() => document.getElementById('passwordInput').focus(), 100);
-            toast('يتطلب كلمة المرور الثنائية', 'info');
         } else {
             showMsg('codeMsg', '❌ ' + data.message, 'error');
-            toast(data.message, 'error');
         }
     } catch {
         showMsg('codeMsg', '❌ حدث خطأ في الاتصال', 'error');
@@ -772,14 +579,13 @@ async function doCheckCode() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  الخطوة 3: 2FA
+//  الخطوة 3 — 2FA
 // ═══════════════════════════════════════════════════════════════
 async function doCheckPassword() {
     const password = document.getElementById('passwordInput').value;
     if (!password) { showMsg('passwordMsg', '⚠️ يرجى إدخال كلمة المرور'); return; }
     clearMsg('passwordMsg');
     setLoading('checkPasswordBtn', true, 'تأكيد كلمة المرور');
-
     try {
         const res  = await fetch('/api/auth/check-password', {
             method: 'POST',
@@ -787,13 +593,11 @@ async function doCheckPassword() {
             body: JSON.stringify({ phone: loginPhone, password })
         });
         const data = await res.json();
-
         if (data.success) {
             toast('مرحباً! تم تسجيل الدخول بنجاح 🎉', 'success');
             setTimeout(() => window.location.href = '/', 800);
         } else {
             showMsg('passwordMsg', '❌ ' + data.message, 'error');
-            toast(data.message, 'error');
         }
     } catch {
         showMsg('passwordMsg', '❌ حدث خطأ في الاتصال', 'error');
@@ -802,7 +606,7 @@ async function doCheckPassword() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  مفاتيح Enter
+//  Enter shortcut
 // ═══════════════════════════════════════════════════════════════
 document.addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
@@ -812,15 +616,9 @@ document.addEventListener('keydown', e => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-//  تهيئة الصفحة
+//  تهيئة
 // ═══════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
-    // ضبط الدولة الافتراضية
-    document.getElementById('selectedFlag').textContent = selectedCountry.flag;
-    document.getElementById('selectedCode').textContent = selectedCountry.code;
-    updateDetectedCountry(selectedCountry);
-
-    // التحقق من جلسة موجودة
     fetch('/api/auth/status').then(r => r.json()).then(d => {
         if (d.is_authenticated) window.location.href = '/';
     }).catch(() => {});
