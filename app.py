@@ -32,6 +32,15 @@ logger = logging.getLogger(__name__)
 Config.ensure_dirs()
 
 app = Flask(__name__)
+
+# ── محوّل URL للأعداد الصحيحة الموقّعة (يدعم معرفات تيليجرام السالبة) ──
+from werkzeug.routing import BaseConverter
+class SignedIntConverter(BaseConverter):
+    regex = r'-?\d+'
+    def to_python(self, value): return int(value)
+    def to_url(self, value):    return str(int(value))
+app.url_map.converters['sint'] = SignedIntConverter
+
 app.config['SECRET_KEY']              = Config.SECRET_KEY
 app.config['DEBUG']                   = Config.DEBUG
 app.config['MAX_CONTENT_LENGTH']      = Config.MAX_FILE_SIZE
@@ -500,7 +509,7 @@ def get_chats():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@app.route('/api/chats/<int:chat_id>/messages', methods=['GET'])
+@app.route('/api/chats/<sint:chat_id>/messages', methods=['GET'])
 @auth.login_required
 def get_chat_messages(chat_id):
     user_id   = session.get('user_id')
@@ -836,7 +845,7 @@ def api_get_bookmarks():
     return jsonify({'success': True, 'bookmarks': [dict(r) for r in rows]})
 
 
-@app.route('/api/chats/<int:chat_id>/archive', methods=['POST'])
+@app.route('/api/chats/<sint:chat_id>/archive', methods=['POST'])
 @auth.login_required
 def api_archive_chat(chat_id):
     user_id = session.get('user_id')
@@ -846,7 +855,7 @@ def api_archive_chat(chat_id):
     return jsonify({'success': True, 'archived': archive})
 
 
-@app.route('/api/chats/<int:chat_id>/mute', methods=['POST'])
+@app.route('/api/chats/<sint:chat_id>/mute', methods=['POST'])
 @auth.login_required
 def api_mute_chat(chat_id):
     user_id = session.get('user_id')
