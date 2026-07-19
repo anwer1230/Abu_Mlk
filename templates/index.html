@@ -788,6 +788,7 @@
             </div>
             <div class="header-actions">
                 <button onclick="showSearch()" title="بحث في المحادثة"><i class="fas fa-search"></i></button>
+                <button onclick="if(AppState.currentChatId)makeVoiceCall()" title="مكالمة صوتية" style="color:#2ecc71;"><i class="fas fa-phone"></i></button>
                 <button onclick="if(AppState.currentChatId)showProfile(AppState.currentChatId)" title="الملف الشخصي"><i class="fas fa-user"></i></button>
                 <button onclick="if(AppState.currentChatId)toggleMuteChat(AppState.currentChatId)" title="كتم"><i class="fas fa-bell"></i></button>
                 <button onclick="if(AppState.currentChatId)toggleArchiveChat(AppState.currentChatId)" title="أرشفة"><i class="fas fa-archive"></i></button>
@@ -971,6 +972,108 @@
                 </button>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- ═══ لوحة البوتات المتقدمة ═══ -->
+<div id="botsPanel">
+    <div class="bots-header">
+        <h5><i class="fas fa-robot" style="color:#00d2ff;"></i> البوتات</h5>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <button onclick="showAddBotForm()"
+                    style="background:linear-gradient(135deg,#00d2ff,#3a7bd5);border:none;color:#fff;
+                           border-radius:8px;padding:5px 12px;cursor:pointer;font-family:Tajawal,sans-serif;font-size:13px;">
+                <i class="fas fa-plus"></i> إضافة
+            </button>
+            <button onclick="closeBotsPanel()" style="background:none;border:none;color:#888;font-size:18px;cursor:pointer;">✕</button>
+        </div>
+    </div>
+    <!-- نموذج إضافة بوت -->
+    <div id="addBotForm" style="display:none;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(0,210,255,.04);">
+        <div style="margin-bottom:10px;">
+            <label style="color:#aaa;font-size:12px;">اسم البوت</label>
+            <input id="botNameIn" type="text" placeholder="my_bot"
+                   style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#e0e0e0;border-radius:8px;padding:8px 10px;font-family:Tajawal,sans-serif;margin-top:3px;">
+        </div>
+        <div style="margin-bottom:10px;">
+            <label style="color:#aaa;font-size:12px;">رقم الهاتف (اختياري)</label>
+            <input id="botPhoneIn" type="text" placeholder="+9665xxxxxxxx"
+                   style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#e0e0e0;border-radius:8px;padding:8px 10px;font-family:Tajawal,sans-serif;margin-top:3px;">
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button onclick="submitAddBot()"
+                    style="flex:1;background:linear-gradient(135deg,#00d2ff,#3a7bd5);border:none;color:#fff;border-radius:8px;padding:8px;cursor:pointer;font-family:Tajawal,sans-serif;">
+                حفظ
+            </button>
+            <button onclick="document.getElementById('addBotForm').style.display='none';"
+                    style="background:rgba(255,255,255,.05);border:none;color:#aaa;border-radius:8px;padding:8px 14px;cursor:pointer;font-family:Tajawal,sans-serif;">
+                إلغاء
+            </button>
+        </div>
+    </div>
+    <!-- قائمة البوتات -->
+    <div class="bots-body" id="botsList">
+        <div style="text-align:center;color:#555;padding:40px;font-size:14px;">
+            <i class="fas fa-robot" style="font-size:36px;margin-bottom:12px;opacity:.3;display:block;"></i>
+            لا توجد بوتات مسجّلة
+        </div>
+    </div>
+    <!-- اختبار البوت -->
+    <div class="bot-test-area" id="botTestArea" style="display:none;">
+        <div style="font-size:12px;color:#666;margin-bottom:8px;">اختبار البوت المحدد</div>
+        <div style="display:flex;gap:8px;">
+            <input id="botTestInput" type="text" placeholder="أدخل أمراً مثل /start"
+                   style="flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
+                          color:#e0e0e0;border-radius:8px;padding:8px 10px;font-family:Tajawal,sans-serif;"
+                   onkeydown="if(event.key==='Enter')sendBotTestMsg();">
+            <button onclick="sendBotTestMsg()"
+                    style="background:rgba(0,210,255,.15);border:1px solid rgba(0,210,255,.3);color:#00d2ff;
+                           border-radius:8px;padding:8px 14px;cursor:pointer;font-family:Tajawal,sans-serif;font-size:13px;">
+                إرسال
+            </button>
+        </div>
+        <div id="botTestResult" class="bot-test-result" style="display:none;"></div>
+    </div>
+</div>
+
+<!-- ═══ واجهة المكالمات الصوتية ═══ -->
+<div id="callOverlay">
+    <div class="call-avatar-xl" id="callAvatarXL" style="background:#3a7bd5;">?</div>
+    <div class="call-name" id="callNameEl">مكالمة</div>
+    <div class="call-status" id="callStatusEl">جارٍ الاتصال...</div>
+    <div class="call-timer" id="callTimerEl" style="display:none;">00:00</div>
+    <div class="call-actions">
+        <button class="call-btn mute" id="muteBtn" onclick="toggleMicMute()" title="كتم الميكروفون">
+            <i class="fas fa-microphone"></i>
+        </button>
+        <button class="call-btn end-call" onclick="endCall()" title="إنهاء المكالمة">
+            <i class="fas fa-phone-slash"></i>
+        </button>
+        <button class="call-btn speaker" id="speakerBtn" onclick="toggleSpeaker()" title="مكبر الصوت">
+            <i class="fas fa-volume-up"></i>
+        </button>
+    </div>
+    <audio id="remoteAudio" autoplay playsinline></audio>
+</div>
+
+<!-- ═══ شريط مكالمة واردة ═══ -->
+<div id="incomingCallBar">
+    <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:42px;height:42px;border-radius:50%;background:#3a7bd5;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;" id="icAvatar">?</div>
+        <div>
+            <div style="font-weight:600;color:#fff;font-size:14px;" id="icName">مستخدم</div>
+            <div style="font-size:12px;color:#aaa;">📞 مكالمة صوتية واردة</div>
+        </div>
+    </div>
+    <div style="display:flex;gap:10px;">
+        <button onclick="acceptCall()"
+                style="background:#2ecc71;border:none;color:#fff;border-radius:10px;padding:10px 20px;cursor:pointer;font-family:Tajawal,sans-serif;font-weight:600;">
+            <i class="fas fa-phone"></i> قبول
+        </button>
+        <button onclick="rejectCall()"
+                style="background:#ff4757;border:none;color:#fff;border-radius:10px;padding:10px 20px;cursor:pointer;font-family:Tajawal,sans-serif;font-weight:600;">
+            <i class="fas fa-phone-slash"></i> رفض
+        </button>
     </div>
 </div>
 

@@ -888,6 +888,35 @@ def api_create_bot():
     return jsonify({'success': True, 'bot_id': bot_id, 'name': name})
 
 
+@app.route('/api/bots/<bot_name>', methods=['DELETE'])
+@auth.login_required
+def api_delete_bot(bot_name):
+    """حذف بوت"""
+    user_id = session.get('user_id')
+    bots    = bot_manager.list_bots()
+    bot     = next((b for b in bots if b.get('name') == bot_name), None)
+    if not bot:
+        return jsonify({'success': False, 'message': 'البوت غير موجود'}), 404
+    with db.get_connection() as conn:
+        conn.execute('DELETE FROM bots WHERE name=?', (bot_name,))
+        conn.execute('DELETE FROM bot_commands WHERE bot_id=?', (bot.get('id', 0),))
+    db.log_activity(user_id, 'bot_deleted', f'name={bot_name}', request.remote_addr)
+    return jsonify({'success': True})
+
+
+@app.route('/api/bots/<bot_name>/commands', methods=['GET'])
+@auth.login_required
+def api_bot_commands(bot_name):
+    """أوامر بوت"""
+    with db.get_connection() as conn:
+        bot = conn.execute('SELECT id FROM bots WHERE name=?', (bot_name,)).fetchone()
+        if not bot:
+            return jsonify({'success': False, 'message': 'البوت غير موجود'}), 404
+        rows = conn.execute('SELECT * FROM bot_commands WHERE bot_id=? ORDER BY created_at DESC LIMIT 100',
+                            (bot['id'],)).fetchall()
+    return jsonify({'success': True, 'commands': [dict(r) for r in rows]})
+
+
 @app.route('/api/bots/<bot_name>/message', methods=['POST'])
 @auth.login_required
 def api_bot_message(bot_name):
@@ -1585,6 +1614,53 @@ def api_privacy_update():
         key = 'privacy_' + key
     db.set_setting(user_id, key, value)
     return jsonify({'success': True})
+
+
+# ══════════════════════════════════════════════════════════════════
+#  المرحلة 6: إشارات المكالمات الصوتية (Socket.IO WebRTC)
+# ══════════════════════════════════════════════════════════════════
+
+@socketio.on('call_offer')
+def on_call_offer(data):
+    """إعادة إرسال العرض للمستخدم المستهدف"""
+    to_user = str(data.get('to_user_id', ''))
+    socketio.emit('incoming_call', {
+        'from_user_id': data.get('from_user_id'),
+        'from_name':    data.get('from_name', 'مستخدم'),
+        'offer':        data.get('offer'),
+    }, room=f'user_{to_user}')
+
+
+@socketio.on('call_answer')
+def on_call_answer(data):
+    """إعادة إرسال الإجابة للمتصل"""
+    to_user = str(data.get('to_user_id', ''))
+    socketio.emit('call_answered', {
+        'answer': data.get('answer'),
+    }, room=f'user_{to_user}')
+
+
+@socketio.on('call_ice')
+def on_call_ice(data):
+    """تبادل مرشحات ICE"""
+    to_user = str(data.get('to_user_id', ''))
+    socketio.emit('call_ice', {
+        'candidate': data.get('candidate'),
+    }, room=f'user_{to_user}')
+
+
+@socketio.on('call_end')
+def on_call_end(data):
+    """إنهاء المكالمة"""
+    to_user = str(data.get('to_user_id', ''))
+    socketio.emit('call_ended', {}, room=f'user_{to_user}')
+
+
+@socketio.on('call_reject')
+def on_call_reject(data):
+    """رفض المكالمة"""
+    to_user = str(data.get('to_user_id', ''))
+    socketio.emit('call_rejected', {}, room=f'user_{to_user}')
 
 
 # ══════════════════════════════════════════════════════════════════

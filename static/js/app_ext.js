@@ -880,6 +880,362 @@ function setupInfiniteScroll() {
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   المرحلة 4: لوحة البوتات المتقدمة
+   ══════════════════════════════════════════════════════════════════ */
+
+let _selectedBot = null;
+
+function showBotsPanel() {
+    closeProfile(); closeSettings();
+    const panel   = document.getElementById('botsPanel');
+    const overlay = document.getElementById('panelOverlay');
+    if (!panel) return;
+    panel.classList.add('open');
+    if (overlay) overlay.classList.add('visible');
+    loadBots();
+}
+
+function closeBotsPanel() {
+    document.getElementById('botsPanel')?.classList.remove('open');
+    document.getElementById('panelOverlay')?.classList.remove('visible');
+}
+
+async function loadBots() {
+    const container = document.getElementById('botsList');
+    if (!container) return;
+    container.innerHTML = '<div style="text-align:center;color:#555;padding:20px;">⏳ جارٍ التحميل...</div>';
+    try {
+        const res  = await fetch('/api/bots');
+        const data = await res.json();
+        const bots = data.bots || [];
+        if (!bots.length) {
+            container.innerHTML = `<div style="text-align:center;color:#555;padding:40px;font-size:14px;">
+                <i class="fas fa-robot" style="font-size:36px;margin-bottom:12px;opacity:.3;display:block;"></i>
+                لا توجد بوتات — اضغط <b>إضافة</b> لتسجيل بوت</div>`;
+            return;
+        }
+        container.innerHTML = bots.map(bot => `
+            <div class="bot-item ${_selectedBot === bot.name ? 'selected' : ''}"
+                 onclick="selectBot('${escHtml(bot.name)}')">
+                <div class="bot-avatar">🤖</div>
+                <div class="bot-status-dot ${bot.is_active ? 'online' : ''}"></div>
+                <div style="flex:1;min-width:0;">
+                    <div class="bot-name">${escHtml(bot.name)}</div>
+                    <div class="bot-desc">${bot.is_active ? '🟢 نشط' : '⚪ غير نشط'} · ${bot.phone || 'بلا هاتف'}</div>
+                </div>
+                <button onclick="event.stopPropagation();deleteBot('${escHtml(bot.name)}')"
+                        style="background:rgba(255,71,87,.1);border:1px solid rgba(255,71,87,.2);color:#ff4757;
+                               border-radius:6px;padding:4px 10px;cursor:pointer;font-family:Tajawal,sans-serif;font-size:12px;flex-shrink:0;">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>`).join('');
+    } catch (_) {
+        container.innerHTML = '<div style="color:#ff4757;padding:20px;text-align:center;">❌ فشل تحميل البوتات</div>';
+    }
+}
+
+function showAddBotForm() {
+    const f = document.getElementById('addBotForm');
+    if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+async function submitAddBot() {
+    const name  = document.getElementById('botNameIn')?.value?.trim();
+    const phone = document.getElementById('botPhoneIn')?.value?.trim();
+    if (!name) { showToast('⚠️ أدخل اسم البوت', 'warning'); return; }
+    try {
+        const res  = await fetch('/api/bots', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body:   JSON.stringify({name, phone}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`✅ تم تسجيل البوت "${name}"`, 'success');
+            document.getElementById('addBotForm').style.display = 'none';
+            document.getElementById('botNameIn').value  = '';
+            document.getElementById('botPhoneIn').value = '';
+            loadBots();
+        } else showToast('❌ ' + data.message, 'error');
+    } catch (_) { showToast('❌ فشل الاتصال', 'error'); }
+}
+
+async function deleteBot(name) {
+    if (!confirm(`هل أنت متأكد من حذف البوت "${name}"؟`)) return;
+    try {
+        const res  = await fetch(`/api/bots/${encodeURIComponent(name)}`, {method: 'DELETE'});
+        const data = await res.json();
+        if (data.success) {
+            showToast('✅ تم حذف البوت', 'success');
+            if (_selectedBot === name) {
+                _selectedBot = null;
+                const testArea = document.getElementById('botTestArea');
+                if (testArea) testArea.style.display = 'none';
+            }
+            loadBots();
+        } else showToast('❌ ' + data.message, 'error');
+    } catch (_) { showToast('❌ فشل الحذف', 'error'); }
+}
+
+function selectBot(name) {
+    _selectedBot = name;
+    const testArea = document.getElementById('botTestArea');
+    if (testArea) testArea.style.display = 'block';
+    const result = document.getElementById('botTestResult');
+    if (result) { result.style.display = 'none'; result.textContent = ''; }
+    loadBots();
+}
+
+async function sendBotTestMsg() {
+    const text = document.getElementById('botTestInput')?.value?.trim();
+    if (!_selectedBot || !text) return;
+    const result = document.getElementById('botTestResult');
+    if (result) { result.style.display = 'block'; result.textContent = '⏳ جارٍ المعالجة...'; }
+    try {
+        const res  = await fetch(`/api/bots/${encodeURIComponent(_selectedBot)}/message`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body:   JSON.stringify({text}),
+        });
+        const data = await res.json();
+        if (result) result.textContent = data.success ? (data.reply || '(لا رد)') : '❌ ' + data.message;
+    } catch (_) {
+        if (result) result.textContent = '❌ فشل الاتصال';
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   المرحلة 5: مزامنة تلقائية مع GitHub
+   ══════════════════════════════════════════════════════════════════ */
+
+function setupAutoSync() {
+    // مزامنة تلقائية كل 5 دقائق إذا كان المستخدم مسجّلاً
+    setInterval(async () => {
+        if (!AppState?.isLoggedIn) return;
+        try { await fetch('/api/sync/github', {method: 'POST'}); }
+        catch (_) {}
+    }, 5 * 60 * 1000);
+}
+
+function updateSyncIndicator(status) {
+    const el = document.getElementById('syncBtn');
+    if (!el) return;
+    const icons = {
+        syncing: '<i class="fas fa-sync fa-spin"></i> جارٍ...',
+        done:    '<i class="fas fa-check"></i> تمت',
+        error:   '<i class="fas fa-exclamation"></i> خطأ',
+        idle:    '<i class="fas fa-cloud-upload-alt"></i> مزامنة',
+    };
+    el.innerHTML = icons[status] || icons.idle;
+    if (status !== 'idle') setTimeout(() => { if (el) el.innerHTML = icons.idle; }, 3000);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   المرحلة 6: المكالمات الصوتية (WebRTC)
+   ══════════════════════════════════════════════════════════════════ */
+
+const RTC = {
+    pc:            null,
+    stream:        null,
+    isMuted:       false,
+    isSpeaker:     true,
+    toUserId:      null,
+    fromUserId:    null,
+    _pendingOffer: null,
+    timerInterval: null,
+    seconds:       0,
+
+    async makeCall(toUserId, toName) {
+        this.toUserId = toUserId;
+        try {
+            this.stream = await navigator.mediaDevices.getUserMedia({audio: true, video: false});
+        } catch (_) {
+            showToast('❌ لا يمكن الوصول للميكروفون — تأكد من الإذن', 'error');
+            return;
+        }
+        this._showCallOverlay(toName, 'جارٍ الاتصال...');
+        this.pc = this._createPC(toUserId);
+        this.stream.getTracks().forEach(t => this.pc.addTrack(t, this.stream));
+        const offer = await this.pc.createOffer();
+        await this.pc.setLocalDescription(offer);
+        if (typeof socket !== 'undefined') {
+            socket.emit('call_offer', {
+                to_user_id:   toUserId,
+                from_user_id: AppState?.userId,
+                from_name:    AppState?.userName || 'مستخدم',
+                offer,
+            });
+        }
+    },
+
+    async accept() {
+        const offer = this._pendingOffer;
+        if (!offer || !this.fromUserId) { this.reject(); return; }
+        try {
+            this.stream = await navigator.mediaDevices.getUserMedia({audio: true, video: false});
+        } catch (_) {
+            showToast('❌ لا يمكن الوصول للميكروفون', 'error');
+            this.reject();
+            return;
+        }
+        document.getElementById('incomingCallBar').style.display = 'none';
+        const name = document.getElementById('icName')?.textContent || 'مستخدم';
+        this._showCallOverlay(name, 'جارٍ الاتصال...');
+        this.pc = this._createPC(this.fromUserId);
+        this.stream.getTracks().forEach(t => this.pc.addTrack(t, this.stream));
+        await this.pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await this.pc.createAnswer();
+        await this.pc.setLocalDescription(answer);
+        if (typeof socket !== 'undefined') {
+            socket.emit('call_answer', {to_user_id: this.fromUserId, answer});
+        }
+    },
+
+    end() {
+        const peer = this.toUserId || this.fromUserId;
+        if (peer && typeof socket !== 'undefined') socket.emit('call_end', {to_user_id: peer});
+        this._cleanup();
+    },
+
+    reject() {
+        const peer = this.fromUserId || this.toUserId;
+        if (peer && typeof socket !== 'undefined') socket.emit('call_reject', {to_user_id: peer});
+        document.getElementById('incomingCallBar').style.display = 'none';
+        this.fromUserId    = null;
+        this._pendingOffer = null;
+    },
+
+    _createPC(peerUserId) {
+        const pc = new RTCPeerConnection({
+            iceServers: [
+                {urls: 'stun:stun.l.google.com:19302'},
+                {urls: 'stun:stun1.l.google.com:19302'},
+            ],
+        });
+        pc.onicecandidate = e => {
+            if (e.candidate && typeof socket !== 'undefined') {
+                socket.emit('call_ice', {to_user_id: peerUserId, candidate: e.candidate});
+            }
+        };
+        pc.ontrack = e => {
+            const audio = document.getElementById('remoteAudio');
+            if (audio) { audio.srcObject = e.streams[0]; audio.play().catch(() => {}); }
+        };
+        pc.onconnectionstatechange = () => {
+            const status = document.getElementById('callStatusEl');
+            if (pc.connectionState === 'connected') {
+                if (status) status.textContent = 'متصل';
+                this._startTimer();
+            } else if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
+                showToast('📞 انقطع الاتصال', 'warning');
+                this._cleanup();
+            }
+        };
+        return pc;
+    },
+
+    _showCallOverlay(name, status) {
+        const colors = ['#6c5ce7', '#00d2ff', '#ff6b6b', '#f9ca24', '#2ecc71', '#e17055'];
+        const color  = colors[(name.charCodeAt(0) || 0) % colors.length];
+        const av     = document.getElementById('callAvatarXL');
+        if (av) { av.textContent = (name[0] || '?').toUpperCase(); av.style.background = color; }
+        const nm = document.getElementById('callNameEl');   if (nm) nm.textContent = name;
+        const st = document.getElementById('callStatusEl'); if (st) st.textContent = status;
+        const tm = document.getElementById('callTimerEl');  if (tm) tm.style.display = 'none';
+        document.getElementById('callOverlay').style.display = 'flex';
+    },
+
+    _startTimer() {
+        this.seconds = 0;
+        const timerEl = document.getElementById('callTimerEl');
+        if (timerEl) timerEl.style.display = 'block';
+        clearInterval(this.timerInterval);
+        this.timerInterval = setInterval(() => {
+            this.seconds++;
+            const m = String(Math.floor(this.seconds / 60)).padStart(2, '0');
+            const s = String(this.seconds % 60).padStart(2, '0');
+            if (timerEl) timerEl.textContent = `${m}:${s}`;
+        }, 1000);
+    },
+
+    _cleanup() {
+        clearInterval(this.timerInterval);
+        if (this.pc)     { try { this.pc.close(); } catch (_) {} this.pc = null; }
+        if (this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; }
+        document.getElementById('callOverlay').style.display    = 'none';
+        document.getElementById('incomingCallBar').style.display = 'none';
+        this.toUserId = this.fromUserId = this._pendingOffer = null;
+        this.seconds  = 0; this.isMuted = false;
+        const muteBtn = document.getElementById('muteBtn');
+        if (muteBtn) muteBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+        muteBtn?.classList.remove('muted');
+    },
+};
+
+// ── أزرار واجهة المكالمة ─────────────────────────────────────
+function makeVoiceCall() {
+    const chatId = AppState?.currentChatId;
+    const chat   = AppState?.chats?.find(c => c.id == chatId);
+    if (!chatId) { showToast('⚠️ اختر محادثة أولاً', 'warning'); return; }
+    RTC.makeCall(chatId, chat?.name || 'مستخدم');
+}
+function acceptCall()      { RTC.accept(); }
+function rejectCall()      { RTC.reject(); }
+function endCall()         { RTC.end(); }
+function toggleMicMute() {
+    RTC.isMuted = !RTC.isMuted;
+    RTC.stream?.getAudioTracks().forEach(t => { t.enabled = !RTC.isMuted; });
+    const btn = document.getElementById('muteBtn');
+    if (btn) {
+        btn.classList.toggle('muted', RTC.isMuted);
+        btn.innerHTML = RTC.isMuted
+            ? '<i class="fas fa-microphone-slash"></i>'
+            : '<i class="fas fa-microphone"></i>';
+    }
+}
+function toggleSpeaker() {
+    RTC.isSpeaker = !RTC.isSpeaker;
+    const audio = document.getElementById('remoteAudio');
+    if (audio) audio.volume = RTC.isSpeaker ? 1 : 0;
+    const btn = document.getElementById('speakerBtn');
+    if (btn) btn.innerHTML = RTC.isSpeaker
+        ? '<i class="fas fa-volume-up"></i>'
+        : '<i class="fas fa-volume-mute"></i>';
+}
+
+function setupCallSocketEvents() {
+    if (typeof socket === 'undefined' || !socket) return;
+
+    socket.on('incoming_call', data => {
+        RTC.fromUserId    = data.from_user_id;
+        RTC._pendingOffer = data.offer;
+        const icAvatar = document.getElementById('icAvatar');
+        const icName   = document.getElementById('icName');
+        const bar      = document.getElementById('incomingCallBar');
+        if (icAvatar) icAvatar.textContent = (data.from_name || '?')[0]?.toUpperCase();
+        if (icName)   icName.textContent   = data.from_name || 'مستخدم';
+        if (bar)      bar.style.display    = 'flex';
+        if (typeof playNotificationSound === 'function') playNotificationSound();
+    });
+
+    socket.on('call_answered', async data => {
+        if (!RTC.pc) return;
+        try {
+            await RTC.pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+            const st = document.getElementById('callStatusEl');
+            if (st) st.textContent = 'متصل';
+            RTC._startTimer();
+        } catch (_) {}
+    });
+
+    socket.on('call_ice', async data => {
+        if (!RTC.pc || !data.candidate) return;
+        try { await RTC.pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
+    });
+
+    socket.on('call_ended',   () => { showToast('📞 انتهت المكالمة', 'info');    RTC._cleanup(); });
+    socket.on('call_rejected',() => { showToast('📞 رُفضت المكالمة', 'warning'); RTC._cleanup(); });
+}
+
+/* ══════════════════════════════════════════════════════════════════
    المرحلة 3: الجلسات النشطة + التحقق بخطوتين + مزامنة
    ══════════════════════════════════════════════════════════════════ */
 
@@ -1109,6 +1465,12 @@ async function initExt() {
 
     // تفعيل Infinite Scroll
     setupInfiniteScroll();
+
+    // تفعيل مزامنة تلقائية
+    setupAutoSync();
+
+    // تفعيل أحداث المكالمات الصوتية
+    setupCallSocketEvents();
 
     // اختصار لوحة المفاتيح: Ctrl+F للبحث
     document.addEventListener('keydown', e => {
