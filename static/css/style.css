@@ -1,0 +1,19 @@
+/* static/css/style.css — مركز سرعة إنجاز */
+/* ملف CSS عام مشترك بين جميع الصفحات */
+
+*, *::before, *::after {
+    font-family: 'Tajawal', sans-serif;
+    box-sizing: border-box;
+}
+
+body {
+    background: #0f0f1a;
+    color: #e0e0e0;
+    margin: 0;
+    padding: 0;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #3a7bd5; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #00d2ff; }

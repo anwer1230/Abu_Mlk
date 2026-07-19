@@ -1,0 +1,229 @@
+/* ================================================================
+   settings.css — مركز سرعة إنجاز
+   المرحلة 10: صفحة الإعدادات + الأمان + معرض الوسائط
+   ================================================================ */
+
+/* ── حاوية الصفحات المستقلة ───────────────────────────────── */
+.settings-container,
+.security-container,
+.media-gallery-container {
+    max-width:  640px;
+    margin:     0 auto;
+    padding:    20px 16px;
+    min-height: 100vh;
+    background: var(--bg-primary, #0f0f1a);
+    color:      var(--text-primary, #e0e0e0);
+    font-family: Tajawal, sans-serif;
+}
+
+/* ── بطاقة الإعداد ───────────────────────────────────────── */
+.settings-card,
+.security-card {
+    background:    var(--bg-card, rgba(255,255,255,0.02));
+    border-radius: 16px;
+    padding:       18px 20px;
+    margin-bottom: 14px;
+    border:        1px solid var(--border, rgba(255,255,255,0.06));
+    transition:    border-color .2s;
+}
+.settings-card:hover,
+.security-card:hover {
+    border-color: rgba(0,210,255,.12);
+}
+
+/* ── عنوان البطاقة ───────────────────────────────────────── */
+.settings-card .card-title,
+.security-card .card-title {
+    font-size:   16px;
+    font-weight: 600;
+    display:     flex;
+    align-items: center;
+    gap:         10px;
+    margin-bottom: 12px;
+}
+.settings-card .card-title i,
+.security-card .card-title i {
+    color: #00d2ff;
+    width: 18px;
+    text-align: center;
+}
+
+/* ── صف إعداد ────────────────────────────────────────────── */
+.setting-row,
+.settings-row {
+    display:         flex;
+    justify-content: space-between;
+    align-items:     center;
+    padding:         11px 0;
+    border-bottom:   1px solid var(--border, rgba(255,255,255,0.05));
+    font-size:       14px;
+    transition:      background .15s;
+}
+.setting-row:last-child,
+.settings-row:last-child { border-bottom: none; }
+.setting-row:hover        { background: rgba(255,255,255,.02); border-radius: 8px; }
+
+/* ── صف جلسة ──────────────────────────────────────────────── */
+.session-item {
+    display:     flex;
+    align-items: center;
+    padding:     12px 0;
+    border-bottom: 1px solid var(--border, rgba(255,255,255,0.05));
+    gap:         10px;
+}
+.session-item:last-child { border-bottom: none; }
+
+.session-icon {
+    width:           40px;
+    height:          40px;
+    border-radius:   50%;
+    background:      rgba(255,255,255,0.06);
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    flex-shrink:     0;
+    color:           #00d2ff;
+}
+.session-info { flex: 1; }
+.session-info .device  { font-weight: 500; font-size: 14px; }
+.session-info .details { font-size: 12px; color: var(--text-muted, #888); margin-top: 2px; }
+
+.session-status        { font-size: 11px; padding: 2px 10px; border-radius: 12px; white-space: nowrap; }
+.session-status.active { background: rgba(46,204,113,.15); color: #2ecc71; }
+
+/* ── معرض الوسائط ─────────────────────────────────────────── */
+.media-gallery-container { max-width: 100%; padding: 12px; }
+
+.gallery-tabs {
+    display:    flex;
+    gap:        8px;
+    padding:    10px 0 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    margin-bottom: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.gallery-tabs::-webkit-scrollbar { display: none; }
+
+.gallery-tab {
+    padding:       6px 16px;
+    border-radius: 20px;
+    background:    rgba(255,255,255,0.05);
+    border:        none;
+    color:         #888;
+    cursor:        pointer;
+    font-size:     13px;
+    white-space:   nowrap;
+    transition:    all .25s;
+    font-family:   Tajawal, sans-serif;
+}
+.gallery-tab:hover  { background: rgba(255,255,255,0.09); color: #ccc; }
+.gallery-tab.active { background: rgba(0,210,255,0.15); color: #00d2ff; }
+
+.media-grid {
+    display:               grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap:                   4px;
+}
+
+.media-grid-item {
+    aspect-ratio: 1;
+    overflow:     hidden;
+    border-radius: 6px;
+    cursor:       pointer;
+    transition:   transform .2s, opacity .2s;
+    background:   rgba(255,255,255,0.03);
+    position:     relative;
+}
+.media-grid-item:hover          { transform: scale(1.03); z-index: 2; opacity: .9; }
+.media-grid-item img,
+.media-grid-item video          { width:100%; height:100%; object-fit:cover; display:block; }
+.media-grid-item .file-icon     {
+    display:         flex;
+    flex-direction:  column;
+    align-items:     center;
+    justify-content: center;
+    height:          100%;
+    color:           #888;
+    padding:         8px;
+}
+.media-grid-item .file-icon i   { font-size: 26px; }
+.media-grid-item .file-icon span {
+    font-size:      9px;
+    margin-top:     5px;
+    max-width:      90px;
+    overflow:       hidden;
+    text-overflow:  ellipsis;
+    white-space:    nowrap;
+    color:          #aaa;
+}
+
+.infinite-scroll-trigger {
+    text-align:  center;
+    color:       #555;
+    font-size:   12px;
+    padding:     16px;
+    grid-column: 1 / -1;
+}
+
+/* ── لوحة رفع الوسائط داخل index.html ──────────────────────── */
+#mediaUploadPanel {
+    background:   rgba(255,255,255,0.018);
+    border-top:   1px solid rgba(255,255,255,0.06);
+    padding:      12px 18px;
+    animation:    slideUpPanel .25s ease;
+}
+@keyframes slideUpPanel {
+    from { opacity:0; transform:translateY(10px); }
+    to   { opacity:1; transform:translateY(0);    }
+}
+.media-upload-header {
+    display:         flex;
+    justify-content: space-between;
+    align-items:     center;
+    margin-bottom:   10px;
+    color:           #888;
+    font-size:       13px;
+}
+.media-upload-options { display:flex; gap:8px; flex-wrap:wrap; }
+.media-upload-options button {
+    font-size:   12px;
+    padding:     5px 12px;
+    border-radius: 8px;
+    font-family: Tajawal, sans-serif;
+}
+
+/* ── عارض الوسائط (Modal) ────────────────────────────────── */
+#mediaViewerModal .modal-content {
+    background: rgba(10,10,20,.96);
+    border:     none;
+}
+#mediaViewerModal .modal-header { border: none; }
+#mediaViewerModal .modal-footer {
+    border:           none;
+    justify-content:  center;
+    gap:              12px;
+    background:       transparent;
+}
+#mediaViewerContent {
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    min-height:      200px;
+    width:           100%;
+}
+.viewer-nav-btn {
+    background:    rgba(255,255,255,.08);
+    border:        1px solid rgba(255,255,255,.1);
+    color:         #ccc;
+    border-radius: 50%;
+    width:         40px;
+    height:        40px;
+    display:       flex;
+    align-items:   center;
+    justify-content: center;
+    cursor:        pointer;
+    transition:    all .2s;
+    font-family:   sans-serif;
+}
+.viewer-nav-btn:hover { background: rgba(0,210,255,.15); color: #00d2ff; }

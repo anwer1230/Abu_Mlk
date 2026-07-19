@@ -1,45 +1,50 @@
-# [Project name]
+# مركز سرعة إنجاز
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+تطبيق ويب متكامل لإدارة محادثات تيليجرام، مبني على Flask + Socket.IO + Telethon. يتيح تسجيل الدخول بحساب تيليجرام الحقيقي، واستقبال الرسائل وإرسالها في الوقت الفعلي من المتصفح.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `Flask App` — الـ workflow الرئيسي (يشغّل main.py على port 5000)
+- Python venv: `/home/runner/workspace/.venv/bin/python`
+- قاعدة البيانات: `database.db` (SQLite محلية)
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Python 3.13 + Flask 3 + Flask-SocketIO 5
+- Telethon 1.44 (عميل تيليجرام)
+- SQLite (قاعدة بيانات محلية)
+- Socket.IO (اتصال ثنائي الاتجاه في الوقت الفعلي)
+- Bootstrap 5 RTL + Tajawal Font
 
-## Where things live
+## Where Things Live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `app.py` — التطبيق الرئيسي (Flask routes + Socket.IO events)
+- `auth.py` — نظام المصادقة عبر Telethon (send_code → verify_code → 2FA)
+- `database.py` — طبقة البيانات (SQLite + GitHub backup)
+- `config.py` — الإعدادات المركزية (API keys, paths, etc.)
+- `bot_manager.py` — إدارة البوتات (أوامر، callbacks، state machine)
+- `upload_handler.py` — رفع الملفات بالأجزاء (Chunked upload)
+- `github_db.py` — مزامنة البيانات مع GitHub
+- `templates/` — صفحات HTML (Jinja2)
+- `static/` — CSS + JS
+- `sessions/` — ملفات جلسات Telethon لكل مستخدم
 
-## Architecture decisions
+## Architecture Decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- كل مستخدم له Telethon client منفصل يعمل في thread مستقل
+- Socket.IO rooms: `user_{id}` للمستخدم الفردي، `chat_{id}` للمحادثة
+- StringSession لحفظ جلسات Telethon بدون إعادة تسجيل الدخول
+- GitHub كقاعدة بيانات احتياطية دائمة عبر github_db.py
+- eventlet كـ async mode لـ Flask-SocketIO
 
-## Product
+## Environment Variables
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- `SESSION_SECRET` — مفتاح جلسة Flask (متوفر)
+- `TDLIB_API_ID` — معرف Telegram API (مضمّن افتراضياً)
+- `TDLIB_API_HASH` — هاش Telegram API (مضمّن افتراضياً)
+- `GITHUB_TOKEN` — للمزامنة مع GitHub (اختياري)
 
-## User preferences
+## User Preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
-## Gotchas
-
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- اللغة العربية RTL
+- الواجهة الداكنة (Dark theme)

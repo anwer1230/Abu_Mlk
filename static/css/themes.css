@@ -1,0 +1,56 @@
+/* themes.css — مركز سرعة إنجاز — المراحل 1-15 */
+
+:root {
+    --bg-primary:    #0f0f1a;
+    --bg-secondary:  #1a1a2e;
+    --bg-card:       rgba(255,255,255,0.02);
+    --border-color:  rgba(255,255,255,0.07);
+    --text-primary:  #e0e0e0;
+    --text-secondary:#888;
+    --accent:        #00d2ff;
+    --accent-2:      #3a7bd5;
+    --danger:        #ff4757;
+    --success:       #2ecc71;
+    --warning:       #f9ca24;
+}
+
+[data-theme="light"] {
+    --bg-primary:    #f5f5f5;
+    --bg-secondary:  #ffffff;
+    --bg-card:       rgba(0,0,0,0.02);
+    --border-color:  rgba(0,0,0,0.08);
+    --text-primary:  #1a1a1a;
+    --text-secondary:#666;
+}
+
+[data-theme="auto"] {
+    color-scheme: light dark;
+}
+
+/* ── شريط التمرير المخصص ── */
+::-webkit-scrollbar        { width: 4px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+/* ── كلاسات عامة ── */
+.text-accent   { color: var(--accent) !important; }
+.text-danger   { color: var(--danger) !important; }
+.text-success  { color: var(--success) !important; }
+.text-muted-2  { color: var(--text-secondary) !important; }
+
+.bg-card-dark  { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; }
+
+.btn-primary-accent {
+    background: linear-gradient(135deg, var(--accent-2), var(--accent));
+    color: #fff; border: none; border-radius: 12px;
+    padding: 10px 24px; font-size: 14px; cursor: pointer;
+    transition: opacity .2s, transform .15s;
+}
+.btn-primary-accent:hover { opacity: .9; transform: translateY(-1px); }
+
+/* ── نبض (للمكالمات) ── */
+@keyframes pulse-ring {
+    0%   { transform: scale(1); opacity: .6; }
+    100% { transform: scale(1.15); opacity: 0; }
+}
+.pulse { animation: pulse-ring 2s infinite; }

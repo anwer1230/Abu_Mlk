@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>معرض الوسائط — مركز سرعة إنجاز</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="/static/css/style.css"    rel="stylesheet">
+    <link href="/static/css/themes.css"   rel="stylesheet">
+    <link href="/static/css/settings.css" rel="stylesheet">
+    <style>
+        body { background: #0f0f1a; color: #e0e0e0; font-family: Tajawal, sans-serif; }
+        .page-header {
+            display:         flex;
+            align-items:     center;
+            gap:             12px;
+            padding:         14px 16px;
+            background:      rgba(255,255,255,0.02);
+            border-bottom:   1px solid rgba(255,255,255,0.05);
+            position:        sticky;
+            top:             0;
+            z-index:         10;
+            backdrop-filter: blur(8px);
+        }
+        .page-header .back-btn {
+            background: none; border: none; color: #e0e0e0;
+            font-size: 18px; cursor: pointer; padding: 4px 8px;
+            border-radius: 8px; transition: background .2s;
+        }
+        .page-header .back-btn:hover { background: rgba(255,255,255,0.06); }
+        .page-header h5 { margin: 0; font-size: 16px; font-weight: 600; flex: 1; }
+        .refresh-btn {
+            background: none; border: 1px solid rgba(255,255,255,0.1);
+            color: #888; border-radius: 8px; padding: 6px 12px;
+            cursor: pointer; font-size: 13px; transition: all .2s;
+        }
+        .refresh-btn:hover { background: rgba(255,255,255,0.06); color: #ccc; }
+    </style>
+</head>
+<body>
+
+<div class="page-header">
+    <button class="back-btn" onclick="history.back()">
+        <i class="fas fa-arrow-right"></i>
+    </button>
+    <h5><i class="fas fa-photo-video" style="color:#00d2ff;"></i> معرض الوسائط</h5>
+    <button class="refresh-btn" onclick="refreshGallery()">
+        <i class="fas fa-sync-alt"></i> تحديث
+    </button>
+</div>
+
+<div class="media-gallery-container" style="max-width:100%;padding:12px;">
+
+    <div class="gallery-tabs" id="galleryTabs">
+        <button class="gallery-tab active" data-type="all">
+            <i class="fas fa-th"></i> الكل
+        </button>
+        <button class="gallery-tab" data-type="image">
+            <i class="fas fa-image"></i> صور
+        </button>
+        <button class="gallery-tab" data-type="video">
+            <i class="fas fa-video"></i> فيديوهات
+        </button>
+        <button class="gallery-tab" data-type="audio">
+            <i class="fas fa-music"></i> صوتيات
+        </button>
+        <button class="gallery-tab" data-type="document">
+            <i class="fas fa-file-alt"></i> مستندات
+        </button>
+    </div>
+
+    <div class="media-grid" id="mediaGrid"></div>
+    <div class="infinite-scroll-trigger" id="scrollTrigger">⏳ جارٍ التحميل...</div>
+
+</div>
+
+<!-- عارض الوسائط (Lightbox) -->
+<div class="modal fade" id="mediaViewerModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content" style="background:rgba(8,8,18,.97);border:none;">
+            <div class="modal-header" style="border:none;padding:16px 20px;">
+                <button type="button" class="btn-close btn-close-white"
+                        data-bs-dismiss="modal" onclick="closeMediaViewer()"></button>
+                <div class="ms-auto d-flex gap-2">
+                    <button class="viewer-nav-btn" onclick="downloadCurrentMedia()" title="تحميل">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <button class="viewer-nav-btn" onclick="shareCurrentMedia()" title="مشاركة">
+                        <i class="fas fa-share-alt"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body d-flex align-items-center justify-content-center p-2">
+                <div id="mediaViewerContent" style="width:100%;"></div>
+            </div>
+            <div class="modal-footer" style="border:none;padding:16px;justify-content:center;gap:16px;">
+                <button id="viewerPrevBtn" class="viewer-nav-btn" onclick="prevMedia()">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+                <span id="mediaCounter" style="color:#888;font-size:13px;min-width:60px;text-align:center;">1 / 1</span>
+                <button id="viewerNextBtn" class="viewer-nav-btn" onclick="nextMedia()">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/static/js/media_viewer.js"></script>
+<script src="/static/js/media_gallery.js"></script>
+</body>
+</html>

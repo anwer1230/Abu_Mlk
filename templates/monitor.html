@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>الإرسال والمراقبة - تليجرام</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+        }
+
+        body {
+            background: #0a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 12px;
+        }
+
+        .telegram-app {
+            width: 420px;
+            height: 780px;
+            background: #17212b;
+            border-radius: 28px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* ===== Status Bar ===== */
+        .status-bar {
+            padding: 8px 20px 4px;
+            display: flex;
+            justify-content: space-between;
+            color: rgba(255,255,255,0.5);
+            font-size: 12px;
+            font-weight: 500;
+            background: #17212b;
+            flex-shrink: 0;
+        }
+        .status-bar .time { color: rgba(255,255,255,0.6); }
+
+        /* ===== Header ===== */
+        .header {
+            padding: 6px 16px 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 10px; }
+        .header-left .menu-btn {
+            font-size: 22px; color: #8e9aa7; cursor: pointer;
+            background: none; border: none; padding: 2px 4px; transition: color 0.2s;
+        }
+        .header-left .menu-btn:hover { color: #6bc1ff; }
+        .header-left .avatar {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: linear-gradient(135deg, #2a92e7, #6bc1ff);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 700; font-size: 16px; cursor: pointer; flex-shrink: 0;
+        }
+        .header-title h2 { color: #fff; font-size: 17px; font-weight: 600; line-height: 1.2; }
+        .header-title span { color: #8e9aa7; font-size: 12px; display: block; }
+        .header-right { display: flex; gap: 16px; color: #8e9aa7; font-size: 19px; cursor: pointer; }
+        .header-right span { transition: color 0.2s; }
+        .header-right span:hover { color: #6bc1ff; }
+
+        /* ===== Footer ===== */
+        .footer {
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            flex-shrink: 0;
+            background: #17212b;
+        }
+        .footer .nav-icon {
+            color: #8e9aa7; font-size: 22px; cursor: pointer;
+            transition: color 0.2s; padding: 4px 12px; border-radius: 8px;
+        }
+        .footer .nav-icon:hover { color: #6bc1ff; }
+        .footer .nav-icon.active { color: #6bc1ff; }
+
+        /* ===== Content ===== */
+        .content-area { flex: 1; overflow-y: auto; padding: 12px 16px 8px; }
+        .content-area::-webkit-scrollbar { width: 4px; }
+        .content-area::-webkit-scrollbar-thumb { background: #384954; border-radius: 4px; }
+
+        /* ===== Settings ===== */
+        .settings-section { margin-bottom: 12px; }
+        .settings-section .section-title { color: #8e9aa7; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+        .settings-card { background: #242f3a; border-radius: 12px; padding: 12px 14px; margin-bottom: 6px; }
+        .settings-card .card-label { color: #8e9aa7; font-size: 13px; margin-bottom: 4px; display: block; }
+        .settings-card textarea,
+        .settings-card input,
+        .settings-card select {
+            width: 100%; padding: 8px 12px; border-radius: 10px; border: none;
+            background: #1a232d; color: #e3e9ef; font-size: 14px; outline: none; transition: all 0.2s;
+        }
+        .settings-card textarea:focus,
+        .settings-card input:focus,
+        .settings-card select:focus { background: #1f2a36; box-shadow: 0 0 0 2px #2a92e7; }
+        .settings-card textarea { resize: vertical; min-height: 50px; }
+        .settings-card select option { background: #17212b; color: #e3e9ef; }
+
+        /* ===== Image Upload ===== */
+        .image-upload-area {
+            border: 2px dashed #384954; border-radius: 10px; padding: 12px;
+            text-align: center; cursor: pointer; transition: all 0.3s; background: #1a232d;
+        }
+        .image-upload-area:hover { border-color: #2a92e7; background: #1f2a36; }
+        .image-upload-area .upload-icon { font-size: 28px; color: #6d7a88; }
+        .image-upload-area .upload-text { color: #8e9aa7; font-size: 13px; margin-top: 4px; }
+        .image-upload-area .upload-sub { color: #6d7a88; font-size: 11px; }
+        .image-preview-container { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+        .image-preview-item {
+            position: relative; width: 60px; height: 60px; border-radius: 8px;
+            overflow: hidden; background: #1a232d; border: 1px solid #384954;
+        }
+        .image-preview-item img { width: 100%; height: 100%; object-fit: cover; }
+        .image-preview-item .remove-btn {
+            position: absolute; top: -4px; right: -4px; width: 18px; height: 18px;
+            border-radius: 50%; border: none; background: #e74c3c; color: white;
+            font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+
+        /* ===== Send Mode ===== */
+        .send-mode-group { display: flex; background: #1a232d; border-radius: 10px; overflow: hidden; margin-bottom: 6px; }
+        .send-mode-group .mode-btn {
+            flex: 1; padding: 8px 12px; border: none; background: transparent;
+            color: #8e9aa7; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+        }
+        .send-mode-group .mode-btn.active { background: #2a92e7; color: white; }
+        .send-mode-group .mode-btn:hover:not(.active) { background: #2b3845; }
+
+        /* ===== Toggle ===== */
+        .all-groups-toggle { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+        .all-groups-toggle .toggle-label { color: #8e9aa7; font-size: 13px; }
+        .toggle-switch {
+            position: relative; width: 44px; height: 24px;
+            background: #384954; border-radius: 12px; cursor: pointer; transition: background 0.3s; flex-shrink: 0;
+        }
+        .toggle-switch.active { background: #2a92e7; }
+        .toggle-switch .toggle-knob {
+            position: absolute; top: 2px; right: 2px; width: 20px; height: 20px;
+            background: white; border-radius: 50%; transition: transform 0.3s;
+        }
+        .toggle-switch.active .toggle-knob { transform: translateX(-20px); }
+
+        /* ===== Send Options Grid ===== */
+        .send-options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .send-option-item {
+            display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+            background: #1a232d; border-radius: 8px; cursor: pointer; transition: all 0.2s; border: 2px solid transparent;
+        }
+        .send-option-item:hover { background: #1f2a36; }
+        .send-option-item.active { border-color: #2a92e7; background: #1f2a36; }
+        .send-option-item .option-radio {
+            width: 16px; height: 16px; border-radius: 50%; border: 2px solid #6d7a88;
+            flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+        }
+        .send-option-item.active .option-radio { border-color: #2a92e7; }
+        .send-option-item.active .option-radio::after {
+            content: ''; width: 8px; height: 8px; border-radius: 50%; background: #2a92e7;
+        }
+        .send-option-item .option-label { color: #e3e9ef; font-size: 12px; }
+        .send-option-item .option-desc { color: #6d7a88; font-size: 10px; }
+
+        /* ===== Schedule End ===== */
+        .schedule-end-group { display: flex; gap: 8px; align-items: center; }
+        .schedule-end-group input {
+            flex: 1; padding: 8px 12px; border-radius: 10px; border: none;
+            background: #1a232d; color: #e3e9ef; font-size: 14px; outline: none; transition: all 0.2s; min-width: 0;
+        }
+        .schedule-end-group input:focus { background: #1f2a36; box-shadow: 0 0 0 2px #2a92e7; }
+        .schedule-end-group .end-label { color: #8e9aa7; font-size: 13px; white-space: nowrap; }
+
+        /* ===== Buttons ===== */
+        .btn-telegram {
+            padding: 10px 16px; border: none; border-radius: 10px;
+            font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; width: 100%; color: white;
+        }
+        .btn-telegram.primary { background: #2a92e7; box-shadow: 0 4px 14px rgba(42,146,231,0.3); }
+        .btn-telegram.primary:hover { background: #3da2f7; transform: translateY(-2px); }
+        .btn-telegram.success { background: #4bcb7b; box-shadow: 0 4px 14px rgba(75,203,123,0.3); }
+        .btn-telegram.success:hover { background: #5ddb8b; transform: translateY(-2px); }
+        .btn-telegram.danger { background: #e74c3c; box-shadow: 0 4px 14px rgba(231,76,60,0.3); }
+        .btn-telegram.danger:hover { background: #f05a4a; transform: translateY(-2px); }
+        .btn-telegram.warning { background: #f1c40f; color: #1a1a2e; box-shadow: 0 4px 14px rgba(241,196,15,0.3); }
+        .btn-telegram.warning:hover { background: #f5d627; transform: translateY(-2px); }
+        .btn-telegram:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+
+        /* ===== Monitoring Status ===== */
+        .monitoring-status {
+            display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+            background: #242f3a; border-radius: 10px; margin-bottom: 12px;
+        }
+        .monitoring-status .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .monitoring-status .status-dot.active { background: #4bcb7b; animation: pulse-dot 1.5s infinite; }
+        .monitoring-status .status-dot.inactive { background: #6d7a88; }
+        .monitoring-status .status-text { color: #e3e9ef; font-size: 14px; font-weight: 500; }
+        .monitoring-status .status-text .sub { color: #8e9aa7; font-size: 12px; font-weight: 400; }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.9); }
+        }
+
+        @media (max-width: 480px) {
+            .telegram-app { width: 100%; height: 100vh; border-radius: 0; }
+            .send-options-grid { grid-template-columns: 1fr; }
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #384954; border-radius: 4px; }
+        * { scrollbar-width: thin; scrollbar-color: #384954 transparent; }
+    </style>
+</head>
+<body>
+
+<div class="telegram-app" id="app">
+
+    <!-- ===== Status Bar ===== -->
+    <div class="status-bar">
+        <span class="time" id="statusTime">--:--</span>
+        <span id="statusIcons" style="display:flex;align-items:center;gap:5px;font-size:12px;">
+            <span id="statusNetwork">
+                <svg width="20" height="12" viewBox="0 0 20 12" fill="none">
+                    <rect x="0"  y="9"  width="3" height="3" rx="1" fill="rgba(255,255,255,0.8)"/>
+                    <rect x="5"  y="6"  width="3" height="6" rx="1" fill="rgba(255,255,255,0.8)"/>
+                    <rect x="10" y="3"  width="3" height="9" rx="1" fill="rgba(255,255,255,0.8)"/>
+                    <rect x="15" y="0"  width="3" height="12" rx="1" fill="rgba(255,255,255,0.8)"/>
+                </svg>
+            </span>
+            <span id="statusBatteryWrap" style="display:flex;align-items:center;gap:2px;">
+                <svg width="22" height="11" viewBox="0 0 22 11" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.3">
+                    <rect x="0.65" y="0.65" width="18.7" height="9.7" rx="2.2"/>
+                    <rect id="batteryFill" x="2" y="2" width="14" height="7" rx="1.2" fill="rgba(255,255,255,0.7)" stroke="none"/>
+                    <path d="M20.35 3.5v4" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span id="statusBatteryPct" style="font-size:11px;opacity:0.75;">--%</span>
+            </span>
+        </span>
+    </div>
+
+    <!-- ===== Header ===== -->
+    <div class="header">
+        <div class="header-left">
+            <button class="menu-btn" onclick="goBack()">‹</button>
+            <div class="avatar" style="background: linear-gradient(135deg, #2a92e7, #6bc1ff);">أ</div>
+            <div class="header-title">
+                <h2>الإرسال والمراقبة</h2>
+                <span>أدوات متقدمة</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <span title="بحث">🔍</span>
+            <span title="خيارات">⋮</span>
+        </div>
+    </div>
+
+    <!-- ===== المحتوى الرئيسي ===== -->
+    <div class="content-area">
+
+        <!-- حالة المراقبة -->
+        <div class="monitoring-status">
+            <div class="status-dot inactive" id="monitoringDot"></div>
+            <div class="status-text">
+                المراقبة: <span id="monitoringStatusText">متوقفة</span>
+                <span class="sub" id="monitoringSubText">اضغط "بدء المراقبة" للبدء</span>
+            </div>
+        </div>
+
+        <!-- إعدادات الإرسال -->
+        <div class="settings-section">
+            <div class="section-title">📤 إعدادات الإرسال</div>
+
+            <!-- الرسالة -->
+            <div class="settings-card">
+                <label class="card-label">الرسالة</label>
+                <textarea id="messageText" rows="3" placeholder="اكتب الرسالة المراد إرسالها..."></textarea>
+            </div>
+
+            <!-- رفع الصور -->
+            <div class="settings-card">
+                <label class="card-label">📷 إضافة صور</label>
+                <div class="image-upload-area" onclick="document.getElementById('imageInput').click()">
+                    <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                    <div class="upload-text">اضغط لاختيار الصور</div>
+                    <div class="upload-sub">يدعم: JPG, PNG, GIF, WebP | الحد الأقصى: 10MB</div>
+                    <input type="file" id="imageInput" accept="image/jpeg,image/png,image/gif,image/webp"
+                           multiple style="display:none;" onchange="handleImages(this.files)">
+                </div>
+                <div class="image-preview-container" id="imagePreviewContainer"></div>
+                <div style="font-size:12px; color:#6d7a88; margin-top:4px;">
+                    <i class="fas fa-info-circle me-1"></i>ستُرسل الصور مع الرسالة النصية في نفس الرسالة
+                </div>
+            </div>
+
+            <!-- وضع الإرسال -->
+            <div class="settings-card">
+                <label class="card-label">وضع الإرسال</label>
+                <div class="send-mode-group">
+                    <button class="mode-btn active" data-mode="specific" onclick="setSendMode('specific')">
+                        <i class="fas fa-list me-1"></i> مجموعات محددة
+                    </button>
+                    <button class="mode-btn" data-mode="all" onclick="setSendMode('all')">
+                        <i class="fas fa-globe me-1"></i> كل المجموعات
+                    </button>
+                </div>
+            </div>
+
+            <!-- المجموعات -->
+            <div class="settings-card" id="groupsCard">
+                <label class="card-label">مجموعات الإرسال</label>
+                <textarea id="groupsInput" rows="3" placeholder="ضع كل مجموعة في سطر منفصل (@username أو رابط)"></textarea>
+                <div class="all-groups-toggle" style="margin-top:6px;">
+                    <div class="toggle-switch" id="allGroupsToggle" onclick="toggleAllGroups()">
+                        <div class="toggle-knob"></div>
+                    </div>
+                    <span class="toggle-label" id="allGroupsLabel">اختيار كل المجموعات</span>
+                </div>
+                <div style="font-size:12px; color:#6d7a88; margin-top:4px;">
+                    <i class="fas fa-info-circle me-1"></i>فعّل لإرسال جميع المجموعات في حسابك
+                </div>
+            </div>
+
+            <!-- نوع الإرسال -->
+            <div class="settings-card">
+                <label class="card-label">نوع الإرسال</label>
+                <select id="sendType" onchange="toggleScheduleOptions()">
+                    <option value="manual">يدوي</option>
+                    <option value="scheduled">مجدول</option>
+                </select>
+            </div>
+
+            <!-- خيارات الإرسال المجدول -->
+            <div id="scheduleOptions" style="display:none;">
+                <div class="settings-card">
+                    <label class="card-label">فترة الإرسال (بالدقائق)</label>
+                    <input type="number" id="intervalMinutes" value="25" min="1">
+                    <div style="font-size:12px; color:#6d7a88; margin-top:4px;">
+                        <i class="fas fa-info-circle me-1"></i>الحد الأدنى: دقيقة واحدة
+                    </div>
+                </div>
+                <div class="settings-card">
+                    <label class="card-label">⏱️ وقت انتهاء الإرسال المجدول</label>
+                    <div class="schedule-end-group">
+                        <span class="end-label">يتوقف بعد</span>
+                        <input type="number" id="scheduleDuration" value="0" min="0" step="0.5" placeholder="0">
+                        <span class="end-label">ساعة</span>
+                    </div>
+                    <div style="font-size:12px; color:#6d7a88; margin-top:4px;">
+                        <i class="fas fa-info-circle me-1"></i>
+                        <strong>0 = بدون حد زمني</strong> — مثال: 3 = يتوقف بعد 3 ساعات
+                    </div>
+                </div>
+                <div class="settings-card" style="border:1px solid #e74c3c; background:#2a1a1a;">
+                    <button class="btn-telegram danger" onclick="stopScheduledSend()">
+                        <i class="fas fa-stop-circle me-2"></i>إيقاف الإرسال المجدول
+                    </button>
+                    <div style="font-size:12px; color:#6d7a88; margin-top:4px;">
+                        <i class="fas fa-exclamation-triangle me-1" style="color:#f1c40f;"></i>
+                        إيقاف فوري — لا يمكن التراجع
+                    </div>
+                </div>
+            </div>
+
+            <!-- كلمات المراقبة -->
+            <div class="settings-card">
+                <label class="card-label">كلمات المراقبة (اختيارية)</label>
+                <textarea id="watchWords" rows="2" placeholder="ضع كل كلمة في سطر منفصل (اتركها فارغة لمراقبة كل الرسائل)"></textarea>
+                <div style="font-size:12px; color:#6d7a88; margin-top:4px;">
+                    <i class="fas fa-info-circle me-1"></i>سيتم التنبيه عند ورود هذه الكلمات في أي محادثة
+                </div>
+            </div>
+
+            <!-- وضع الإرسال عند المجموعات المحمية -->
+            <div class="settings-card">
+                <label class="card-label">🛡️ وضع الإرسال عند المجموعات المحمية</label>
+                <div class="send-options-grid">
+                    <div class="send-option-item active" data-value="salam" onclick="selectSendOption('salam')">
+                        <div class="option-radio"></div>
+                        <div>
+                            <div class="option-label">🤖 ذكي (salam)</div>
+                            <div class="option-desc">أرسل "السلام عليكم" ثم عدّل عند النشاط ✅ افتراضي</div>
+                        </div>
+                    </div>
+                    <div class="send-option-item" data-value="skip" onclick="selectSendOption('skip')">
+                        <div class="option-radio"></div>
+                        <div>
+                            <div class="option-label">⏭️ تخطي</div>
+                            <div class="option-desc">لا ترسل للمجموعات المحمية</div>
+                        </div>
+                    </div>
+                    <div class="send-option-item" data-value="smart" onclick="selectSendOption('smart')">
+                        <div class="option-radio"></div>
+                        <div>
+                            <div class="option-label">🧠 ذكية</div>
+                            <div class="option-desc">ينقّي الرسالة (يحذف روابط/أرقام)</div>
+                        </div>
+                    </div>
+                    <div class="send-option-item" data-value="always" onclick="selectSendOption('always')">
+                        <div class="option-radio"></div>
+                        <div>
+                            <div class="option-label">🛡️ تنقية</div>
+                            <div class="option-desc">أرسل مع حذف الروابط دائماً</div>
+                        </div>
+                    </div>
+                    <div class="send-option-item" data-value="off" onclick="selectSendOption('off')" style="grid-column: span 2;">
+                        <div class="option-radio"></div>
+                        <div>
+                            <div class="option-label" style="color:#e74c3c;">🚫 معطّل</div>
+                            <div class="option-desc">أرسل كما هي (خطر حظر)</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="font-size:12px; color:#6d7a88; margin-top:4px;">
+                    <i class="fas fa-info-circle me-1"></i>
+                    <strong>🤖 ذكي (salam):</strong> يرسل "السلام عليكم" أولاً، ثم يعدّل عند النشاط
+                </div>
+            </div>
+        </div>
+
+        <!-- أزرار التحكم -->
+        <div class="settings-section">
+            <div class="btn-grid">
+                <button class="btn-telegram primary" onclick="sendNow(event)">
+                    <i class="fas fa-paper-plane me-2"></i>إرسال الآن
+                </button>
+                <button class="btn-telegram success" onclick="saveSettings()">
+                    <i class="fas fa-save me-2"></i>حفظ الإعدادات
+                </button>
+                <button class="btn-telegram warning" id="startMonitorBtn" onclick="startMonitoring()">
+                    <i class="fas fa-play me-2"></i>بدء المراقبة
+                </button>
+                <button class="btn-telegram danger" id="stopMonitorBtn" onclick="stopMonitoring()" style="display:none;">
+                    <i class="fas fa-stop me-2"></i>إيقاف المراقبة
+                </button>
+            </div>
+        </div>
+
+        <!-- سجل العمليات -->
+        <div class="settings-section">
+            <div class="section-title">📋 سجل العمليات</div>
+            <div class="settings-card" style="padding:10px; min-height:100px; max-height:150px; overflow-y:auto; background:#1a232d;">
+                <div id="operationLog" style="font-size:13px; color:#8e9aa7;">
+                    <div>● النظام جاهز</div>
+                    <div>● انتظار الأوامر...</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ===== Footer Nav ===== -->
+    <div class="footer">
+        <span class="nav-icon" onclick="location.href='/'">
+            <i class="fas fa-home"></i>
+        </span>
+        <span class="nav-icon active">
+            <i class="fas fa-paper-plane"></i>
+        </span>
+        <span class="nav-icon" onclick="location.href='/formatter'">
+            <i class="fas fa-cog"></i>
+        </span>
+        <span class="nav-icon" onclick="goBack()">
+            <i class="fas fa-arrow-right"></i>
+        </span>
+    </div>
+
+</div>
+
+<script>
+    // ── STATE ──────────────────────────────────────────────────────
+    let sendMode         = 'specific';
+    let isMonitoring     = false;
+    let stats            = { sent: 0, errors: 0 };
+    let intervalTimer    = null;
+    let uploadedImages   = [];
+    let allGroupsSelected = false;
+    let selectedSendOption = 'salam';
+
+    // ── ELEMENTS ───────────────────────────────────────────────────
+    const messageText         = document.getElementById('messageText');
+    const groupsInput         = document.getElementById('groupsInput');
+    const watchWords          = document.getElementById('watchWords');
+    const sendType            = document.getElementById('sendType');
+    const intervalMinutes     = document.getElementById('intervalMinutes');
+    const scheduleDuration    = document.getElementById('scheduleDuration');
+    const scheduleOptions     = document.getElementById('scheduleOptions');
+    const monitoringDot       = document.getElementById('monitoringDot');
+    const monitoringStatusText = document.getElementById('monitoringStatusText');
+    const monitoringSubText   = document.getElementById('monitoringSubText');
+    const operationLog        = document.getElementById('operationLog');
+    const startMonitorBtn     = document.getElementById('startMonitorBtn');
+    const stopMonitorBtn      = document.getElementById('stopMonitorBtn');
+    const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+    const imageInput          = document.getElementById('imageInput');
+    const allGroupsToggle     = document.getElementById('allGroupsToggle');
+    const allGroupsLabel      = document.getElementById('allGroupsLabel');
+
+    // ── FUNCTIONS ──────────────────────────────────────────────────
+
+    function setSendMode(mode) {
+        sendMode = mode;
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === mode);
+        });
+        document.getElementById('groupsCard').style.display = mode === 'specific' ? 'block' : 'none';
+        addLog(`📌 وضع الإرسال: ${mode === 'specific' ? 'مجموعات محددة' : 'كل المجموعات'}`);
+    }
+
+    function toggleAllGroups() {
+        allGroupsSelected = !allGroupsSelected;
+        allGroupsToggle.classList.toggle('active', allGroupsSelected);
+        allGroupsLabel.textContent = allGroupsSelected ? '✅ تم اختيار كل المجموعات' : 'اختيار كل المجموعات';
+        groupsInput.disabled = allGroupsSelected;
+        groupsInput.style.opacity = allGroupsSelected ? '0.4' : '1';
+        addLog(allGroupsSelected ? '✅ الإرسال لكل المجموعات' : '⏹ إلغاء اختيار كل المجموعات');
+    }
+
+    function selectSendOption(value) {
+        selectedSendOption = value;
+        document.querySelectorAll('.send-option-item').forEach(el => {
+            el.classList.toggle('active', el.dataset.value === value);
+        });
+        const names = { salam:'🤖 ذكي (salam)', skip:'⏭️ تخطي', smart:'🧠 ذكية', always:'🛡️ تنقية', off:'🚫 معطّل' };
+        addLog(`🛡️ وضع: ${names[value] || value}`);
+    }
+
+    function toggleScheduleOptions() {
+        const isScheduled = sendType.value === 'scheduled';
+        scheduleOptions.style.display = isScheduled ? 'block' : 'none';
+        addLog(isScheduled ? '⏰ الإرسال المجدول مفعّل' : '📌 الإرسال اليدوي مفعّل');
+    }
+
+    function stopScheduledSend() {
+        if (!confirm('⚠️ إيقاف الإرسال المجدول فوراً؟')) return;
+        fetch('/api/stop_monitoring', { method:'POST', headers:{'Content-Type':'application/json'} })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                addLog('⏹ تم إيقاف الإرسال المجدول');
+                if (intervalTimer) { clearInterval(intervalTimer); intervalTimer = null; }
+                isMonitoring = false; updateMonitoringUI(false);
+            } else { addLog('❌ فشل الإيقاف: ' + data.message); }
+        })
+        .catch(err => addLog('❌ خطأ: ' + err.message));
+    }
+
+    function handleImages(files) {
+        if (!files || !files.length) return;
+        Array.from(files).forEach(file => {
+            if (file.size > 10 * 1024 * 1024) { addLog(`⚠️ ${file.name} أكبر من 10MB`); return; }
+            const reader = new FileReader();
+            reader.onload = e => {
+                uploadedImages.push({ name: file.name, data: e.target.result, type: file.type });
+                renderImagePreviews();
+                addLog(`📷 رُفعت: ${file.name}`);
+            };
+            reader.readAsDataURL(file);
+        });
+        imageInput.value = '';
+    }
+
+    function renderImagePreviews() {
+        imagePreviewContainer.innerHTML = uploadedImages.map((img, i) =>
+            `<div class="image-preview-item">
+                <img src="${img.data}" alt="${img.name}">
+                <button class="remove-btn" onclick="removeImage(${i})">✕</button>
+             </div>`
+        ).join('');
+    }
+
+    function removeImage(index) {
+        uploadedImages.splice(index, 1);
+        renderImagePreviews();
+        addLog('🗑️ تم حذف الصورة');
+    }
+
+    function addLog(message) {
+        const time = new Date().toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+        const div = document.createElement('div');
+        div.innerHTML = `<span style="color:#6d7a88;">[${time}]</span> ${message}`;
+        operationLog.appendChild(div);
+        operationLog.scrollTop = operationLog.scrollHeight;
+        if (operationLog.children.length > 50) operationLog.removeChild(operationLog.firstChild);
+    }
+
+    function saveSettings() {
+        const data = {
+            message: messageText.value,
+            groups: groupsInput.value,
+            watch_words: watchWords.value,
+            send_type: sendType.value,
+            interval_seconds: parseInt(intervalMinutes.value) * 60,
+            schedule_duration_hours: parseFloat(scheduleDuration.value) || 0,
+            sanitize_mode: selectedSendOption,
+            send_to_all: allGroupsSelected
+        };
+        fetch('/api/save_settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) })
+        .then(r => r.json())
+        .then(data => { addLog(data.success ? '✅ حُفظت الإعدادات' : '❌ فشل الحفظ: ' + data.message); })
+        .catch(err => addLog('❌ خطأ: ' + err.message));
+    }
+
+    function sendNow(event) {
+        const message = messageText.value.trim();
+        const groups  = groupsInput.value.trim();
+        const sendToAll = allGroupsSelected || sendMode === 'all';
+
+        if (!message && !uploadedImages.length) { addLog('⚠️ اكتب رسالة أو ارفع صورة'); return; }
+        if (!sendToAll && !groups) { addLog('⚠️ حدد المجموعات أو اختر "كل المجموعات"'); return; }
+
+        const btn = event.target.closest('button');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>جاري الإرسال...';
+
+        fetch('/api/send_now', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ message, groups, send_to_all: sendToAll, images: uploadedImages, action: selectedSendOption })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) { addLog(`✅ تم الإرسال: ${data.message || ''}`); }
+            else { addLog(`❌ فشل: ${data.message || 'خطأ غير معروف'}`); }
+        })
+        .catch(err => addLog(`❌ خطأ: ${err.message}`))
+        .finally(() => { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>إرسال الآن'; });
+    }
+
+    function startMonitoring() {
+        fetch('/api/start_monitoring', { method:'POST', headers:{'Content-Type':'application/json'} })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                isMonitoring = true; updateMonitoringUI(true);
+                addLog('🚀 بدأت المراقبة');
+                if (intervalTimer) clearInterval(intervalTimer);
+                intervalTimer = setInterval(checkMonitoringStatus, 5000);
+            } else { addLog('❌ فشل: ' + data.message); }
+        })
+        .catch(err => addLog('❌ خطأ: ' + err.message));
+    }
+
+    function stopMonitoring() {
+        fetch('/api/stop_monitoring', { method:'POST', headers:{'Content-Type':'application/json'} })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                isMonitoring = false; updateMonitoringUI(false);
+                addLog('⏹ تم إيقاف المراقبة');
+                if (intervalTimer) { clearInterval(intervalTimer); intervalTimer = null; }
+            } else { addLog('❌ فشل: ' + data.message); }
+        })
+        .catch(err => addLog('❌ خطأ: ' + err.message));
+    }
+
+    function checkMonitoringStatus() {
+        fetch('/api/get_login_status')
+        .then(r => r.json())
+        .then(data => {
+            if (data.is_running !== undefined && data.is_running !== isMonitoring) {
+                isMonitoring = data.is_running;
+                updateMonitoringUI(isMonitoring);
+            }
+        })
+        .catch(() => {});
+    }
+
+    function updateMonitoringUI(active) {
+        if (active) {
+            monitoringDot.className = 'status-dot active';
+            monitoringStatusText.textContent = 'تعمل الآن';
+            monitoringSubText.textContent = 'مراقبة كل المحادثات';
+            startMonitorBtn.style.display = 'none';
+            stopMonitorBtn.style.display = 'block';
+        } else {
+            monitoringDot.className = 'status-dot inactive';
+            monitoringStatusText.textContent = 'متوقفة';
+            monitoringSubText.textContent = 'اضغط "بدء المراقبة" للبدء';
+            startMonitorBtn.style.display = 'block';
+            stopMonitorBtn.style.display = 'none';
+        }
+    }
+
+    function goBack() {
+        if (window.history.length > 1) window.history.back();
+        else location.href = '/';
+    }
+
+    // ── الوقت والبطارية والشبكة ────────────────────────────────────
+    function updateStatusTime() {
+        const now = new Date();
+        document.getElementById('statusTime').textContent =
+            String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    }
+    updateStatusTime();
+    setInterval(updateStatusTime, 30000);
+
+    function _initBattery() {
+        if (!navigator.getBattery) return;
+        navigator.getBattery().then(bat => {
+            function _upd() {
+                const pct = Math.round(bat.level * 100);
+                const pctEl = document.getElementById('statusBatteryPct');
+                const fill  = document.getElementById('batteryFill');
+                if (pctEl) pctEl.textContent = (bat.charging ? '⚡' : '') + pct + '%';
+                if (fill) {
+                    fill.setAttribute('width', Math.max(1, Math.round(pct * 14 / 100)));
+                    fill.setAttribute('fill', pct > 50 ? '#4bcb7b' : pct > 20 ? '#f1c40f' : '#e74c3c');
+                }
+            }
+            _upd();
+            bat.addEventListener('levelchange', _upd);
+            bat.addEventListener('chargingchange', _upd);
+        });
+    }
+    _initBattery();
+
+    function _updateNetwork() {
+        const netEl = document.getElementById('statusNetwork');
+        if (!netEl) return;
+        const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        const type = conn ? (conn.effectiveType || conn.type || '') : '';
+        let bars = 4;
+        if      (type === '4g') bars = 4;
+        else if (type === '3g') bars = 3;
+        else if (type === '2g' || type === 'slow-2g') bars = 2;
+        else if (type === 'none' || !navigator.onLine) bars = 0;
+        const w = 3, g = 2, H = 12;
+        let svg = '';
+        for (let i = 0; i < 4; i++) {
+            const h = Math.round(H * (i+1) / 4), y = H - h;
+            const c = i < bars ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.25)';
+            svg += `<rect x="${i*(w+g)}" y="${y}" width="${w}" height="${h}" rx="1" fill="${c}"/>`;
+        }
+        netEl.innerHTML = `<svg width="20" height="${H}" viewBox="0 ${4*w+3*g} ${H}">${svg}</svg>`;
+    }
+    _updateNetwork();
+    window.addEventListener('online',  _updateNetwork);
+    window.addEventListener('offline', _updateNetwork);
+    if (navigator.connection) navigator.connection.addEventListener('change', _updateNetwork);
+
+    // ── INIT ───────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function() {
+        addLog('🚀 واجهة الإرسال والمراقبة جاهزة');
+        fetch('/api/get_login_status')
+        .then(r => r.json())
+        .then(data => {
+            if (data.is_running) { isMonitoring = true; updateMonitoringUI(true); addLog('🔄 المراقبة تعمل بالفعل'); }
+        })
+        .catch(() => {});
+
+        // تحميل الإعدادات المحفوظة
+        fetch('/api/get_settings_json')
+        .then(r => r.json())
+        .then(d => {
+            if (!d) return;
+            if (d.message)    messageText.value   = d.message;
+            if (d.groups)     groupsInput.value   = d.groups;
+            if (d.watch_words) watchWords.value   = d.watch_words;
+            if (d.send_type)  sendType.value      = d.send_type;
+            if (d.interval_seconds) intervalMinutes.value = Math.round(d.interval_seconds / 60);
+            if (d.schedule_duration_hours !== undefined) scheduleDuration.value = d.schedule_duration_hours;
+            if (d.sanitize_mode) selectSendOption(d.sanitize_mode);
+            if (d.send_type === 'scheduled') toggleScheduleOptions();
+        })
+        .catch(() => {});
+    });
+</script>
+</body>
+</html>

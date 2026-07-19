@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مركز سرعة إنجاز — تسجيل الدخول</title>
+
+    <!-- Bootstrap 5 RTL -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts — Tajawal -->
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        *, *::before, *::after {
+            font-family: 'Tajawal', sans-serif;
+            box-sizing: border-box;
+            margin: 0; padding: 0;
+        }
+
+        /* ── خلفية ── */
+        body {
+            background: #0d0d1a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* نجوم متحركة */
+        .stars {
+            position: fixed; inset: 0; z-index: 0;
+            background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+        }
+        .stars::before, .stars::after {
+            content: '';
+            position: absolute; inset: 0;
+            background-image:
+                radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,.6), transparent),
+                radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,.4), transparent),
+                radial-gradient(1px 1px at 50% 60%, rgba(255,255,255,.3), transparent),
+                radial-gradient(1px 1px at 10% 80%, rgba(255,255,255,.5), transparent),
+                radial-gradient(1px 1px at 90% 70%, rgba(255,255,255,.4), transparent),
+                radial-gradient(1px 1px at 35% 15%, rgba(255,255,255,.5), transparent),
+                radial-gradient(1px 1px at 65% 85%, rgba(255,255,255,.3), transparent),
+                radial-gradient(1px 1px at 5%  45%, rgba(255,255,255,.6), transparent),
+                radial-gradient(1px 1px at 95% 40%, rgba(255,255,255,.4), transparent);
+            animation: twinkle 4s ease-in-out infinite alternate;
+        }
+        .stars::after {
+            background-image:
+                radial-gradient(1px 1px at 15% 55%, rgba(255,255,255,.5), transparent),
+                radial-gradient(1px 1px at 75% 25%, rgba(255,255,255,.3), transparent),
+                radial-gradient(1px 1px at 40% 75%, rgba(255,255,255,.6), transparent),
+                radial-gradient(1px 1px at 60% 5%,  rgba(255,255,255,.4), transparent),
+                radial-gradient(1px 1px at 25% 90%, rgba(255,255,255,.5), transparent),
+                radial-gradient(1px 1px at 85% 60%, rgba(255,255,255,.3), transparent);
+            animation-delay: 2s;
+        }
+        @keyframes twinkle { from { opacity:.5 } to { opacity:1 } }
+
+        /* ── البطاقة ── */
+        .login-wrapper {
+            position: relative; z-index: 1;
+            width: 100%; max-width: 460px;
+            padding: 16px;
+        }
+
+        .login-card {
+            background: linear-gradient(145deg,
+                rgba(26,26,46,.97) 0%,
+                rgba(22,33,62,.97) 100%);
+            border: 1px solid rgba(255,255,255,.07);
+            border-radius: 28px;
+            padding: 44px 40px;
+            box-shadow:
+                0 40px 80px rgba(0,0,0,.6),
+                0 0 0 1px rgba(0,210,255,.04) inset;
+            backdrop-filter: blur(20px);
+        }
+
+        /* ── شعار ── */
+        .logo { text-align: center; margin-bottom: 36px; }
+        .logo-icon {
+            font-size: 52px;
+            display: block;
+            margin-bottom: 12px;
+            filter: drop-shadow(0 0 20px rgba(0,210,255,.5));
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%,100% { transform: translateY(0) }
+            50%      { transform: translateY(-8px) }
+        }
+        .logo h1 {
+            font-size: 26px; font-weight: 800;
+            background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            margin-bottom: 6px;
+        }
+        .logo p { color: #6b7db3; font-size: 13px; }
+
+        /* ── مراحل الدخول ── */
+        .step { display: none; }
+        .step.active { display: block; animation: fadeIn .35s ease; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:none } }
+
+        /* ── الحقول ── */
+        .field-label {
+            font-size: 12px; font-weight: 600;
+            color: #8899cc; letter-spacing: .5px;
+            text-transform: uppercase; margin-bottom: 8px;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .input-wrap { position: relative; margin-bottom: 20px; }
+        .input-wrap input {
+            width: 100%; padding: 14px 18px;
+            background: rgba(255,255,255,.04);
+            border: 1.5px solid rgba(255,255,255,.08);
+            border-radius: 14px; color: #e8eaf6;
+            font-size: 15px; font-family: 'Tajawal', monospace;
+            transition: all .25s;
+        }
+        .input-wrap input::placeholder { color: #3d4878; }
+        .input-wrap input:focus {
+            outline: none;
+            border-color: rgba(0,210,255,.5);
+            background: rgba(0,210,255,.04);
+            box-shadow: 0 0 0 4px rgba(0,210,255,.08);
+        }
+        .input-wrap .input-icon {
+            position: absolute; left: 16px; top: 50%;
+            transform: translateY(-50%);
+            color: #3d4878; font-size: 16px;
+            pointer-events: none;
+        }
+        [dir="rtl"] .input-wrap .input-icon { left: auto; right: 16px; }
+        [dir="rtl"] .input-wrap input { padding-right: 44px; padding-left: 18px; }
+
+        /* ── زر ── */
+        .btn-primary-grad {
+            width: 100%; padding: 15px;
+            background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
+            border: none; border-radius: 14px;
+            color: #fff; font-size: 16px; font-weight: 700;
+            cursor: pointer; transition: all .3s;
+            position: relative; overflow: hidden;
+        }
+        .btn-primary-grad::after {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(135deg, #3a7bd5 0%, #00d2ff 100%);
+            opacity: 0; transition: opacity .3s;
+        }
+        .btn-primary-grad:hover:not(:disabled)::after { opacity: 1; }
+        .btn-primary-grad span { position: relative; z-index: 1; }
+        .btn-primary-grad:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(0,210,255,.35);
+        }
+        .btn-primary-grad:disabled { opacity: .55; cursor: not-allowed; }
+
+        /* ── مؤشر التحميل ── */
+        .spinner {
+            display: inline-block; width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,.3);
+            border-top-color: #fff; border-radius: 50%;
+            animation: spin .7s linear infinite;
+            vertical-align: middle; margin-inline-end: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg) } }
+
+        /* ── رسائل الخطأ / النجاح ── */
+        .msg-box {
+            padding: 10px 14px; border-radius: 10px;
+            font-size: 13px; margin-top: 12px;
+            display: none;
+        }
+        .msg-box.show { display: block; }
+        .msg-box.error   { background: rgba(255,71,87,.12); color: #ff6b7a; border: 1px solid rgba(255,71,87,.25); }
+        .msg-box.success { background: rgba(46,204,113,.12); color: #56d48e; border: 1px solid rgba(46,204,113,.25); }
+        .msg-box.info    { background: rgba(0,210,255,.10); color: #5dddff; border: 1px solid rgba(0,210,255,.2); }
+
+        /* ── تذييل ── */
+        .card-footer {
+            margin-top: 28px; text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,.05);
+        }
+        .card-footer p { color: #4a5680; font-size: 12px; }
+
+        /* ── مؤشر التقدم ── */
+        .steps-indicator {
+            display: flex; justify-content: center; gap: 8px;
+            margin-bottom: 28px;
+        }
+        .step-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: rgba(255,255,255,.1);
+            transition: all .3s;
+        }
+        .step-dot.active {
+            background: #00d2ff;
+            box-shadow: 0 0 10px rgba(0,210,255,.6);
+            width: 24px; border-radius: 4px;
+        }
+        .step-dot.done { background: rgba(0,210,255,.4); }
+
+        /* ── الـ Toast ── */
+        .toast-wrap {
+            position: fixed; bottom: 24px; right: 24px;
+            z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+        }
+        .toast-item {
+            background: rgba(26,26,46,.98);
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 14px; padding: 14px 18px;
+            min-width: 260px; max-width: 340px;
+            box-shadow: 0 16px 40px rgba(0,0,0,.5);
+            animation: slideIn .3s ease;
+            transition: all .3s;
+        }
+        @keyframes slideIn {
+            from { opacity:0; transform:translateX(40px) }
+            to   { opacity:1; transform:none }
+        }
+        .toast-item.success { border-right: 4px solid #2ecc71; }
+        .toast-item.error   { border-right: 4px solid #ff4757; }
+        .toast-item.info    { border-right: 4px solid #00d2ff; }
+        .toast-title { font-weight: 700; font-size: 14px; color: #e8eaf6; }
+        .toast-body  { font-size: 12px; color: #6b7db3; margin-top: 2px; }
+
+        /* ── الشاشات الصغيرة ── */
+        @media (max-width: 480px) {
+            .login-card { padding: 32px 24px; }
+            .logo h1 { font-size: 22px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="stars"></div>
+
+<div class="login-wrapper">
+    <div class="login-card">
+
+        <!-- شعار -->
+        <div class="logo">
+            <span class="logo-icon">🚀</span>
+            <h1>مركز سرعة إنجاز</h1>
+            <p>سجّل الدخول للوصول إلى محادثاتك</p>
+        </div>
+
+        <!-- مؤشر التقدم -->
+        <div class="steps-indicator">
+            <div class="step-dot active" id="dot1"></div>
+            <div class="step-dot"        id="dot2"></div>
+            <div class="step-dot"        id="dot3"></div>
+        </div>
+
+        <!-- ── الخطوة 1: رقم الهاتف ── -->
+        <div class="step active" id="step1">
+            <div class="input-wrap">
+                <label class="field-label"><i class="fas fa-mobile-alt"></i> رقم الهاتف</label>
+                <input type="tel" id="phoneInput" placeholder="+966512345678"
+                       dir="ltr" autocomplete="tel">
+                <i class="fas fa-phone input-icon"></i>
+            </div>
+            <button class="btn-primary-grad" id="sendCodeBtn" onclick="doSendCode()">
+                <span>إرسال كود التحقق</span>
+            </button>
+            <div class="msg-box" id="phoneMsg"></div>
+        </div>
+
+        <!-- ── الخطوة 2: كود التحقق ── -->
+        <div class="step" id="step2">
+            <div class="input-wrap">
+                <label class="field-label"><i class="fas fa-key"></i> كود التحقق</label>
+                <input type="text" id="codeInput" placeholder="أدخل الكود المُرسل"
+                       dir="ltr" autocomplete="one-time-code" maxlength="6">
+                <i class="fas fa-shield-alt input-icon"></i>
+            </div>
+            <button class="btn-primary-grad" id="checkCodeBtn" onclick="doCheckCode()">
+                <span>تأكيد الكود</span>
+            </button>
+            <div class="msg-box info show" id="codeHint" style="margin-top:14px">
+                📱 تم إرسال الكود إلى هاتفك عبر تليجرام
+            </div>
+            <div class="msg-box" id="codeMsg"></div>
+            <p style="text-align:center;margin-top:14px;font-size:12px;color:#4a5680">
+                <a href="#" onclick="goBack()" style="color:#00d2ff;text-decoration:none">
+                    ← تغيير رقم الهاتف
+                </a>
+            </p>
+        </div>
+
+        <!-- ── الخطوة 3: كلمة المرور (2FA) ── -->
+        <div class="step" id="step3">
+            <div class="input-wrap">
+                <label class="field-label"><i class="fas fa-lock"></i> كلمة المرور (التحقق الثنائي)</label>
+                <input type="password" id="passwordInput" placeholder="أدخل كلمة المرور"
+                       dir="ltr" autocomplete="current-password">
+                <i class="fas fa-lock input-icon"></i>
+            </div>
+            <button class="btn-primary-grad" id="checkPasswordBtn" onclick="doCheckPassword()">
+                <span>تأكيد كلمة المرور</span>
+            </button>
+            <div class="msg-box info show" style="margin-top:14px">
+                🔐 حسابك محمي بالتحقق الثنائي، أدخل كلمة المرور لإكمال تسجيل الدخول
+            </div>
+            <div class="msg-box" id="passwordMsg"></div>
+        </div>
+
+        <!-- تذييل -->
+        <div class="card-footer">
+            <p><i class="fas fa-shield-alt" style="color:#00d2ff"></i>
+                جميع البيانات مشفرة وآمنة • مدعوم بـ Telegram
+            </p>
+        </div>
+
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+'use strict';
+
+// ── الحالة ──────────────────────────────────────────────────────
+let loginPhone = '';
+let currentStep = 1;
+
+// ── التنقل بين الخطوات ──────────────────────────────────────────
+
+function showStep(n) {
+    document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+    document.getElementById('step' + n).classList.add('active');
+
+    // تحديث مؤشر التقدم
+    [1,2,3].forEach(i => {
+        const dot = document.getElementById('dot' + i);
+        dot.classList.remove('active','done');
+        if (i < n)  dot.classList.add('done');
+        if (i === n) dot.classList.add('active');
+    });
+    currentStep = n;
+}
+
+function goBack() {
+    if (currentStep > 1) showStep(currentStep - 1);
+}
+
+// ── دوال مساعدة ─────────────────────────────────────────────────
+
+function showMsg(id, text, type = 'error') {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.className = `msg-box ${type} show`;
+}
+
+function clearMsg(id) {
+    const el = document.getElementById(id);
+    if (el) el.className = 'msg-box';
+}
+
+function setLoading(btnId, loading, label) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.disabled = loading;
+    btn.querySelector('span').innerHTML = loading
+        ? '<span class="spinner"></span> جاري...'
+        : label;
+}
+
+function toast(message, type = 'info') {
+    const wrap = document.getElementById('toastWrap');
+    const el   = document.createElement('div');
+    el.className = `toast-item ${type}`;
+    const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+    el.innerHTML = `<div class="toast-title">${icon} ${message}</div>`;
+    wrap.appendChild(el);
+    setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(40px)';
+        setTimeout(() => el.remove(), 300);
+    }, 4000);
+}
+
+// ── الخطوة 1: إرسال الكود ────────────────────────────────────────
+
+async function doSendCode() {
+    const phone = document.getElementById('phoneInput').value.trim();
+    if (!phone) { showMsg('phoneMsg','⚠️ يرجى إدخال رقم الهاتف'); return; }
+    clearMsg('phoneMsg');
+    setLoading('sendCodeBtn', true, 'إرسال كود التحقق');
+
+    try {
+        const res  = await fetch('/api/auth/send-code', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ phone })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            loginPhone = phone;
+            showStep(2);
+            document.getElementById('codeInput').focus();
+            toast('تم إرسال الكود إلى هاتفك', 'success');
+        } else {
+            showMsg('phoneMsg', '❌ ' + data.message, 'error');
+            toast(data.message, 'error');
+        }
+    } catch {
+        showMsg('phoneMsg', '❌ حدث خطأ في الاتصال بالخادم', 'error');
+        toast('خطأ في الاتصال', 'error');
+    }
+    setLoading('sendCodeBtn', false, 'إرسال كود التحقق');
+}
+
+// ── الخطوة 2: التحقق من الكود ────────────────────────────────────
+
+async function doCheckCode() {
+    const code = document.getElementById('codeInput').value.trim();
+    if (!code) { showMsg('codeMsg','⚠️ يرجى إدخال الكود'); return; }
+    clearMsg('codeMsg');
+    setLoading('checkCodeBtn', true, 'تأكيد الكود');
+
+    try {
+        const res  = await fetch('/api/auth/check-code', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ phone: loginPhone, code })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            toast('مرحباً! تم تسجيل الدخول بنجاح', 'success');
+            setTimeout(() => window.location.href = '/', 800);
+        } else if (data.requires_password) {
+            showStep(3);
+            document.getElementById('passwordInput').focus();
+            toast('يتطلب كلمة المرور الثنائية', 'info');
+        } else {
+            showMsg('codeMsg', '❌ ' + data.message, 'error');
+            toast(data.message, 'error');
+        }
+    } catch {
+        showMsg('codeMsg', '❌ حدث خطأ في الاتصال', 'error');
+    }
+    setLoading('checkCodeBtn', false, 'تأكيد الكود');
+}
+
+// ── الخطوة 3: التحقق من كلمة المرور (2FA) ───────────────────────
+
+async function doCheckPassword() {
+    const password = document.getElementById('passwordInput').value.trim();
+    if (!password) { showMsg('passwordMsg','⚠️ يرجى إدخال كلمة المرور'); return; }
+    clearMsg('passwordMsg');
+    setLoading('checkPasswordBtn', true, 'تأكيد كلمة المرور');
+
+    try {
+        const res  = await fetch('/api/auth/check-password', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ phone: loginPhone, password })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            toast('مرحباً! تم تسجيل الدخول بنجاح', 'success');
+            setTimeout(() => window.location.href = '/', 800);
+        } else {
+            showMsg('passwordMsg', '❌ ' + data.message, 'error');
+            toast(data.message, 'error');
+        }
+    } catch {
+        showMsg('passwordMsg', '❌ حدث خطأ في الاتصال', 'error');
+    }
+    setLoading('checkPasswordBtn', false, 'تأكيد كلمة المرور');
+}
+
+// ── مفاتيح Enter ─────────────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    if (currentStep === 1) doSendCode();
+    if (currentStep === 2) doCheckCode();
+    if (currentStep === 3) doCheckPassword();
+});
+
+// ── تحقق من جلسة موجودة ──────────────────────────────────────────
+
+(async function checkSession() {
+    try {
+        const res  = await fetch('/api/auth/status');
+        const data = await res.json();
+        if (data.is_authenticated) window.location.href = '/';
+    } catch { /* تجاهل */ }
+})();
+</script>
+</body>
+</html>

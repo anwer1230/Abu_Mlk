@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مكالمة صوتية - مركز سرعة إنجاز</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            color: #e0e0e0;
+        }
+        .call-card {
+            text-align: center; padding: 50px 40px; width: 100%; max-width: 380px;
+        }
+        .avatar-ring {
+            position: relative; display: inline-block; margin-bottom: 28px;
+        }
+        .avatar {
+            width: 130px; height: 130px; border-radius: 50%;
+            background: linear-gradient(135deg, #00d2ff, #3a7bd5);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 52px; font-weight: 700; color: #fff;
+            box-shadow: 0 0 60px rgba(0,210,255,0.3); position: relative; z-index: 2;
+        }
+        .ring {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            border-radius: 50%; border: 2px solid rgba(0,210,255,0.3);
+            animation: pulse 2s infinite;
+        }
+        .ring-1 { width: 160px; height: 160px; animation-delay: 0s; }
+        .ring-2 { width: 190px; height: 190px; animation-delay: 0.5s; }
+        .ring-3 { width: 220px; height: 220px; animation-delay: 1s; }
+        @keyframes pulse {
+            0% { opacity: 0.6; transform: translate(-50%,-50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%,-50%) scale(1.2); }
+        }
+        .call-name {
+            font-size: 26px; font-weight: 600; margin-bottom: 6px;
+            letter-spacing: -0.3px;
+        }
+        .call-status {
+            color: #888; font-size: 14px; margin-bottom: 8px; min-height: 20px;
+        }
+        .encryption-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(46,204,113,0.1); border: 1px solid rgba(46,204,113,0.2);
+            border-radius: 20px; padding: 4px 12px; font-size: 12px; color: #2ecc71;
+            margin-bottom: 28px;
+        }
+        .call-timer {
+            font-size: 22px; font-weight: 300; color: #ccc;
+            font-variant-numeric: tabular-nums; letter-spacing: 2px; margin-bottom: 40px;
+            min-height: 32px;
+        }
+        .call-actions {
+            display: flex; justify-content: center; align-items: center; gap: 24px;
+        }
+        .btn-action {
+            width: 64px; height: 64px; border-radius: 50%; border: none;
+            font-size: 22px; cursor: pointer; display: flex; align-items: center;
+            justify-content: center; transition: all .25s; outline: none;
+        }
+        .btn-action:hover { transform: scale(1.08); }
+        .btn-mute { background: rgba(255,255,255,0.08); color: #d0d0d0; border: 1px solid rgba(255,255,255,0.1); }
+        .btn-mute.active { background: rgba(255,71,87,0.2); color: #ff4757; border-color: rgba(255,71,87,0.4); }
+        .btn-end { background: #ff4757; color: #fff; box-shadow: 0 0 30px rgba(255,71,87,0.35); width: 72px; height: 72px; font-size: 26px; }
+        .btn-end:hover { box-shadow: 0 0 50px rgba(255,71,87,0.5); background: #e0374a; }
+        .btn-speaker { background: rgba(255,255,255,0.08); color: #d0d0d0; border: 1px solid rgba(255,255,255,0.1); }
+        .btn-speaker.active { background: rgba(0,210,255,0.15); color: #00d2ff; border-color: rgba(0,210,255,0.35); }
+        .emoji-lock {
+            display: flex; justify-content: center; gap: 10px; margin-bottom: 20px;
+            font-size: 22px;
+        }
+        .emoji-lock span {
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 10px; padding: 4px 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="call-card">
+        <div class="avatar-ring">
+            <div class="ring ring-1"></div>
+            <div class="ring ring-2"></div>
+            <div class="ring ring-3"></div>
+            <div class="avatar" id="callAvatar">👤</div>
+        </div>
+
+        <div class="call-name" id="callName">{{ target_name or 'جاري الاتصال...' }}</div>
+        <div class="call-status" id="callStatus">📞 جاري الاتصال...</div>
+
+        <div class="emoji-lock" id="callEmojis">
+            <span>🔐</span><span>✅</span><span>🔒</span>
+        </div>
+
+        <div class="encryption-badge">
+            <i class="fas fa-lock"></i> تشفير شامل من طرف إلى طرف
+        </div>
+
+        <div class="call-timer" id="callTimer"></div>
+
+        <div class="call-actions">
+            <button class="btn-action btn-mute" id="muteBtn" onclick="toggleMute()" title="كتم الصوت">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button class="btn-action btn-end" onclick="endCall()" title="إنهاء المكالمة">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+            <button class="btn-action btn-speaker" id="speakerBtn" onclick="toggleSpeaker()" title="مكبر الصوت">
+                <i class="fas fa-volume-up"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // تمرير البيانات من Flask
+        const TARGET_USER_ID = {{ target_user_id or 0 }};
+        const TARGET_NAME    = "{{ target_name or 'مستخدم' }}";
+    </script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="/static/js/voice_call.js"></script>
+</body>
+</html>

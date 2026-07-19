@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الخصوصية - مركز سرعة إنجاز</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="/static/css/app_ext.css" rel="stylesheet">
+    <style>
+        body { background: #0f0f1a; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        .privacy-container { max-width: 620px; margin: 0 auto; padding: 20px; min-height: 100vh; }
+        .card-dark { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+        .section-title { color: #888; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+        .privacy-option { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .privacy-option:last-child { border-bottom: none; }
+        .privacy-option .label { font-size: 14px; color: #d0d0d0; }
+        .privacy-select { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; border-radius: 10px; padding: 6px 14px; font-size: 13px; cursor: pointer; outline: none; transition: border-color .2s; }
+        .privacy-select:focus { border-color: rgba(0,210,255,0.4); }
+        .privacy-select option { background: #1a1a2e; }
+        .blocked-user-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .blocked-user-item:last-child { border-bottom: none; }
+        .avatar { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, #3a7bd5, #00d2ff); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 16px; flex-shrink: 0; }
+        .user-info { flex: 1; }
+        .user-info .name { font-weight: 500; font-size: 14px; }
+        .user-info .phone { font-size: 12px; color: #888; margin-top: 2px; }
+        .btn-unblock { background: rgba(46,204,113,0.12); color: #2ecc71; border: 1px solid rgba(46,204,113,0.2); border-radius: 8px; padding: 5px 14px; font-size: 13px; cursor: pointer; transition: all .2s; }
+        .btn-unblock:hover { background: rgba(46,204,113,0.22); }
+        .btn-block-new { background: rgba(255,71,87,0.1); color: #ff4757; border: 1px solid rgba(255,71,87,0.2); border-radius: 10px; padding: 8px 18px; font-size: 13px; cursor: pointer; transition: all .2s; margin-top: 10px; }
+        .btn-block-new:hover { background: rgba(255,71,87,0.2); }
+        .badge-count { background: rgba(255,255,255,0.1); color: #aaa; font-size: 11px; padding: 2px 8px; border-radius: 12px; margin-right: 6px; }
+        .back-btn { background: none; border: none; color: #e0e0e0; font-size: 20px; padding: 0; cursor: pointer; margin-left: 12px; }
+        .empty-state { text-align: center; padding: 30px 0; color: #555; }
+        .empty-state i { font-size: 40px; margin-bottom: 12px; display: block; }
+        .toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; pointer-events: none; }
+        .toast-msg { background: rgba(30,30,50,0.97); color: #e0e0e0; border-radius: 12px; padding: 10px 20px; margin-bottom: 8px; font-size: 14px; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 4px 20px rgba(0,0,0,0.4); animation: slideDown .3s ease; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <div class="privacy-container">
+        <!-- Header -->
+        <div class="d-flex align-items-center mb-4 pt-2">
+            <button class="back-btn" onclick="history.back()">
+                <i class="fas fa-arrow-right"></i>
+            </button>
+            <h5 class="mb-0 fw-bold">الخصوصية والأمان</h5>
+        </div>
+
+        <!-- إعدادات رؤية البيانات -->
+        <div class="card-dark">
+            <div class="section-title">
+                <i class="fas fa-eye" style="color:#00d2ff"></i> من يمكنه رؤية
+            </div>
+            <div class="privacy-option">
+                <span class="label"><i class="fas fa-clock fa-sm me-2" style="color:#888"></i> آخر ظهور</span>
+                <select class="privacy-select" id="lastSeenPrivacy" onchange="updatePrivacy('last_seen', this.value)">
+                    <option value="everyone">الجميع</option>
+                    <option value="contacts">جهات الاتصال</option>
+                    <option value="nobody">لا أحد</option>
+                </select>
+            </div>
+            <div class="privacy-option">
+                <span class="label"><i class="fas fa-image fa-sm me-2" style="color:#888"></i> الصورة الشخصية</span>
+                <select class="privacy-select" id="photoPrivacy" onchange="updatePrivacy('photo', this.value)">
+                    <option value="everyone">الجميع</option>
+                    <option value="contacts">جهات الاتصال</option>
+                    <option value="nobody">لا أحد</option>
+                </select>
+            </div>
+            <div class="privacy-option">
+                <span class="label"><i class="fas fa-phone fa-sm me-2" style="color:#888"></i> رقم الهاتف</span>
+                <select class="privacy-select" id="phonePrivacy" onchange="updatePrivacy('phone', this.value)">
+                    <option value="everyone">الجميع</option>
+                    <option value="contacts">جهات الاتصال</option>
+                    <option value="nobody">لا أحد</option>
+                </select>
+            </div>
+            <div class="privacy-option">
+                <span class="label"><i class="fas fa-check-double fa-sm me-2" style="color:#888"></i> حالة القراءة</span>
+                <select class="privacy-select" id="readReceiptPrivacy" onchange="updatePrivacy('read_receipts', this.value)">
+                    <option value="everyone">الجميع</option>
+                    <option value="contacts">جهات الاتصال</option>
+                    <option value="nobody">لا أحد</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- حالة المزامنة -->
+        <div class="card-dark">
+            <div class="section-title">
+                <i class="fas fa-sync-alt" style="color:#2ecc71"></i> المزامنة مع GitHub
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+                <span style="font-size:14px; color:#d0d0d0">
+                    <i class="fas fa-database me-2" style="color:#888"></i>
+                    <span id="syncStatus">جاري التحقق...</span>
+                </span>
+                <button class="btn-unblock" onclick="syncNow()">
+                    <i class="fas fa-cloud-upload-alt me-1"></i> مزامنة الآن
+                </button>
+            </div>
+        </div>
+
+        <!-- المستخدمون المحظورون -->
+        <div class="card-dark">
+            <div class="section-title">
+                <i class="fas fa-ban" style="color:#ff4757"></i> المستخدمون المحظورون
+                <span class="badge-count" id="blockedCount">0</span>
+            </div>
+            <div id="blockedUsersList">
+                <div class="empty-state">
+                    <i class="fas fa-user-check" style="color:#555"></i>
+                    <span style="font-size:13px">لا يوجد مستخدمون محظورون</span>
+                </div>
+            </div>
+            <button class="btn-block-new" onclick="showBlockModal()">
+                <i class="fas fa-user-slash me-1"></i> حظر مستخدم جديد
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/privacy.js"></script>
+</body>
+</html>

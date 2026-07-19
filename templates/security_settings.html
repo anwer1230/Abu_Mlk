@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الأمان — مركز سرعة إنجاز</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="/static/css/style.css"    rel="stylesheet">
+    <link href="/static/css/themes.css"   rel="stylesheet">
+    <link href="/static/css/settings.css" rel="stylesheet">
+    <style>
+        body { background: #0f0f1a; color: #e0e0e0; font-family: Tajawal, sans-serif; }
+        .page-header {
+            display: flex; align-items: center; gap: 12px;
+            padding: 14px 16px;
+            background: rgba(255,255,255,0.02);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            position: sticky; top: 0; z-index: 10;
+            backdrop-filter: blur(8px);
+        }
+        .page-header .back-btn {
+            background: none; border: none; color: #e0e0e0;
+            font-size: 18px; cursor: pointer; padding: 4px 8px;
+            border-radius: 8px; transition: background .2s;
+        }
+        .page-header .back-btn:hover { background: rgba(255,255,255,0.06); }
+        .page-header h5 { margin: 0; font-size: 16px; font-weight: 600; }
+        .btn-danger-outline {
+            background: none; border: 1px solid #ff4757; color: #ff4757;
+            border-radius: 8px; padding: 6px 14px; cursor: pointer;
+            font-size: 13px; font-family: Tajawal, sans-serif;
+            transition: all .2s;
+        }
+        .btn-danger-outline:hover { background: #ff4757; color: #fff; }
+    </style>
+</head>
+<body>
+
+<div class="page-header">
+    <button class="back-btn" onclick="history.back()">
+        <i class="fas fa-arrow-right"></i>
+    </button>
+    <h5><i class="fas fa-shield-alt" style="color:#00d2ff;"></i> الأمان والخصوصية</h5>
+</div>
+
+<div class="security-container">
+
+    <!-- ── التحقق بخطوتين ── -->
+    <div class="security-card">
+        <div class="card-title">
+            <i class="fas fa-shield-alt"></i>
+            التحقق بخطوتين (2FA)
+            <span id="twoFactorStatus" class="badge bg-secondary ms-auto">جارٍ التحميل...</span>
+        </div>
+        <p style="color:#888;font-size:13px;margin-bottom:14px;">
+            حماية حسابك على Telegram بكلمة مرور إضافية عند الدخول من جهاز جديد.
+        </p>
+        <button class="btn btn-primary" id="twoFactorBtn" onclick="toggleTwoFactor()">
+            <i class="fas fa-spinner fa-spin"></i> جارٍ التحميل...
+        </button>
+    </div>
+
+    <!-- ── الجلسات النشطة ── -->
+    <div class="security-card">
+        <div class="card-title">
+            <i class="fas fa-laptop"></i>
+            الجلسات النشطة على Telegram
+            <span id="sessionCount" class="badge bg-primary ms-auto">...</span>
+        </div>
+        <div id="sessionsList">
+            <div style="text-align:center;padding:20px;color:#555;">
+                <i class="fas fa-spinner fa-spin"></i> جارٍ التحميل...
+            </div>
+        </div>
+        <button class="btn-danger-outline mt-3" onclick="terminateAllSessions()">
+            <i class="fas fa-sign-out-alt"></i> إنهاء جميع الجلسات الأخرى
+        </button>
+    </div>
+
+    <!-- ── نصائح الأمان ── -->
+    <div class="security-card" style="border-color:rgba(0,210,255,0.1);">
+        <div class="card-title">
+            <i class="fas fa-lightbulb" style="color:#f9ca24;"></i>
+            نصائح لحماية حسابك
+        </div>
+        <ul style="color:#888;font-size:13px;line-height:2;padding-right:18px;margin:0;">
+            <li>فعّل التحقق بخطوتين لمنع الوصول غير المصرح به</li>
+            <li>أنهِ الجلسات على الأجهزة التي لا تستخدمها</li>
+            <li>لا تشارك رمز OTP مع أحد</li>
+            <li>استخدم كلمة مرور قوية لا تقل عن 8 أحرف</li>
+        </ul>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/static/js/security_settings.js"></script>
+</body>
+</html>

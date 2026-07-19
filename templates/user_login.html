@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>دخول المنصة</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        *{box-sizing:border-box;}
+        body{background:#0b1120;color:#e2e8f0;display:flex;align-items:center;min-height:100vh;font-family:'Inter',system-ui,sans-serif;margin:0;}
+        .card{background:rgba(30,41,59,0.7);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,0.08);border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,0.55);padding:2.2rem 2.5rem;}
+        .logo{font-size:2.8rem;display:block;text-align:center;}
+        h3{text-align:center;font-weight:700;margin:.5rem 0 .2rem;}
+        .sub{text-align:center;color:#64748b;font-size:.85rem;margin-bottom:1.5rem;}
+        .form-label{color:#94a3b8;font-size:.82rem;font-weight:500;}
+        .form-control{background:rgba(15,23,42,.8);border:1px solid rgba(255,255,255,.09);color:#e2e8f0;border-radius:12px;padding:.75rem 1rem;}
+        .form-control:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.22);background:rgba(15,23,42,.95);}
+        .btn-enter{background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:12px;padding:.8rem;font-weight:700;width:100%;color:#fff;transition:transform .2s,box-shadow .2s;}
+        .btn-enter:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(99,102,241,.4);}
+        .msg{font-size:.82rem;min-height:1.2em;text-align:center;margin-top:.5rem;}
+        a{color:#a5b4fc;text-decoration:none;}
+        a:hover{color:#c4b5fd;}
+        .back{text-align:center;margin-top:1.2rem;font-size:.8rem;}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-5 col-lg-4">
+            <div class="card">
+                <span class="logo">🔐</span>
+                <h3>مركز سرعة انجاز</h3>
+                <p class="sub">سجّل دخولك للوصول إلى المستخدمين الإضافيين</p>
+                <div class="mb-3">
+                    <label class="form-label">اسم المستخدم</label>
+                    <input type="text" id="ulUsername" class="form-control" placeholder="أدخل اسم المستخدم" autocomplete="username">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">كلمة المرور</label>
+                    <input type="password" id="ulPassword" class="form-control" placeholder="••••••••" autocomplete="current-password">
+                </div>
+                <div id="ulMsg" class="msg"></div>
+                <button class="btn-enter mt-2" onclick="doLogin()">
+                    <i class="fas fa-sign-in-alt me-2"></i>دخول
+                </button>
+                <div class="back"><a href="/">← العودة للصفحة الرئيسية</a></div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+async function doLogin() {
+    const username = document.getElementById('ulUsername').value.trim();
+    const password = document.getElementById('ulPassword').value.trim();
+    const msg = document.getElementById('ulMsg');
+    if (!username || !password) { msg.style.color='#fca5a5'; msg.textContent='جميع الحقول مطلوبة'; return; }
+    msg.style.color='#a5b4fc'; msg.textContent='⏳ جاري التحقق...';
+    try {
+        const r = await fetch('/api/platform_login', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({username, password})
+        });
+        const d = await r.json();
+        if (d.success) {
+            msg.style.color='#6ee7b7'; msg.textContent='✅ ' + d.message;
+            setTimeout(() => window.location.href = '/', 900);
+        } else {
+            msg.style.color='#fca5a5'; msg.textContent=d.message;
+        }
+    } catch(e) { msg.style.color='#fca5a5'; msg.textContent='❌ خطأ في الاتصال'; }
+}
+document.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+</script>
+</body>
+</html>
