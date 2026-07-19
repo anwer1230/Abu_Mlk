@@ -1,6 +1,26 @@
 {
   "installations": [
     {
+      "install_id": "fp-8a94d1dc1eb1d9edb0c3d1f2",
+      "user_id": "user_1",
+      "ip": "142.250.32.x",
+      "geo": {
+        "country": "United States",
+        "region": "California",
+        "city": "Mountain View",
+        "timezone": "America/Los_Angeles",
+        "isp": "Google LLC",
+        "lat": 37.42,
+        "lon": -122.08
+      },
+      "user_agent": "Mozilla/5.0 (Linux; Android 10…",
+      "cookies": "{}",
+      "timestamp": "2026-07-19T12:45:35.584111",
+      "last_seen": "2026-07-19T12:45:35.584111",
+      "is_active": true,
+      "users_state": {}
+    },
+    {
       "install_id": "fp-366ba966721f531bcc9316cc",
       "user_id": "user_1",
       "ip": "127.0.0.x",
