@@ -216,6 +216,21 @@ class Database:
                 )
             ''')
 
+            # ── سجل المكالمات ───────────────────────────────────────────────
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS call_history (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id    TEXT NOT NULL,
+                    peer_id    TEXT NOT NULL,
+                    peer_name  TEXT,
+                    direction  TEXT DEFAULT 'outgoing',
+                    status     TEXT DEFAULT 'ended',
+                    duration   INTEGER DEFAULT 0,
+                    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    ended_at   DATETIME
+                )
+            ''')
+
             # ── المرحلة 1: تفاعلات الرسائل ─────────────────────────────────
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS message_reactions (
@@ -278,6 +293,63 @@ class Database:
             logger.info("✅ تم تهيئة قاعدة البيانات بنجاح")
 
     # ── المستخدمون ─────────────────────────────────────────────────────────
+
+    def export_user_data(self, user_id: str) -> dict:
+        """تصدير كل بيانات المستخدم كـ JSON للمزامنة"""
+        result = {}
+        with self.get_connection() as conn:
+            tables = {
+                'message_bookmarks': 'SELECT * FROM message_bookmarks WHERE user_id=?',
+                'message_reactions': 'SELECT * FROM message_reactions WHERE user_id=?',
+                'archived_chats':    'SELECT * FROM archived_chats WHERE user_id=?',
+                'muted_chats':       'SELECT * FROM muted_chats WHERE user_id=?',
+                'blocked_users':     'SELECT * FROM blocked_users WHERE user_id=?',
+                'pinned_messages':   'SELECT * FROM pinned_messages WHERE user_id=?',
+                'user_settings':     'SELECT * FROM user_settings WHERE user_id=?',
+                'shared_folders':    'SELECT * FROM shared_folders WHERE created_by=?',
+            }
+            for table, query in tables.items():
+                try:
+                    rows = conn.execute(query, (str(user_id),)).fetchall()
+                    result[table] = [dict(r) for r in rows]
+                except Exception:
+                    result[table] = []
+        return result
+
+    def import_user_data(self, user_id: str, data: dict) -> int:
+        """استيراد بيانات المزامنة — يُعيد عدد السجلات المضافة"""
+        count = 0
+        with self.get_connection() as conn:
+            bm = data.get('message_bookmarks', [])
+            for r in bm:
+                try:
+                    conn.execute(
+                        'INSERT OR IGNORE INTO message_bookmarks (message_id,chat_id,user_id,text,created_at) VALUES (?,?,?,?,?)',
+                        (r.get('message_id'), r.get('chat_id'), user_id, r.get('text'), r.get('created_at'))
+                    ); count += 1
+                except Exception: pass
+
+            arc = data.get('archived_chats', [])
+            for r in arc:
+                try:
+                    conn.execute('INSERT OR IGNORE INTO archived_chats (chat_id,user_id) VALUES (?,?)',
+                                 (r.get('chat_id'), user_id)); count += 1
+                except Exception: pass
+
+            muted = data.get('muted_chats', [])
+            for r in muted:
+                try:
+                    conn.execute('INSERT OR IGNORE INTO muted_chats (chat_id,user_id,muted_until) VALUES (?,?,?)',
+                                 (r.get('chat_id'), user_id, r.get('muted_until'))); count += 1
+                except Exception: pass
+
+            settings = data.get('user_settings', [])
+            for r in settings:
+                try:
+                    conn.execute('INSERT OR REPLACE INTO user_settings (user_id,key,value) VALUES (?,?,?)',
+                                 (user_id, r.get('key'), r.get('value'))); count += 1
+                except Exception: pass
+        return count
 
     def get_user(self, user_id: str) -> dict | None:
         with self.get_connection() as conn:

@@ -1204,17 +1204,33 @@
             <span><i class="fas fa-robot"></i> البوتات</span>
             <i class="fas fa-chevron-left" style="color:#444;"></i>
         </div>
+        <div class="settings-row" style="cursor:pointer;" onclick="closeSettings(); showCallHistory();">
+            <span><i class="fas fa-phone-alt"></i> سجل المكالمات</span>
+            <i class="fas fa-chevron-left" style="color:#444;"></i>
+        </div>
     </div>
     <div class="settings-section">
-        <div class="settings-section-title">المزامنة</div>
+        <div class="settings-section-title">المزامنة عبر GitHub</div>
         <div class="settings-row">
-            <span><i class="fas fa-cloud-upload-alt"></i> مزامنة مع GitHub</span>
+            <span><i class="fas fa-cloud-upload-alt"></i> مزامنة الآن</span>
             <button id="syncBtn" onclick="manualSync()"
                     style="background:linear-gradient(135deg,#00d2ff,#3a7bd5);border:none;color:#fff;
                            border-radius:8px;padding:4px 12px;cursor:pointer;font-family:Tajawal,sans-serif;font-size:12px;">
                 <i class="fas fa-cloud-upload-alt"></i> مزامنة
             </button>
         </div>
+        <div style="font-size:11px;color:#555;padding:4px 0 8px;" id="syncLastTime"></div>
+        <div class="settings-row" style="cursor:pointer;" onclick="exportAndDownload()">
+            <span><i class="fas fa-download"></i> تصدير البيانات (JSON)</span>
+            <i class="fas fa-chevron-left" style="color:#444;"></i>
+        </div>
+        <div class="settings-row" style="cursor:pointer;"
+             onclick="document.getElementById('importFileInput').click()">
+            <span><i class="fas fa-upload"></i> استيراد بيانات</span>
+            <i class="fas fa-chevron-left" style="color:#444;"></i>
+        </div>
+        <input type="file" id="importFileInput" accept=".json" style="display:none;"
+               onchange="importFromFile(this.files[0]); this.value='';">
     </div>
 </div>
 

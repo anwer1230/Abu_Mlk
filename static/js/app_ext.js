@@ -1007,12 +1007,65 @@ async function sendBotTestMsg() {
    ══════════════════════════════════════════════════════════════════ */
 
 function setupAutoSync() {
-    // مزامنة تلقائية كل 5 دقائق إذا كان المستخدم مسجّلاً
+    // مزامنة تلقائية كل 5 دقائق
     setInterval(async () => {
         if (!AppState?.isLoggedIn) return;
-        try { await fetch('/api/sync/github', {method: 'POST'}); }
-        catch (_) {}
+        try {
+            await fetch('/api/sync/github', {method: 'POST'});
+            _updateLastSyncUI();
+        } catch (_) {}
     }, 5 * 60 * 1000);
+
+    // عرض وقت المزامنة الأخيرة عند التشغيل
+    _loadSyncStatus();
+}
+
+async function _loadSyncStatus() {
+    try {
+        const res  = await fetch('/api/sync/status');
+        const data = await res.json();
+        if (data.success) _renderSyncStatus(data.last_sync);
+    } catch (_) {}
+}
+
+function _renderSyncStatus(lastSync) {
+    const el = document.getElementById('syncLastTime');
+    if (!el) return;
+    el.textContent = lastSync ? `آخر مزامنة: ${lastSync}` : '';
+}
+
+function _updateLastSyncUI() {
+    const now = new Date().toLocaleTimeString('ar');
+    _renderSyncStatus(now);
+}
+
+async function exportAndDownload() {
+    try {
+        const res  = await fetch('/api/sync/export');
+        const data = await res.json();
+        if (!data.success) { showToast('❌ فشل التصدير', 'error'); return; }
+        const blob = new Blob([JSON.stringify(data.data, null, 2)], {type: 'application/json'});
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url; a.download = `backup_${Date.now()}.json`;
+        a.click(); URL.revokeObjectURL(url);
+        showToast('✅ تم تصدير البيانات', 'success');
+    } catch (_) { showToast('❌ فشل التصدير', 'error'); }
+}
+
+async function importFromFile(file) {
+    if (!file) return;
+    try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        const res  = await fetch('/api/sync/import', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body:   JSON.stringify({data}),
+        });
+        const result = await res.json();
+        if (result.success) showToast(`✅ تم استيراد ${result.imported} سجل`, 'success');
+        else showToast('❌ ' + result.message, 'error');
+    } catch (_) { showToast('❌ ملف غير صالح', 'error'); }
 }
 
 function updateSyncIndicator(status) {
@@ -1170,6 +1223,97 @@ const RTC = {
     },
 };
 
+// ── سجل المكالمات + نغمة الرنين ──────────────────────────────
+let _ringtonCtx  = null;
+let _ringtonNode = null;
+
+function playRingtone() {
+    try {
+        _ringtonCtx  = new (window.AudioContext || window.webkitAudioContext)();
+        const osc    = _ringtonCtx.createOscillator();
+        const gain   = _ringtonCtx.createGain();
+        osc.type     = 'sine';
+        osc.frequency.setValueAtTime(440, _ringtonCtx.currentTime);
+        osc.frequency.setValueAtTime(480, _ringtonCtx.currentTime + 0.4);
+        gain.gain.setValueAtTime(0.3, _ringtonCtx.currentTime);
+        osc.connect(gain); gain.connect(_ringtonCtx.destination);
+        osc.start(); osc.stop(_ringtonCtx.currentTime + 0.8);
+        _ringtonNode = osc;
+        // تكرار كل 2 ثانية
+        RTC._ringtonInterval = setInterval(() => {
+            try {
+                const ctx2 = new (window.AudioContext || window.webkitAudioContext)();
+                const o2   = ctx2.createOscillator();
+                const g2   = ctx2.createGain();
+                o2.type    = 'sine';
+                o2.frequency.value = 440;
+                g2.gain.value = 0.3;
+                o2.connect(g2); g2.connect(ctx2.destination);
+                o2.start(); o2.stop(ctx2.currentTime + 0.8);
+            } catch (_) {}
+        }, 2000);
+    } catch (_) {}
+}
+
+function stopRingtone() {
+    clearInterval(RTC._ringtonInterval);
+    try { if (_ringtonCtx) _ringtonCtx.close(); } catch (_) {}
+    _ringtonCtx = null;
+}
+
+async function logCall(peerId, peerName, direction, status, duration) {
+    try {
+        await fetch('/api/calls/log', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body:   JSON.stringify({peer_id: peerId, peer_name: peerName, direction, status, duration}),
+        });
+    } catch (_) {}
+}
+
+async function showCallHistory() {
+    try {
+        const res  = await fetch('/api/calls/history?limit=30');
+        const data = await res.json();
+        const calls = data.calls || [];
+        if (!calls.length) { showToast('📞 لا توجد مكالمات سابقة', 'info'); return; }
+
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.tabIndex  = -1;
+        modal.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="background:#1a1a2e;color:#e0e0e0;border:1px solid rgba(255,255,255,.05);">
+                    <div class="modal-header" style="border-bottom:1px solid rgba(255,255,255,.05);">
+                        <h5 class="modal-title"><i class="fas fa-phone-alt" style="color:#00d2ff;"></i> سجل المكالمات</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1);"></button>
+                    </div>
+                    <div class="modal-body" style="max-height:400px;overflow-y:auto;padding:0;">
+                        ${calls.map(c => {
+                            const icon = c.direction === 'incoming' ? '📲' : '📞';
+                            const statusColor = c.status === 'missed' ? '#ff4757' : c.status === 'rejected' ? '#f9ca24' : '#2ecc71';
+                            const dur  = c.duration > 0 ? `${Math.floor(c.duration/60)}:${String(c.duration%60).padStart(2,'0')}` : '—';
+                            const date = new Date(c.started_at).toLocaleString('ar');
+                            return `
+                            <div style="padding:12px 20px;border-bottom:1px solid rgba(255,255,255,.04);display:flex;align-items:center;gap:12px;">
+                                <span style="font-size:20px;">${icon}</span>
+                                <div style="flex:1;">
+                                    <div style="font-weight:600;color:#ccc;">${c.peer_name||'مستخدم'}</div>
+                                    <div style="font-size:12px;color:#555;">${date}</div>
+                                </div>
+                                <div style="text-align:left;">
+                                    <div style="color:${statusColor};font-size:12px;">${c.status==='missed'?'فائتة':c.status==='rejected'?'مرفوضة':'منتهية'}</div>
+                                    <div style="font-size:11px;color:#666;">${dur}</div>
+                                </div>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        new bootstrap.Modal(modal).show();
+    } catch (_) { showToast('❌ فشل تحميل السجل', 'error'); }
+}
+
 // ── أزرار واجهة المكالمة ─────────────────────────────────────
 function makeVoiceCall() {
     const chatId = AppState?.currentChatId;
@@ -1177,9 +1321,21 @@ function makeVoiceCall() {
     if (!chatId) { showToast('⚠️ اختر محادثة أولاً', 'warning'); return; }
     RTC.makeCall(chatId, chat?.name || 'مستخدم');
 }
-function acceptCall()      { RTC.accept(); }
-function rejectCall()      { RTC.reject(); }
-function endCall()         { RTC.end(); }
+function acceptCall() {
+    stopRingtone();
+    logCall(RTC.fromUserId, RTC._peerName || 'مستخدم', 'incoming', 'ended', 0);
+    RTC.accept();
+}
+function rejectCall() {
+    stopRingtone();
+    logCall(RTC.fromUserId, RTC._peerName || 'مستخدم', 'incoming', 'rejected', 0);
+    RTC.reject();
+}
+function endCall() {
+    logCall(RTC.toUserId || RTC.fromUserId, RTC._peerName || 'مستخدم',
+            RTC.fromUserId ? 'incoming' : 'outgoing', 'ended', RTC.seconds);
+    RTC.end();
+}
 function toggleMicMute() {
     RTC.isMuted = !RTC.isMuted;
     RTC.stream?.getAudioTracks().forEach(t => { t.enabled = !RTC.isMuted; });
@@ -1207,17 +1363,19 @@ function setupCallSocketEvents() {
     socket.on('incoming_call', data => {
         RTC.fromUserId    = data.from_user_id;
         RTC._pendingOffer = data.offer;
+        RTC._peerName     = data.from_name || 'مستخدم';
         const icAvatar = document.getElementById('icAvatar');
         const icName   = document.getElementById('icName');
         const bar      = document.getElementById('incomingCallBar');
-        if (icAvatar) icAvatar.textContent = (data.from_name || '?')[0]?.toUpperCase();
-        if (icName)   icName.textContent   = data.from_name || 'مستخدم';
+        if (icAvatar) icAvatar.textContent = (RTC._peerName)[0]?.toUpperCase();
+        if (icName)   icName.textContent   = RTC._peerName;
         if (bar)      bar.style.display    = 'flex';
-        if (typeof playNotificationSound === 'function') playNotificationSound();
+        playRingtone();
     });
 
     socket.on('call_answered', async data => {
         if (!RTC.pc) return;
+        stopRingtone();
         try {
             await RTC.pc.setRemoteDescription(new RTCSessionDescription(data.answer));
             const st = document.getElementById('callStatusEl');
@@ -1231,8 +1389,20 @@ function setupCallSocketEvents() {
         try { await RTC.pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
     });
 
-    socket.on('call_ended',   () => { showToast('📞 انتهت المكالمة', 'info');    RTC._cleanup(); });
-    socket.on('call_rejected',() => { showToast('📞 رُفضت المكالمة', 'warning'); RTC._cleanup(); });
+    socket.on('call_ended', () => {
+        stopRingtone();
+        logCall(RTC.fromUserId || RTC.toUserId, RTC._peerName || 'مستخدم',
+                RTC.fromUserId ? 'incoming' : 'outgoing', 'ended', RTC.seconds);
+        showToast('📞 انتهت المكالمة', 'info');
+        RTC._cleanup();
+    });
+
+    socket.on('call_rejected', () => {
+        stopRingtone();
+        logCall(RTC.toUserId, RTC._peerName || 'مستخدم', 'outgoing', 'rejected', 0);
+        showToast('📞 رُفضت المكالمة', 'warning');
+        RTC._cleanup();
+    });
 }
 
 /* ══════════════════════════════════════════════════════════════════

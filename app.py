@@ -1602,6 +1602,40 @@ def api_privacy_get():
     return jsonify({'success': True, 'privacy': privacy})
 
 
+@app.route('/api/sync/export', methods=['GET'])
+@auth.login_required
+def api_sync_export():
+    """تصدير كل بيانات المستخدم"""
+    user_id = session.get('user_id')
+    data    = db.export_user_data(user_id)
+    data['exported_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    data['user_id']     = user_id
+    return jsonify({'success': True, 'data': data})
+
+
+@app.route('/api/sync/import', methods=['POST'])
+@auth.login_required
+def api_sync_import():
+    """استيراد بيانات المزامنة"""
+    user_id = session.get('user_id')
+    data    = request.get_json(force=True) or {}
+    payload = data.get('data', data)
+    count   = db.import_user_data(user_id, payload)
+    # مزامنة فورية مع GitHub
+    import threading
+    threading.Thread(target=db.backup_to_github, args=(user_id,), daemon=True).start()
+    return jsonify({'success': True, 'imported': count})
+
+
+@app.route('/api/sync/status', methods=['GET'])
+@auth.login_required
+def api_sync_status():
+    """حالة المزامنة الأخيرة"""
+    user_id = session.get('user_id')
+    last_sync = db.get_setting(user_id, 'last_sync_time') or 'لم تتم مزامنة'
+    return jsonify({'success': True, 'last_sync': last_sync, 'user_id': user_id})
+
+
 @app.route('/api/privacy/settings', methods=['POST'])
 @auth.login_required
 def api_privacy_update():
@@ -1617,7 +1651,46 @@ def api_privacy_update():
 
 
 # ══════════════════════════════════════════════════════════════════
-#  المرحلة 6: إشارات المكالمات الصوتية (Socket.IO WebRTC)
+#  المرحلة 6: سجل المكالمات + إشارات WebRTC
+# ══════════════════════════════════════════════════════════════════
+
+@app.route('/api/calls/log', methods=['POST'])
+@auth.login_required
+def api_log_call():
+    """تسجيل مكالمة في السجل"""
+    user_id = session.get('user_id')
+    data    = request.get_json(force=True) or {}
+    with db.get_connection() as conn:
+        conn.execute('''
+            INSERT INTO call_history (user_id, peer_id, peer_name, direction, status, duration, ended_at)
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ''', (
+            user_id,
+            str(data.get('peer_id', '')),
+            data.get('peer_name', 'مستخدم'),
+            data.get('direction', 'outgoing'),
+            data.get('status', 'ended'),
+            int(data.get('duration', 0)),
+        ))
+    return jsonify({'success': True})
+
+
+@app.route('/api/calls/history', methods=['GET'])
+@auth.login_required
+def api_call_history():
+    """سجل المكالمات"""
+    user_id = session.get('user_id')
+    limit   = min(int(request.args.get('limit', 50)), 100)
+    with db.get_connection() as conn:
+        rows = conn.execute('''
+            SELECT * FROM call_history WHERE user_id=?
+            ORDER BY started_at DESC LIMIT ?
+        ''', (user_id, limit)).fetchall()
+    return jsonify({'success': True, 'calls': [dict(r) for r in rows]})
+
+
+# ══════════════════════════════════════════════════════════════════
+#  إشارات المكالمات الصوتية (Socket.IO WebRTC)
 # ══════════════════════════════════════════════════════════════════
 
 @socketio.on('call_offer')
