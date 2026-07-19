@@ -4,12 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مركز سرعة إنجاز — تسجيل الدخول</title>
-
-    <!-- Bootstrap 5 RTL -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
-    <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- Google Fonts — Tajawal -->
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 
     <style>
@@ -18,8 +14,6 @@
             box-sizing: border-box;
             margin: 0; padding: 0;
         }
-
-        /* ── خلفية ── */
         body {
             background: #0d0d1a;
             min-height: 100vh;
@@ -28,8 +22,6 @@
             justify-content: center;
             overflow: hidden;
         }
-
-        /* نجوم متحركة */
         .stars {
             position: fixed; inset: 0; z-index: 0;
             background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
@@ -61,13 +53,11 @@
         }
         @keyframes twinkle { from { opacity:.5 } to { opacity:1 } }
 
-        /* ── البطاقة ── */
         .login-wrapper {
             position: relative; z-index: 1;
-            width: 100%; max-width: 460px;
+            width: 100%; max-width: 480px;
             padding: 16px;
         }
-
         .login-card {
             background: linear-gradient(145deg,
                 rgba(26,26,46,.97) 0%,
@@ -81,19 +71,14 @@
             backdrop-filter: blur(20px);
         }
 
-        /* ── شعار ── */
-        .logo { text-align: center; margin-bottom: 36px; }
+        /* شعار */
+        .logo { text-align: center; margin-bottom: 32px; }
         .logo-icon {
-            font-size: 52px;
-            display: block;
-            margin-bottom: 12px;
+            font-size: 52px; display: block; margin-bottom: 12px;
             filter: drop-shadow(0 0 20px rgba(0,210,255,.5));
             animation: float 3s ease-in-out infinite;
         }
-        @keyframes float {
-            0%,100% { transform: translateY(0) }
-            50%      { transform: translateY(-8px) }
-        }
+        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
         .logo h1 {
             font-size: 26px; font-weight: 800;
             background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
@@ -102,44 +87,175 @@
         }
         .logo p { color: #6b7db3; font-size: 13px; }
 
-        /* ── مراحل الدخول ── */
+        /* مراحل الدخول */
         .step { display: none; }
         .step.active { display: block; animation: fadeIn .35s ease; }
-        @keyframes fadeIn { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:none } }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
 
-        /* ── الحقول ── */
+        /* التسميات */
         .field-label {
             font-size: 12px; font-weight: 600;
             color: #8899cc; letter-spacing: .5px;
-            text-transform: uppercase; margin-bottom: 8px;
+            text-transform: uppercase; margin-bottom: 10px;
             display: flex; align-items: center; gap: 6px;
         }
+
+        /* ========================================
+           حقل الهاتف المدمج مع كود الدولة
+           ======================================== */
+        .phone-field-wrapper {
+            margin-bottom: 20px;
+        }
+        .phone-input-row {
+            display: flex;
+            align-items: stretch;
+            background: rgba(255,255,255,.04);
+            border: 1.5px solid rgba(255,255,255,.08);
+            border-radius: 14px;
+            overflow: hidden;
+            transition: all .25s;
+        }
+        .phone-input-row:focus-within {
+            border-color: rgba(0,210,255,.5);
+            background: rgba(0,210,255,.04);
+            box-shadow: 0 0 0 4px rgba(0,210,255,.08);
+        }
+
+        /* جزء الدولة */
+        .country-part {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 14px;
+            border-left: 1.5px solid rgba(255,255,255,.08);
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+            min-width: 110px;
+            position: relative;
+            user-select: none;
+            transition: background .2s;
+        }
+        [dir="rtl"] .country-part {
+            border-left: none;
+            border-right: 1.5px solid rgba(255,255,255,.08);
+        }
+        .country-part:hover { background: rgba(255,255,255,.04); }
+        .country-flag { font-size: 20px; line-height: 1; }
+        .country-code-text {
+            font-size: 15px; font-weight: 700;
+            color: #00d2ff; direction: ltr;
+        }
+        .country-arrow {
+            font-size: 9px; color: #3d4878;
+            transition: transform .2s;
+        }
+        .country-part.open .country-arrow { transform: rotate(180deg); }
+
+        /* قائمة الدول */
+        .country-dropdown {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            left: 0;
+            width: 320px;
+            background: #1a1a2e;
+            border: 1px solid rgba(255,255,255,.1);
+            border-radius: 14px;
+            box-shadow: 0 20px 60px rgba(0,0,0,.7);
+            z-index: 999;
+            overflow: hidden;
+            max-height: 320px;
+            flex-direction: column;
+        }
+        [dir="rtl"] .country-dropdown { right: auto; left: 0; }
+        .country-dropdown.open { display: flex; }
+        .country-search-wrap {
+            padding: 10px;
+            border-bottom: 1px solid rgba(255,255,255,.06);
+            flex-shrink: 0;
+        }
+        .country-search-wrap input {
+            width: 100%; background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.08); border-radius: 8px;
+            padding: 7px 12px; color: #e8eaf6; font-size: 13px;
+            font-family: 'Tajawal',sans-serif; outline: none;
+        }
+        .country-search-wrap input::placeholder { color: #3d4878; }
+        .country-list {
+            overflow-y: auto; flex: 1;
+        }
+        .country-list::-webkit-scrollbar { width: 3px; }
+        .country-list::-webkit-scrollbar-thumb { background: #00d2ff40; border-radius: 3px; }
+        .country-option {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 14px; cursor: pointer;
+            transition: background .15s;
+            font-size: 14px; color: #c8d0e8;
+        }
+        .country-option:hover { background: rgba(0,210,255,.08); }
+        .country-option.selected { background: rgba(0,210,255,.12); color: #00d2ff; }
+        .country-option .opt-flag { font-size: 18px; }
+        .country-option .opt-name { flex: 1; }
+        .country-option .opt-code { color: #00d2ff; font-weight: 700; font-size: 13px; direction: ltr; }
+
+        /* جزء الرقم */
+        .phone-number-part {
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+        .phone-number-part input {
+            width: 100%; padding: 14px 16px;
+            background: none; border: none;
+            color: #e8eaf6; font-size: 16px;
+            font-family: 'Tajawal', monospace;
+            outline: none; direction: ltr;
+            letter-spacing: 1px;
+        }
+        .phone-number-part input::placeholder { color: #3d4878; }
+
+        /* مؤشر الدولة المكتشفة */
+        .detected-country {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+            padding: 6px 12px;
+            background: rgba(0,210,255,.08);
+            border-radius: 8px;
+            border: 1px solid rgba(0,210,255,.15);
+            font-size: 12px;
+            color: #5dddff;
+            animation: fadeIn .3s ease;
+        }
+        .detected-country.show { display: flex; }
+
+        /* حقول عادية */
         .input-wrap { position: relative; margin-bottom: 20px; }
         .input-wrap input {
-            width: 100%; padding: 14px 18px;
+            width: 100%; padding: 14px 44px 14px 18px;
             background: rgba(255,255,255,.04);
             border: 1.5px solid rgba(255,255,255,.08);
             border-radius: 14px; color: #e8eaf6;
             font-size: 15px; font-family: 'Tajawal', monospace;
-            transition: all .25s;
+            transition: all .25s; outline: none;
         }
+        [dir="rtl"] .input-wrap input { padding: 14px 18px 14px 44px; }
         .input-wrap input::placeholder { color: #3d4878; }
         .input-wrap input:focus {
-            outline: none;
             border-color: rgba(0,210,255,.5);
             background: rgba(0,210,255,.04);
             box-shadow: 0 0 0 4px rgba(0,210,255,.08);
         }
         .input-wrap .input-icon {
-            position: absolute; left: 16px; top: 50%;
-            transform: translateY(-50%);
-            color: #3d4878; font-size: 16px;
-            pointer-events: none;
+            position: absolute; top: 50%; transform: translateY(-50%);
+            left: 16px; color: #3d4878; font-size: 16px; pointer-events: none;
         }
         [dir="rtl"] .input-wrap .input-icon { left: auto; right: 16px; }
-        [dir="rtl"] .input-wrap input { padding-right: 44px; padding-left: 18px; }
 
-        /* ── زر ── */
+        /* زر */
         .btn-primary-grad {
             width: 100%; padding: 15px;
             background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
@@ -149,92 +265,88 @@
             position: relative; overflow: hidden;
         }
         .btn-primary-grad::after {
-            content: ''; position: absolute; inset: 0;
+            content:''; position:absolute; inset:0;
             background: linear-gradient(135deg, #3a7bd5 0%, #00d2ff 100%);
-            opacity: 0; transition: opacity .3s;
+            opacity:0; transition:opacity .3s;
         }
-        .btn-primary-grad:hover:not(:disabled)::after { opacity: 1; }
-        .btn-primary-grad span { position: relative; z-index: 1; }
+        .btn-primary-grad:hover:not(:disabled)::after { opacity:1; }
+        .btn-primary-grad span { position:relative; z-index:1; }
         .btn-primary-grad:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 12px 32px rgba(0,210,255,.35);
         }
-        .btn-primary-grad:disabled { opacity: .55; cursor: not-allowed; }
+        .btn-primary-grad:disabled { opacity:.55; cursor:not-allowed; }
 
-        /* ── مؤشر التحميل ── */
+        /* spinner */
         .spinner {
-            display: inline-block; width: 16px; height: 16px;
-            border: 2px solid rgba(255,255,255,.3);
-            border-top-color: #fff; border-radius: 50%;
-            animation: spin .7s linear infinite;
-            vertical-align: middle; margin-inline-end: 6px;
+            display:inline-block; width:16px; height:16px;
+            border:2px solid rgba(255,255,255,.3);
+            border-top-color:#fff; border-radius:50%;
+            animation:spin .7s linear infinite;
+            vertical-align:middle; margin-inline-end:6px;
         }
-        @keyframes spin { to { transform: rotate(360deg) } }
+        @keyframes spin { to{transform:rotate(360deg)} }
 
-        /* ── رسائل الخطأ / النجاح ── */
+        /* رسائل */
         .msg-box {
-            padding: 10px 14px; border-radius: 10px;
-            font-size: 13px; margin-top: 12px;
-            display: none;
+            padding:10px 14px; border-radius:10px;
+            font-size:13px; margin-top:12px; display:none;
         }
-        .msg-box.show { display: block; }
-        .msg-box.error   { background: rgba(255,71,87,.12); color: #ff6b7a; border: 1px solid rgba(255,71,87,.25); }
-        .msg-box.success { background: rgba(46,204,113,.12); color: #56d48e; border: 1px solid rgba(46,204,113,.25); }
-        .msg-box.info    { background: rgba(0,210,255,.10); color: #5dddff; border: 1px solid rgba(0,210,255,.2); }
+        .msg-box.show { display:block; }
+        .msg-box.error   { background:rgba(255,71,87,.12); color:#ff6b7a; border:1px solid rgba(255,71,87,.25); }
+        .msg-box.success { background:rgba(46,204,113,.12); color:#56d48e; border:1px solid rgba(46,204,113,.25); }
+        .msg-box.info    { background:rgba(0,210,255,.10);  color:#5dddff; border:1px solid rgba(0,210,255,.2); }
 
-        /* ── تذييل ── */
+        /* تذييل */
         .card-footer {
-            margin-top: 28px; text-align: center;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255,255,255,.05);
+            margin-top:28px; text-align:center;
+            padding-top:20px;
+            border-top:1px solid rgba(255,255,255,.05);
         }
-        .card-footer p { color: #4a5680; font-size: 12px; }
+        .card-footer p { color:#4a5680; font-size:12px; }
 
-        /* ── مؤشر التقدم ── */
+        /* مؤشر التقدم */
         .steps-indicator {
-            display: flex; justify-content: center; gap: 8px;
-            margin-bottom: 28px;
+            display:flex; justify-content:center; gap:8px; margin-bottom:28px;
         }
         .step-dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: rgba(255,255,255,.1);
-            transition: all .3s;
+            width:8px; height:8px; border-radius:50%;
+            background:rgba(255,255,255,.1); transition:all .3s;
         }
         .step-dot.active {
-            background: #00d2ff;
-            box-shadow: 0 0 10px rgba(0,210,255,.6);
-            width: 24px; border-radius: 4px;
+            background:#00d2ff;
+            box-shadow:0 0 10px rgba(0,210,255,.6);
+            width:24px; border-radius:4px;
         }
-        .step-dot.done { background: rgba(0,210,255,.4); }
+        .step-dot.done { background:rgba(0,210,255,.4); }
 
-        /* ── الـ Toast ── */
+        /* toast */
         .toast-wrap {
-            position: fixed; bottom: 24px; right: 24px;
-            z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+            position:fixed; bottom:24px; right:24px;
+            z-index:9999; display:flex; flex-direction:column; gap:8px;
         }
         .toast-item {
-            background: rgba(26,26,46,.98);
-            border: 1px solid rgba(255,255,255,.08);
-            border-radius: 14px; padding: 14px 18px;
-            min-width: 260px; max-width: 340px;
-            box-shadow: 0 16px 40px rgba(0,0,0,.5);
-            animation: slideIn .3s ease;
-            transition: all .3s;
+            background:rgba(26,26,46,.98);
+            border:1px solid rgba(255,255,255,.08);
+            border-radius:14px; padding:14px 18px;
+            min-width:260px; max-width:340px;
+            box-shadow:0 16px 40px rgba(0,0,0,.5);
+            animation:slideIn .3s ease; transition:all .3s;
         }
         @keyframes slideIn {
-            from { opacity:0; transform:translateX(40px) }
-            to   { opacity:1; transform:none }
+            from{opacity:0;transform:translateX(40px)}
+            to{opacity:1;transform:none}
         }
-        .toast-item.success { border-right: 4px solid #2ecc71; }
-        .toast-item.error   { border-right: 4px solid #ff4757; }
-        .toast-item.info    { border-right: 4px solid #00d2ff; }
-        .toast-title { font-weight: 700; font-size: 14px; color: #e8eaf6; }
-        .toast-body  { font-size: 12px; color: #6b7db3; margin-top: 2px; }
+        .toast-item.success { border-right:4px solid #2ecc71; }
+        .toast-item.error   { border-right:4px solid #ff4757; }
+        .toast-item.info    { border-right:4px solid #00d2ff; }
+        .toast-title { font-weight:700; font-size:14px; color:#e8eaf6; }
+        .toast-body  { font-size:12px; color:#6b7db3; margin-top:2px; }
 
-        /* ── الشاشات الصغيرة ── */
-        @media (max-width: 480px) {
-            .login-card { padding: 32px 24px; }
-            .logo h1 { font-size: 22px; }
+        @media (max-width:480px) {
+            .login-card { padding:32px 20px; }
+            .logo h1 { font-size:22px; }
+            .country-dropdown { width:280px; }
         }
     </style>
 </head>
@@ -245,47 +357,83 @@
 <div class="login-wrapper">
     <div class="login-card">
 
-        <!-- شعار -->
         <div class="logo">
             <span class="logo-icon">🚀</span>
             <h1>مركز سرعة إنجاز</h1>
             <p>سجّل الدخول للوصول إلى محادثاتك</p>
         </div>
 
-        <!-- مؤشر التقدم -->
         <div class="steps-indicator">
             <div class="step-dot active" id="dot1"></div>
             <div class="step-dot"        id="dot2"></div>
             <div class="step-dot"        id="dot3"></div>
         </div>
 
-        <!-- ── الخطوة 1: رقم الهاتف ── -->
+        <!-- ══ الخطوة 1: رقم الهاتف مع كود الدولة ══ -->
         <div class="step active" id="step1">
-            <div class="input-wrap">
-                <label class="field-label"><i class="fas fa-mobile-alt"></i> رقم الهاتف</label>
-                <input type="tel" id="phoneInput" placeholder="+966512345678"
-                       dir="ltr" autocomplete="tel">
-                <i class="fas fa-phone input-icon"></i>
+            <div class="phone-field-wrapper">
+                <label class="field-label">
+                    <i class="fas fa-mobile-alt"></i> رقم الهاتف مع كود الدولة
+                </label>
+
+                <div class="phone-input-row" id="phoneInputRow">
+                    <!-- جزء الدولة -->
+                    <div class="country-part" id="countryPart" onclick="toggleCountryDropdown()">
+                        <span class="country-flag" id="selectedFlag">🌍</span>
+                        <span class="country-code-text" id="selectedCode">+</span>
+                        <i class="fas fa-chevron-down country-arrow" id="countryArrow"></i>
+
+                        <!-- قائمة الدول -->
+                        <div class="country-dropdown" id="countryDropdown">
+                            <div class="country-search-wrap">
+                                <input type="text" id="countrySearch"
+                                       placeholder="ابحث عن دولة..."
+                                       oninput="filterCountries(this.value)"
+                                       onclick="event.stopPropagation()" />
+                            </div>
+                            <div class="country-list" id="countryList"></div>
+                        </div>
+                    </div>
+
+                    <!-- جزء الرقم -->
+                    <div class="phone-number-part">
+                        <input type="tel" id="phoneNumberInput"
+                               placeholder="5xxxxxxxx"
+                               oninput="onPhoneInput(this.value)"
+                               autocomplete="tel-national"
+                               inputmode="tel" />
+                    </div>
+                </div>
+
+                <!-- مؤشر الدولة المكتشفة تلقائياً -->
+                <div class="detected-country" id="detectedCountry">
+                    <span id="detectedFlag">🌍</span>
+                    <span id="detectedName">جاري الكشف...</span>
+                    <i class="fas fa-check-circle" style="color:#2ecc71;margin-right:auto"></i>
+                </div>
             </div>
+
             <button class="btn-primary-grad" id="sendCodeBtn" onclick="doSendCode()">
                 <span>إرسال كود التحقق</span>
             </button>
             <div class="msg-box" id="phoneMsg"></div>
         </div>
 
-        <!-- ── الخطوة 2: كود التحقق ── -->
+        <!-- ══ الخطوة 2: كود التحقق ══ -->
         <div class="step" id="step2">
             <div class="input-wrap">
                 <label class="field-label"><i class="fas fa-key"></i> كود التحقق</label>
-                <input type="text" id="codeInput" placeholder="أدخل الكود المُرسل"
-                       dir="ltr" autocomplete="one-time-code" maxlength="6">
+                <input type="text" id="codeInput"
+                       placeholder="أدخل الكود المُرسل"
+                       dir="ltr" autocomplete="one-time-code" maxlength="6"
+                       inputmode="numeric">
                 <i class="fas fa-shield-alt input-icon"></i>
             </div>
             <button class="btn-primary-grad" id="checkCodeBtn" onclick="doCheckCode()">
                 <span>تأكيد الكود</span>
             </button>
-            <div class="msg-box info show" id="codeHint" style="margin-top:14px">
-                📱 تم إرسال الكود إلى هاتفك عبر تليجرام
+            <div class="msg-box info show" id="codeHint">
+                📱 تم إرسال الكود إلى <span id="codePhoneDisplay"></span> عبر تليجرام
             </div>
             <div class="msg-box" id="codeMsg"></div>
             <p style="text-align:center;margin-top:14px;font-size:12px;color:#4a5680">
@@ -295,11 +443,12 @@
             </p>
         </div>
 
-        <!-- ── الخطوة 3: كلمة المرور (2FA) ── -->
+        <!-- ══ الخطوة 3: 2FA ══ -->
         <div class="step" id="step3">
             <div class="input-wrap">
                 <label class="field-label"><i class="fas fa-lock"></i> كلمة المرور (التحقق الثنائي)</label>
-                <input type="password" id="passwordInput" placeholder="أدخل كلمة المرور"
+                <input type="password" id="passwordInput"
+                       placeholder="أدخل كلمة المرور"
                        dir="ltr" autocomplete="current-password">
                 <i class="fas fa-lock input-icon"></i>
             </div>
@@ -307,14 +456,14 @@
                 <span>تأكيد كلمة المرور</span>
             </button>
             <div class="msg-box info show" style="margin-top:14px">
-                🔐 حسابك محمي بالتحقق الثنائي، أدخل كلمة المرور لإكمال تسجيل الدخول
+                🔐 حسابك محمي بالتحقق الثنائي، أدخل كلمة المرور لإكمال الدخول
             </div>
             <div class="msg-box" id="passwordMsg"></div>
         </div>
 
-        <!-- تذييل -->
         <div class="card-footer">
-            <p><i class="fas fa-shield-alt" style="color:#00d2ff"></i>
+            <p>
+                <i class="fas fa-shield-alt" style="color:#00d2ff"></i>
                 جميع البيانات مشفرة وآمنة • مدعوم بـ Telegram
             </p>
         </div>
@@ -322,23 +471,187 @@
     </div>
 </div>
 
-<!-- Toast Container -->
 <div class="toast-wrap" id="toastWrap"></div>
 
 <script>
 'use strict';
 
-// ── الحالة ──────────────────────────────────────────────────────
-let loginPhone = '';
-let currentStep = 1;
+// ═══════════════════════════════════════════════════════════════
+//  قاموس مفاتيح الدول (مفتاح الدولة ← كود، اسم، علم)
+// ═══════════════════════════════════════════════════════════════
+const COUNTRIES = [
+    { code: '+966', name: 'السعودية',           flag: '🇸🇦', iso: 'SA', prefix: ['5'] },
+    { code: '+971', name: 'الإمارات',            flag: '🇦🇪', iso: 'AE', prefix: ['5','2','4','6','9'] },
+    { code: '+20',  name: 'مصر',                 flag: '🇪🇬', iso: 'EG', prefix: ['1'] },
+    { code: '+964', name: 'العراق',              flag: '🇮🇶', iso: 'IQ', prefix: ['7'] },
+    { code: '+962', name: 'الأردن',              flag: '🇯🇴', iso: 'JO', prefix: ['7','3'] },
+    { code: '+963', name: 'سوريا',               flag: '🇸🇾', iso: 'SY', prefix: ['9','5'] },
+    { code: '+965', name: 'الكويت',              flag: '🇰🇼', iso: 'KW', prefix: ['5','6','9'] },
+    { code: '+968', name: 'عُمان',               flag: '🇴🇲', iso: 'OM', prefix: ['9','7'] },
+    { code: '+974', name: 'قطر',                 flag: '🇶🇦', iso: 'QA', prefix: ['3','5','6','7'] },
+    { code: '+973', name: 'البحرين',             flag: '🇧🇭', iso: 'BH', prefix: ['3','6','9'] },
+    { code: '+967', name: 'اليمن',               flag: '🇾🇪', iso: 'YE', prefix: ['7'] },
+    { code: '+218', name: 'ليبيا',               flag: '🇱🇾', iso: 'LY', prefix: ['9'] },
+    { code: '+216', name: 'تونس',                flag: '🇹🇳', iso: 'TN', prefix: ['2','5','9'] },
+    { code: '+213', name: 'الجزائر',             flag: '🇩🇿', iso: 'DZ', prefix: ['5','6','7'] },
+    { code: '+212', name: 'المغرب',              flag: '🇲🇦', iso: 'MA', prefix: ['6','7'] },
+    { code: '+249', name: 'السودان',             flag: '🇸🇩', iso: 'SD', prefix: ['9'] },
+    { code: '+252', name: 'الصومال',             flag: '🇸🇴', iso: 'SO', prefix: ['6','7'] },
+    { code: '+253', name: 'جيبوتي',             flag: '🇩🇯', iso: 'DJ', prefix: ['7'] },
+    { code: '+222', name: 'موريتانيا',           flag: '🇲🇷', iso: 'MR', prefix: ['2','3','4'] },
+    { code: '+961', name: 'لبنان',               flag: '🇱🇧', iso: 'LB', prefix: ['3','7'] },
+    { code: '+970', name: 'فلسطين',              flag: '🇵🇸', iso: 'PS', prefix: ['5','9'] },
+    { code: '+90',  name: 'تركيا',               flag: '🇹🇷', iso: 'TR', prefix: ['5'] },
+    { code: '+98',  name: 'إيران',               flag: '🇮🇷', iso: 'IR', prefix: ['9'] },
+    { code: '+1',   name: 'الولايات المتحدة',    flag: '🇺🇸', iso: 'US', prefix: [] },
+    { code: '+44',  name: 'بريطانيا',            flag: '🇬🇧', iso: 'GB', prefix: ['7'] },
+    { code: '+33',  name: 'فرنسا',               flag: '🇫🇷', iso: 'FR', prefix: ['6','7'] },
+    { code: '+49',  name: 'ألمانيا',             flag: '🇩🇪', iso: 'DE', prefix: ['1'] },
+    { code: '+7',   name: 'روسيا',               flag: '🇷🇺', iso: 'RU', prefix: ['9'] },
+    { code: '+86',  name: 'الصين',               flag: '🇨🇳', iso: 'CN', prefix: ['1'] },
+    { code: '+91',  name: 'الهند',               flag: '🇮🇳', iso: 'IN', prefix: ['6','7','8','9'] },
+    { code: '+92',  name: 'باكستان',             flag: '🇵🇰', iso: 'PK', prefix: ['3'] },
+    { code: '+880', name: 'بنغلاديش',            flag: '🇧🇩', iso: 'BD', prefix: ['1'] },
+    { code: '+62',  name: 'إندونيسيا',           flag: '🇮🇩', iso: 'ID', prefix: ['8'] },
+    { code: '+234', name: 'نيجيريا',             flag: '🇳🇬', iso: 'NG', prefix: ['7','8','9'] },
+    { code: '+254', name: 'كينيا',               flag: '🇰🇪', iso: 'KE', prefix: ['7'] },
+    { code: '+55',  name: 'البرازيل',            flag: '🇧🇷', iso: 'BR', prefix: [] },
+    { code: '+52',  name: 'المكسيك',             flag: '🇲🇽', iso: 'MX', prefix: ['1'] },
+    { code: '+27',  name: 'جنوب أفريقيا',        flag: '🇿🇦', iso: 'ZA', prefix: ['6','7','8'] },
+    { code: '+61',  name: 'أستراليا',            flag: '🇦🇺', iso: 'AU', prefix: ['4'] },
+    { code: '+81',  name: 'اليابان',             flag: '🇯🇵', iso: 'JP', prefix: ['7','8','9'] },
+    { code: '+82',  name: 'كوريا الجنوبية',      flag: '🇰🇷', iso: 'KR', prefix: ['1'] },
+];
 
-// ── التنقل بين الخطوات ──────────────────────────────────────────
+// ترتيب حسب طول الكود تنازلياً (أولاً الأطول لمنع التعارض)
+const SORTED_BY_CODE_LEN = [...COUNTRIES].sort((a,b) => b.code.length - a.code.length);
 
+// ═══════════════════════════════════════════════════════════════
+//  الحالة العامة
+// ═══════════════════════════════════════════════════════════════
+let selectedCountry = COUNTRIES[0]; // السعودية افتراضياً
+let loginPhone      = '';
+let currentStep     = 1;
+let dropdownOpen    = false;
+
+// ═══════════════════════════════════════════════════════════════
+//  بناء قائمة الدول
+// ═══════════════════════════════════════════════════════════════
+function buildCountryList(filter = '') {
+    const list = document.getElementById('countryList');
+    const q    = filter.toLowerCase();
+    const filtered = q
+        ? COUNTRIES.filter(c => c.name.includes(q) || c.code.includes(q) || c.iso.toLowerCase().includes(q))
+        : COUNTRIES;
+
+    list.innerHTML = filtered.map(c => `
+        <div class="country-option ${c.iso === selectedCountry.iso ? 'selected' : ''}"
+             onclick="selectCountry('${c.iso}')">
+            <span class="opt-flag">${c.flag}</span>
+            <span class="opt-name">${c.name}</span>
+            <span class="opt-code">${c.code}</span>
+        </div>
+    `).join('');
+}
+
+function selectCountry(iso) {
+    const c = COUNTRIES.find(x => x.iso === iso);
+    if (!c) return;
+    selectedCountry = c;
+    document.getElementById('selectedFlag').textContent = c.flag;
+    document.getElementById('selectedCode').textContent = c.code;
+    closeCountryDropdown();
+    updateDetectedCountry(c);
+    document.getElementById('phoneNumberInput').focus();
+}
+
+function updateDetectedCountry(c) {
+    if (!c) {
+        document.getElementById('detectedCountry').classList.remove('show');
+        return;
+    }
+    document.getElementById('detectedFlag').textContent = c.flag;
+    document.getElementById('detectedName').textContent = c.name + ' (' + c.code + ')';
+    document.getElementById('detectedCountry').classList.add('show');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  الكشف التلقائي عن الدولة من الرقم المكتوب
+// ═══════════════════════════════════════════════════════════════
+function onPhoneInput(val) {
+    // تنظيف: اترك الأرقام فقط
+    const cleaned = val.replace(/\D/g, '');
+
+    // إذا بدأ المستخدم بـ + نكتشف من الكود الكامل
+    const rawInput = document.getElementById('phoneNumberInput').value;
+    if (rawInput.startsWith('+')) {
+        const withPlus = rawInput;
+        const found = SORTED_BY_CODE_LEN.find(c => withPlus.startsWith(c.code));
+        if (found) {
+            selectedCountry = found;
+            document.getElementById('selectedFlag').textContent = found.flag;
+            document.getElementById('selectedCode').textContent = found.code;
+            updateDetectedCountry(found);
+            // اقتطع الكود من حقل الرقم
+            document.getElementById('phoneNumberInput').value = withPlus.slice(found.code.length).trim();
+        }
+        return;
+    }
+
+    // اكتشاف من أول رقم مع الكود المختار مسبقاً
+    updateDetectedCountry(selectedCountry);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  التحكم في قائمة الدول
+// ═══════════════════════════════════════════════════════════════
+function toggleCountryDropdown() {
+    dropdownOpen ? closeCountryDropdown() : openCountryDropdown();
+}
+
+function openCountryDropdown() {
+    dropdownOpen = true;
+    document.getElementById('countryDropdown').classList.add('open');
+    document.getElementById('countryPart').classList.add('open');
+    buildCountryList();
+    setTimeout(() => document.getElementById('countrySearch').focus(), 50);
+}
+
+function closeCountryDropdown() {
+    dropdownOpen = false;
+    document.getElementById('countryDropdown').classList.remove('open');
+    document.getElementById('countryPart').classList.remove('open');
+    document.getElementById('countrySearch').value = '';
+}
+
+function filterCountries(q) {
+    buildCountryList(q);
+}
+
+// إغلاق عند النقر خارجاً
+document.addEventListener('click', (e) => {
+    if (dropdownOpen && !document.getElementById('countryPart').contains(e.target)) {
+        closeCountryDropdown();
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  بناء الرقم الكامل
+// ═══════════════════════════════════════════════════════════════
+function buildFullPhone() {
+    const num = document.getElementById('phoneNumberInput').value.replace(/\s/g, '');
+    if (!num) return '';
+    // تجنب التكرار إذا أدخل المستخدم الكود مع الرقم
+    if (num.startsWith('+')) return num;
+    return selectedCountry.code + num;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  التنقل بين الخطوات
+// ═══════════════════════════════════════════════════════════════
 function showStep(n) {
     document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
     document.getElementById('step' + n).classList.add('active');
-
-    // تحديث مؤشر التقدم
     [1,2,3].forEach(i => {
         const dot = document.getElementById('dot' + i);
         dot.classList.remove('active','done');
@@ -352,20 +665,19 @@ function goBack() {
     if (currentStep > 1) showStep(currentStep - 1);
 }
 
-// ── دوال مساعدة ─────────────────────────────────────────────────
-
+// ═══════════════════════════════════════════════════════════════
+//  دوال مساعدة
+// ═══════════════════════════════════════════════════════════════
 function showMsg(id, text, type = 'error') {
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = text;
     el.className = `msg-box ${type} show`;
 }
-
 function clearMsg(id) {
     const el = document.getElementById(id);
     if (el) el.className = 'msg-box';
 }
-
 function setLoading(btnId, loading, label) {
     const btn = document.getElementById(btnId);
     if (!btn) return;
@@ -374,7 +686,6 @@ function setLoading(btnId, loading, label) {
         ? '<span class="spinner"></span> جاري...'
         : label;
 }
-
 function toast(message, type = 'info') {
     const wrap = document.getElementById('toastWrap');
     const el   = document.createElement('div');
@@ -386,30 +697,35 @@ function toast(message, type = 'info') {
         el.style.opacity = '0';
         el.style.transform = 'translateX(40px)';
         setTimeout(() => el.remove(), 300);
-    }, 4000);
+    }, 4500);
 }
 
-// ── الخطوة 1: إرسال الكود ────────────────────────────────────────
-
+// ═══════════════════════════════════════════════════════════════
+//  الخطوة 1: إرسال الكود
+// ═══════════════════════════════════════════════════════════════
 async function doSendCode() {
-    const phone = document.getElementById('phoneInput').value.trim();
-    if (!phone) { showMsg('phoneMsg','⚠️ يرجى إدخال رقم الهاتف'); return; }
+    const phone = buildFullPhone();
+    if (!phone || phone.length < 7) {
+        showMsg('phoneMsg', '⚠️ يرجى إدخال رقم الهاتف مع كود الدولة');
+        return;
+    }
     clearMsg('phoneMsg');
     setLoading('sendCodeBtn', true, 'إرسال كود التحقق');
 
     try {
         const res  = await fetch('/api/auth/send-code', {
             method: 'POST',
-            headers: {'Content-Type':'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone })
         });
         const data = await res.json();
 
         if (data.success) {
             loginPhone = phone;
+            document.getElementById('codePhoneDisplay').textContent = phone;
             showStep(2);
-            document.getElementById('codeInput').focus();
-            toast('تم إرسال الكود إلى هاتفك', 'success');
+            setTimeout(() => document.getElementById('codeInput').focus(), 100);
+            toast('تم إرسال الكود إلى ' + phone, 'success');
         } else {
             showMsg('phoneMsg', '❌ ' + data.message, 'error');
             toast(data.message, 'error');
@@ -421,28 +737,29 @@ async function doSendCode() {
     setLoading('sendCodeBtn', false, 'إرسال كود التحقق');
 }
 
-// ── الخطوة 2: التحقق من الكود ────────────────────────────────────
-
+// ═══════════════════════════════════════════════════════════════
+//  الخطوة 2: التحقق من الكود
+// ═══════════════════════════════════════════════════════════════
 async function doCheckCode() {
     const code = document.getElementById('codeInput').value.trim();
-    if (!code) { showMsg('codeMsg','⚠️ يرجى إدخال الكود'); return; }
+    if (!code) { showMsg('codeMsg', '⚠️ يرجى إدخال الكود'); return; }
     clearMsg('codeMsg');
     setLoading('checkCodeBtn', true, 'تأكيد الكود');
 
     try {
         const res  = await fetch('/api/auth/check-code', {
             method: 'POST',
-            headers: {'Content-Type':'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone: loginPhone, code })
         });
         const data = await res.json();
 
         if (data.success) {
-            toast('مرحباً! تم تسجيل الدخول بنجاح', 'success');
+            toast('مرحباً! تم تسجيل الدخول بنجاح 🎉', 'success');
             setTimeout(() => window.location.href = '/', 800);
         } else if (data.requires_password) {
             showStep(3);
-            document.getElementById('passwordInput').focus();
+            setTimeout(() => document.getElementById('passwordInput').focus(), 100);
             toast('يتطلب كلمة المرور الثنائية', 'info');
         } else {
             showMsg('codeMsg', '❌ ' + data.message, 'error');
@@ -454,24 +771,25 @@ async function doCheckCode() {
     setLoading('checkCodeBtn', false, 'تأكيد الكود');
 }
 
-// ── الخطوة 3: التحقق من كلمة المرور (2FA) ───────────────────────
-
+// ═══════════════════════════════════════════════════════════════
+//  الخطوة 3: 2FA
+// ═══════════════════════════════════════════════════════════════
 async function doCheckPassword() {
-    const password = document.getElementById('passwordInput').value.trim();
-    if (!password) { showMsg('passwordMsg','⚠️ يرجى إدخال كلمة المرور'); return; }
+    const password = document.getElementById('passwordInput').value;
+    if (!password) { showMsg('passwordMsg', '⚠️ يرجى إدخال كلمة المرور'); return; }
     clearMsg('passwordMsg');
     setLoading('checkPasswordBtn', true, 'تأكيد كلمة المرور');
 
     try {
         const res  = await fetch('/api/auth/check-password', {
             method: 'POST',
-            headers: {'Content-Type':'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone: loginPhone, password })
         });
         const data = await res.json();
 
         if (data.success) {
-            toast('مرحباً! تم تسجيل الدخول بنجاح', 'success');
+            toast('مرحباً! تم تسجيل الدخول بنجاح 🎉', 'success');
             setTimeout(() => window.location.href = '/', 800);
         } else {
             showMsg('passwordMsg', '❌ ' + data.message, 'error');
@@ -483,8 +801,9 @@ async function doCheckPassword() {
     setLoading('checkPasswordBtn', false, 'تأكيد كلمة المرور');
 }
 
-// ── مفاتيح Enter ─────────────────────────────────────────────────
-
+// ═══════════════════════════════════════════════════════════════
+//  مفاتيح Enter
+// ═══════════════════════════════════════════════════════════════
 document.addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
     if (currentStep === 1) doSendCode();
@@ -492,15 +811,20 @@ document.addEventListener('keydown', e => {
     if (currentStep === 3) doCheckPassword();
 });
 
-// ── تحقق من جلسة موجودة ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  تهيئة الصفحة
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+    // ضبط الدولة الافتراضية
+    document.getElementById('selectedFlag').textContent = selectedCountry.flag;
+    document.getElementById('selectedCode').textContent = selectedCountry.code;
+    updateDetectedCountry(selectedCountry);
 
-(async function checkSession() {
-    try {
-        const res  = await fetch('/api/auth/status');
-        const data = await res.json();
-        if (data.is_authenticated) window.location.href = '/';
-    } catch { /* تجاهل */ }
-})();
+    // التحقق من جلسة موجودة
+    fetch('/api/auth/status').then(r => r.json()).then(d => {
+        if (d.is_authenticated) window.location.href = '/';
+    }).catch(() => {});
+});
 </script>
 </body>
 </html>

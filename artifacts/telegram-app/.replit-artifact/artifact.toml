@@ -1,0 +1,13 @@
+kind = "api"
+previewPath = "/"
+title = "مركز سرعة إنجاز"
+version = "1.0.0"
+id = "flask-telegram-main"
+
+[[services]]
+localPort = 5000
+name = "Flask App"
+paths = ["/"]
+
+[services.development]
+run = "/home/runner/workspace/.venv/bin/python /home/runner/workspace/main.py"
