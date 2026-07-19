@@ -506,6 +506,11 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 44px; font-weight: 700; color: #fff;
     box-shadow: 0 0 0 8px rgba(0,210,255,0.12), 0 0 0 16px rgba(0,210,255,0.06);
+    animation: callPulse 2s ease-in-out infinite;
+}
+@keyframes callPulse {
+    0%,100% { box-shadow: 0 0 0 8px rgba(0,210,255,0.12), 0 0 0 16px rgba(0,210,255,0.06); }
+    50%      { box-shadow: 0 0 0 14px rgba(0,210,255,0.18), 0 0 0 26px rgba(0,210,255,0.04); }
 }
 .call-name { font-size: 24px; font-weight: 700; color: #fff; }
 .call-status { font-size: 14px; color: #888; }

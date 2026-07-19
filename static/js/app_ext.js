@@ -1642,6 +1642,14 @@ async function initExt() {
     // تفعيل أحداث المكالمات الصوتية
     setupCallSocketEvents();
 
+    // اختصارات لوحة المفاتيح للمكالمات
+    document.addEventListener('keydown', e => {
+        const overlay = document.getElementById('callOverlay');
+        if (!overlay || overlay.style.display === 'none') return;
+        if (e.key === 'Escape') endCall();
+        if (e.key.toLowerCase() === 'm') toggleMicMute();
+    });
+
     // اختصار لوحة المفاتيح: Ctrl+F للبحث
     document.addEventListener('keydown', e => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'f') {

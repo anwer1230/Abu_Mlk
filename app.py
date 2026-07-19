@@ -1736,6 +1736,13 @@ def on_call_reject(data):
     socketio.emit('call_rejected', {}, room=f'user_{to_user}')
 
 
+@socketio.on('call_busy')
+def on_call_busy(data):
+    """المستخدم مشغول"""
+    to_user = str(data.get('to_user_id', ''))
+    socketio.emit('call_busy', {}, room=f'user_{to_user}')
+
+
 # ══════════════════════════════════════════════════════════════════
 #  معالجة الأخطاء
 # ══════════════════════════════════════════════════════════════════
