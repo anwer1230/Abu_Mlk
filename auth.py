@@ -188,7 +188,7 @@ class TelegramLogin:
                 self.awaiting_code = True
                 return result
 
-            self._run(_send, timeout=40)
+            self._run(_send(), timeout=40)
             return {"success": True, "message": "✅ تم إرسال كود التحقق إلى هاتفك عبر تليجرام"}
         except Exception as e:
             error_msg = str(e)
@@ -214,7 +214,7 @@ class TelegramLogin:
                 me = await self.client.sign_in(self.phone, code)
                 return me
 
-            me = self._run(_verify, timeout=40)
+            me = self._run(_verify(), timeout=40)
             self.awaiting_code     = False
             self.awaiting_password = False
             self.authenticated     = True
@@ -224,7 +224,7 @@ class TelegramLogin:
                 from telethon.sessions import StringSession
                 return StringSession.save(self.client.session)
 
-            session_str = self._run(_get_session, timeout=10)
+            session_str = self._run(_get_session(), timeout=10)
             save_string_session(str(me.id), session_str)
 
             return {
@@ -270,7 +270,7 @@ class TelegramLogin:
                 me = await self.client.sign_in(password=password)
                 return me
 
-            me = self._run(_check_pw, timeout=40)
+            me = self._run(_check_pw(), timeout=40)
             self.awaiting_password = False
             self.authenticated     = True
 
@@ -278,7 +278,7 @@ class TelegramLogin:
                 from telethon.sessions import StringSession
                 return StringSession.save(self.client.session)
 
-            session_str = self._run(_get_session, timeout=10)
+            session_str = self._run(_get_session(), timeout=10)
             save_string_session(str(me.id), session_str)
 
             return {
