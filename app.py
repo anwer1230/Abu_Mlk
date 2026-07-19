@@ -1425,6 +1425,169 @@ def api_load_more_messages(chat_id):
 
 
 # ══════════════════════════════════════════════════════════════════
+#  المرحلة 3: الجلسات النشطة + خصوصية + مزامنة
+# ══════════════════════════════════════════════════════════════════
+
+@app.route('/api/auth/sessions', methods=['GET'])
+@auth.login_required
+def api_get_sessions():
+    """قائمة الجلسات النشطة لهذا الحساب"""
+    user_id = session.get('user_id')
+    try:
+        async def _get(client):
+            from telethon.tl.functions.account import GetAuthorizationsRequest
+            result = await client(GetAuthorizationsRequest())
+            sessions = []
+            for auth_obj in result.authorizations:
+                sessions.append({
+                    'hash':          auth_obj.hash,
+                    'device':        getattr(auth_obj, 'device_model', 'Unknown'),
+                    'platform':      getattr(auth_obj, 'platform', ''),
+                    'system':        getattr(auth_obj, 'system_version', ''),
+                    'app':           getattr(auth_obj, 'app_name', 'Telegram'),
+                    'ip':            getattr(auth_obj, 'ip', ''),
+                    'country':       getattr(auth_obj, 'country', ''),
+                    'current':       getattr(auth_obj, 'current', False),
+                    'date_active':   int(getattr(auth_obj, 'date_active', 0).timestamp())
+                                     if hasattr(getattr(auth_obj, 'date_active', None), 'timestamp') else 0,
+                    'date_created':  int(getattr(auth_obj, 'date_created', 0).timestamp())
+                                     if hasattr(getattr(auth_obj, 'date_created', None), 'timestamp') else 0,
+                })
+            return sessions
+        sessions_list = _run_telethon(user_id, _get)
+        return jsonify({'success': True, 'sessions': sessions_list})
+    except Exception as e:
+        logger.error(f'api_get_sessions: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/auth/sessions/revoke', methods=['POST'])
+@auth.login_required
+def api_revoke_session():
+    """إنهاء جلسة نشطة"""
+    user_id = session.get('user_id')
+    data    = request.get_json(force=True) or {}
+    h       = data.get('hash')
+    if h is None:
+        return jsonify({'success': False, 'message': 'hash مطلوب'}), 400
+    try:
+        async def _revoke(client):
+            from telethon.tl.functions.account import ResetAuthorizationRequest
+            await client(ResetAuthorizationRequest(hash=int(h)))
+        _run_telethon(user_id, _revoke)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/auth/sessions/revoke-all', methods=['POST'])
+@auth.login_required
+def api_revoke_all_sessions():
+    """إنهاء جميع الجلسات الأخرى"""
+    user_id = session.get('user_id')
+    try:
+        async def _revoke_all(client):
+            from telethon.tl.functions.auth import ResetAuthorizationsRequest
+            await client(ResetAuthorizationsRequest())
+        _run_telethon(user_id, _revoke_all)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/auth/2fa/status', methods=['GET'])
+@auth.login_required
+def api_2fa_status():
+    """حالة التحقق بخطوتين"""
+    user_id = session.get('user_id')
+    try:
+        async def _status(client):
+            from telethon.tl.functions.account import GetPasswordRequest
+            pwd = await client(GetPasswordRequest())
+            return {'has_2fa': pwd.has_password, 'hint': getattr(pwd, 'hint', '')}
+        result = _run_telethon(user_id, _status)
+        return jsonify({'success': True, **result})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/auth/2fa/enable', methods=['POST'])
+@auth.login_required
+def api_2fa_enable():
+    """تفعيل التحقق بخطوتين"""
+    user_id  = session.get('user_id')
+    data     = request.get_json(force=True) or {}
+    password = data.get('password', '').strip()
+    hint     = data.get('hint', 'كلمة مرور')
+    if not password or len(password) < 6:
+        return jsonify({'success': False, 'message': 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'}), 400
+    try:
+        async def _enable(client):
+            await client.edit_2fa(new_password=password, hint=hint)
+        _run_telethon(user_id, _enable)
+        return jsonify({'success': True, 'message': 'تم تفعيل التحقق بخطوتين'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/auth/2fa/disable', methods=['POST'])
+@auth.login_required
+def api_2fa_disable():
+    """تعطيل التحقق بخطوتين"""
+    user_id  = session.get('user_id')
+    data     = request.get_json(force=True) or {}
+    password = data.get('current_password', '').strip()
+    if not password:
+        return jsonify({'success': False, 'message': 'كلمة المرور الحالية مطلوبة'}), 400
+    try:
+        async def _disable(client):
+            await client.edit_2fa(current_password=password, new_password='')
+        _run_telethon(user_id, _disable)
+        return jsonify({'success': True, 'message': 'تم تعطيل التحقق بخطوتين'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/sync/github', methods=['POST'])
+@auth.login_required
+def api_sync_github():
+    """مزامنة يدوية مع GitHub"""
+    user_id = session.get('user_id')
+    try:
+        import threading
+        def _backup():
+            db.backup_to_github(user_id)
+        threading.Thread(target=_backup, daemon=True).start()
+        return jsonify({'success': True, 'message': 'بدأت المزامنة في الخلفية'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/privacy/settings', methods=['GET'])
+@auth.login_required
+def api_privacy_get():
+    """إعدادات الخصوصية المحفوظة"""
+    user_id  = session.get('user_id')
+    settings = db.get_all_settings(user_id)
+    privacy  = {k: v for k, v in settings.items() if k.startswith('privacy_')}
+    return jsonify({'success': True, 'privacy': privacy})
+
+
+@app.route('/api/privacy/settings', methods=['POST'])
+@auth.login_required
+def api_privacy_update():
+    """حفظ إعداد خصوصية"""
+    user_id = session.get('user_id')
+    data    = request.get_json(force=True) or {}
+    key     = (data.get('key') or '').strip()
+    value   = data.get('value')
+    if not key.startswith('privacy_'):
+        key = 'privacy_' + key
+    db.set_setting(user_id, key, value)
+    return jsonify({'success': True})
+
+
+# ══════════════════════════════════════════════════════════════════
 #  معالجة الأخطاء
 # ══════════════════════════════════════════════════════════════════
 

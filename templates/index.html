@@ -1081,20 +1081,36 @@
     </div>
     <div class="settings-section">
         <div class="settings-section-title">الحساب</div>
-        <div class="settings-row" style="cursor:pointer;" onclick="closeSettings(); showToast('قريباً: الجلسات النشطة','info');">
+        <div class="settings-row" style="cursor:pointer;" onclick="showActiveSessions()">
             <span><i class="fas fa-shield-alt"></i> الجلسات النشطة</span>
             <i class="fas fa-chevron-left" style="color:#444;"></i>
         </div>
-        <div class="settings-row" style="cursor:pointer;" onclick="closeSettings(); showToast('قريباً: التحقق بخطوتين','info');">
+        <div class="settings-row" style="cursor:pointer;" onclick="show2FASettings()">
             <span><i class="fas fa-lock"></i> التحقق بخطوتين</span>
             <i class="fas fa-chevron-left" style="color:#444;"></i>
         </div>
     </div>
+    </div>
     <div class="settings-section">
-        <div class="settings-section-title">المحفوظات</div>
+        <div class="settings-section-title">البيانات</div>
         <div class="settings-row" style="cursor:pointer;" onclick="closeSettings(); loadBookmarks();">
             <span><i class="fas fa-bookmark"></i> الرسائل المحفوظة</span>
             <i class="fas fa-chevron-left" style="color:#444;"></i>
+        </div>
+        <div class="settings-row" style="cursor:pointer;" onclick="closeSettings(); showBotsPanel();">
+            <span><i class="fas fa-robot"></i> البوتات</span>
+            <i class="fas fa-chevron-left" style="color:#444;"></i>
+        </div>
+    </div>
+    <div class="settings-section">
+        <div class="settings-section-title">المزامنة</div>
+        <div class="settings-row">
+            <span><i class="fas fa-cloud-upload-alt"></i> مزامنة مع GitHub</span>
+            <button id="syncBtn" onclick="manualSync()"
+                    style="background:linear-gradient(135deg,#00d2ff,#3a7bd5);border:none;color:#fff;
+                           border-radius:8px;padding:4px 12px;cursor:pointer;font-family:Tajawal,sans-serif;font-size:12px;">
+                <i class="fas fa-cloud-upload-alt"></i> مزامنة
+            </button>
         </div>
     </div>
 </div>

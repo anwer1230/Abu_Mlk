@@ -879,6 +879,218 @@ function setupInfiniteScroll() {
     });
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   المرحلة 3: الجلسات النشطة + التحقق بخطوتين + مزامنة
+   ══════════════════════════════════════════════════════════════════ */
+
+// ─── الجلسات النشطة ────────────────────────────────────────────
+async function showActiveSessions() {
+    closeSettings();
+    const el = document.getElementById('sessionsModal');
+    if (el) {
+        new bootstrap.Modal(el).show();
+        await loadSessions();
+        return;
+    }
+    // إنشاء نافذة الجلسات ديناميكياً
+    const modal = document.createElement('div');
+    modal.id = 'sessionsModal';
+    modal.className = 'modal fade';
+    modal.tabIndex  = -1;
+    modal.innerHTML = `
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" style="background:#1a1a2e;color:#e0e0e0;border:1px solid rgba(255,255,255,.05);">
+                <div class="modal-header" style="border-bottom:1px solid rgba(255,255,255,.05);">
+                    <h5 class="modal-title"><i class="fas fa-shield-alt" style="color:#00d2ff;"></i> الجلسات النشطة</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1);"></button>
+                </div>
+                <div class="modal-body" style="max-height:460px;overflow-y:auto;">
+                    <div id="sessionsListEl" style="display:flex;flex-direction:column;gap:10px;">
+                        <div style="text-align:center;color:#555;padding:20px;">⏳ جارٍ التحميل...</div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid rgba(255,255,255,.05);justify-content:space-between;">
+                    <button class="btn btn-sm" style="background:#ff4757;border:none;color:#fff;border-radius:8px;padding:6px 14px;"
+                            onclick="revokeAllSessions()">
+                        <i class="fas fa-sign-out-alt"></i> إنهاء جميع الجلسات الأخرى
+                    </button>
+                    <button class="btn btn-secondary" data-bs-dismiss="modal"
+                            style="background:rgba(255,255,255,.05);border:none;">إغلاق</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    new bootstrap.Modal(modal).show();
+    await loadSessions();
+}
+
+async function loadSessions() {
+    const container = document.getElementById('sessionsListEl');
+    if (!container) return;
+    try {
+        const res  = await fetch('/api/auth/sessions');
+        const data = await res.json();
+        if (!data.success) { container.innerHTML = `<div style="color:#ff4757;">${data.message}</div>`; return; }
+        const sessions = data.sessions || [];
+        container.innerHTML = sessions.map(s => {
+            const isNow = s.current;
+            const date  = s.date_active ? new Date(s.date_active * 1000).toLocaleDateString('ar') : 'الآن';
+            return `
+                <div style="background:rgba(255,255,255,.04);border-radius:10px;padding:12px 16px;
+                            display:flex;align-items:center;gap:12px;border:1px solid rgba(255,255,255,.04)
+                            ${isNow?';border-color:rgba(0,210,255,.3)':''};">
+                    <i class="fas fa-${isNow?'mobile-alt':'laptop'}" style="font-size:24px;color:${isNow?'#00d2ff':'#666'};width:32px;text-align:center;"></i>
+                    <div style="flex:1;">
+                        <div style="font-weight:600;color:${isNow?'#00d2ff':'#ccc'};font-size:14px;">
+                            ${s.device || 'Unknown'} ${isNow?'<span style="font-size:11px;background:rgba(0,210,255,.15);padding:1px 6px;border-radius:8px;">هذا الجهاز</span>':''}
+                        </div>
+                        <div style="font-size:12px;color:#666;margin-top:2px;">
+                            ${s.app || 'Telegram'} · ${s.platform||''} · ${s.country||''} · آخر نشاط: ${date}
+                        </div>
+                        ${s.ip ? `<div style="font-size:11px;color:#555;">IP: ${s.ip}</div>` : ''}
+                    </div>
+                    ${!isNow ? `<button onclick="revokeSession(${s.hash},this)"
+                                        style="background:rgba(255,71,87,.15);border:1px solid rgba(255,71,87,.3);
+                                               color:#ff4757;border-radius:8px;padding:5px 12px;cursor:pointer;
+                                               font-family:Tajawal,sans-serif;font-size:13px;">
+                                    إنهاء
+                                </button>` : ''}
+                </div>`;
+        }).join('') || '<div style="text-align:center;color:#555;padding:20px;">لا توجد جلسات</div>';
+    } catch (_) {
+        if (container) container.innerHTML = '<div style="color:#ff4757;">❌ فشل تحميل الجلسات</div>';
+    }
+}
+
+async function revokeSession(hash, btn) {
+    if (btn) btn.disabled = true;
+    try {
+        const res  = await fetch('/api/auth/sessions/revoke', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body:   JSON.stringify({hash}),
+        });
+        const data = await res.json();
+        if (data.success) { showToast('✅ تم إنهاء الجلسة', 'success'); loadSessions(); }
+        else showToast('❌ ' + data.message, 'error');
+    } catch (_) { showToast('❌ فشل', 'error'); }
+    if (btn) btn.disabled = false;
+}
+
+async function revokeAllSessions() {
+    if (!confirm('هل أنت متأكد من إنهاء جميع الجلسات الأخرى؟')) return;
+    try {
+        const res  = await fetch('/api/auth/sessions/revoke-all', {method:'POST'});
+        const data = await res.json();
+        if (data.success) { showToast('✅ تم إنهاء جميع الجلسات', 'success'); loadSessions(); }
+        else showToast('❌ ' + data.message, 'error');
+    } catch (_) { showToast('❌ فشل', 'error'); }
+}
+
+// ─── التحقق بخطوتين ────────────────────────────────────────────
+async function show2FASettings() {
+    closeSettings();
+    let hasFA = false;
+    try {
+        const r = await fetch('/api/auth/2fa/status');
+        const d = await r.json();
+        hasFA = d.has_2fa;
+    } catch (_) {}
+
+    const el = document.createElement('div');
+    el.className = 'modal fade';
+    el.tabIndex = -1;
+    el.innerHTML = `
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content" style="background:#1a1a2e;color:#e0e0e0;border:1px solid rgba(255,255,255,.05);">
+                <div class="modal-header" style="border-bottom:1px solid rgba(255,255,255,.05);">
+                    <h5 class="modal-title"><i class="fas fa-lock" style="color:${hasFA?'#2ecc71':'#f9ca24'};"></i> التحقق بخطوتين</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1);"></button>
+                </div>
+                <div class="modal-body">
+                    <div style="text-align:center;margin-bottom:16px;">
+                        <div style="font-size:40px;">${hasFA?'🔒':'🔓'}</div>
+                        <div style="color:${hasFA?'#2ecc71':'#f9ca24'};font-weight:600;margin-top:8px;">
+                            ${hasFA?'التحقق بخطوتين مفعَّل':'التحقق بخطوتين غير مفعَّل'}
+                        </div>
+                    </div>
+                    ${hasFA ? `
+                        <div class="mb-3">
+                            <label style="color:#aaa;font-size:13px;">كلمة المرور الحالية</label>
+                            <input type="password" id="fa_cur_pwd" class="form-control"
+                                   style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#e0e0e0;border-radius:10px;padding:10px;"
+                                   placeholder="أدخل كلمة المرور الحالية">
+                        </div>
+                        <button class="btn btn-danger w-100" onclick="disable2FA()" style="border-radius:10px;">
+                            <i class="fas fa-lock-open"></i> تعطيل التحقق بخطوتين
+                        </button>` : `
+                        <div class="mb-3">
+                            <label style="color:#aaa;font-size:13px;">كلمة المرور الجديدة</label>
+                            <input type="password" id="fa_new_pwd" class="form-control"
+                                   style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#e0e0e0;border-radius:10px;padding:10px;"
+                                   placeholder="6 أحرف على الأقل">
+                        </div>
+                        <div class="mb-3">
+                            <label style="color:#aaa;font-size:13px;">تلميح (اختياري)</label>
+                            <input type="text" id="fa_hint" class="form-control"
+                                   style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#e0e0e0;border-radius:10px;padding:10px;"
+                                   placeholder="تلميح لتتذكر كلمة المرور">
+                        </div>
+                        <button class="btn btn-success w-100" onclick="enable2FA()" style="border-radius:10px;background:linear-gradient(135deg,#00d2ff,#3a7bd5);border:none;">
+                            <i class="fas fa-lock"></i> تفعيل التحقق بخطوتين
+                        </button>`}
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(el);
+    new bootstrap.Modal(el).show();
+}
+
+async function enable2FA() {
+    const pwd  = document.getElementById('fa_new_pwd')?.value?.trim();
+    const hint = document.getElementById('fa_hint')?.value?.trim() || 'كلمة المرور';
+    if (!pwd || pwd.length < 6) { showToast('⚠️ كلمة المرور يجب 6 أحرف على الأقل', 'warning'); return; }
+    try {
+        const res  = await fetch('/api/auth/2fa/enable', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body:   JSON.stringify({password: pwd, hint}),
+        });
+        const data = await res.json();
+        showToast(data.success ? '🔒 تم تفعيل التحقق بخطوتين' : '❌ '+data.message,
+                  data.success ? 'success' : 'error');
+        if (data.success) document.querySelector('.modal.show')?.querySelector('[data-bs-dismiss]')?.click();
+    } catch (_) { showToast('❌ فشل', 'error'); }
+}
+
+async function disable2FA() {
+    const pwd = document.getElementById('fa_cur_pwd')?.value?.trim();
+    if (!pwd) { showToast('⚠️ أدخل كلمة المرور الحالية', 'warning'); return; }
+    try {
+        const res  = await fetch('/api/auth/2fa/disable', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body:   JSON.stringify({current_password: pwd}),
+        });
+        const data = await res.json();
+        showToast(data.success ? '🔓 تم تعطيل التحقق بخطوتين' : '❌ '+data.message,
+                  data.success ? 'success' : 'error');
+        if (data.success) document.querySelector('.modal.show')?.querySelector('[data-bs-dismiss]')?.click();
+    } catch (_) { showToast('❌ فشل', 'error'); }
+}
+
+// ─── مزامنة GitHub ────────────────────────────────────────────
+async function manualSync() {
+    const btn = document.getElementById('syncBtn');
+    if (btn) { btn.innerHTML = '<i class="fas fa-sync fa-spin"></i>'; btn.disabled = true; }
+    try {
+        const res  = await fetch('/api/sync/github', {method: 'POST'});
+        const data = await res.json();
+        showToast(data.success ? '☁️ بدأت المزامنة مع GitHub' : '❌ '+data.message,
+                  data.success ? 'success' : 'error');
+    } catch (_) { showToast('❌ فشل', 'error'); }
+    setTimeout(() => {
+        if (btn) { btn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> مزامنة'; btn.disabled = false; }
+    }, 3000);
+}
+
 async function initExt() {
     // السمة المحفوظة
     const savedTheme = localStorage.getItem('theme') || 'dark';
