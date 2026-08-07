@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Telegram Local"
+description = "A locally runnable Telegram-inspired messaging workspace with chat browsing, search, folders, messaging, attachments, profile, and settings in offline mode."
+version = "1.0.0"
+id = "artifacts/telegram-local"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19057
+
+[services.development]
+run = "pnpm --filter @workspace/telegram-local run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/telegram-local", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/telegram-local/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19057"
+BASE_PATH = "/"
