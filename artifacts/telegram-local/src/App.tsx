@@ -64,6 +64,16 @@ type Message = {
   reaction?: string;
   attachment?: { name: string; size: string; kind: string };
 };
+type TelegramAuth =
+  | 'authorizationStateWaitTdlibParameters'
+  | 'authorizationStateWaitPhoneNumber'
+  | 'authorizationStateWaitCode'
+  | 'authorizationStateWaitPassword'
+  | 'authorizationStateReady'
+  | 'authorizationStateLoggingOut'
+  | 'authorizationStateClosing'
+  | 'authorizationStateClosed'
+  | string;
 
 const chatsSeed: Chat[] = [
   { id: 'layla', name: 'Layla Hassan', initials: 'LH', tone: 'saffron', handle: '@layla.h', preview: 'The light in this cafe is unreal.', time: '09:42', unread: 2, folder: 'Personal', online: true, pinned: true, bio: 'Product designer, occasional baker, always looking for the best quiet corner.', location: 'Cairo, Egypt' },
@@ -128,6 +138,14 @@ function Home() {
   const [toast, setToast] = useState('');
   const [attachment, setAttachment] = useState<{ name: string; size: string; kind: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [telegramAuth, setTelegramAuth] = useState<TelegramAuth>('authorizationStateWaitTdlibParameters');
+  const [telegramError, setTelegramError] = useState('');
+  const [telegramBusy, setTelegramBusy] = useState(false);
+  const [telegramPhone, setTelegramPhone] = useState('');
+  const [telegramCode, setTelegramCode] = useState('');
+  const [telegramPassword, setTelegramPassword] = useState('');
+  const [telegramOpen, setTelegramOpen] = useState(false);
+  const [telegramChatsLoaded, setTelegramChatsLoaded] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const composeRef = useRef<HTMLTextAreaElement>(null);
 
@@ -152,8 +170,107 @@ function Home() {
     const timer = window.setTimeout(() => setToast(''), 2400);
     return () => window.clearTimeout(timer);
   }, [toast]);
+  useEffect(() => {
+    let active = true;
+    const poll = async () => {
+      try {
+        const response = await fetch('/api/telegram/state');
+        const data = await response.json() as { authorization_state?: { '@type'?: TelegramAuth }; error?: string };
+        if (!active) return;
+        if (data.error) {
+          setTelegramError(data.error);
+          return;
+        }
+        setTelegramAuth(data.authorization_state?.['@type'] ?? 'authorizationStateWaitTdlibParameters');
+        if (data.authorization_state?.['@type'] === 'authorizationStateReady' && !telegramChatsLoaded) {
+          const chatsResponse = await fetch('/api/telegram/chats?limit=100');
+          const chatsData = await chatsResponse.json() as { chat_ids?: number[]; error?: string };
+          if (chatsData.error) {
+            setTelegramError(chatsData.error);
+          } else {
+            const remoteChats = await Promise.all((chatsData.chat_ids ?? []).slice(0, 100).map(async (chatId) => {
+              const detailResponse = await fetch(`/api/telegram/chat/${chatId}`);
+              const detail = await detailResponse.json() as { id?: number; title?: string; last_message?: { content?: { text?: string }; date?: number }; unread_count?: number };
+              const title = detail.title || `Telegram chat ${chatId}`;
+              const initials = title.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'TG';
+              return {
+                id: String(detail.id ?? chatId),
+                name: title,
+                initials,
+                tone: 'slate' as AvatarTone,
+                handle: `telegram:${chatId}`,
+                preview: detail.last_message?.content?.text || 'Telegram conversation',
+                time: detail.last_message?.date ? new Date(detail.last_message.date * 1000).toLocaleDateString() : '',
+                unread: detail.unread_count ?? 0,
+                folder: 'Personal' as const,
+                online: true,
+                bio: 'Live conversation from your Telegram account.',
+                location: 'Telegram',
+              };
+            }));
+            if (remoteChats.length) {
+              setChats(remoteChats);
+              setSelectedId(remoteChats[0].id);
+              void loadTelegramChat(remoteChats[0].id);
+            }
+            setTelegramChatsLoaded(true);
+            showToast('Telegram connection is ready');
+          }
+        }
+      } catch (error) {
+        if (active) setTelegramError(error instanceof Error ? error.message : 'Could not reach the Telegram bridge');
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 1800);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [telegramChatsLoaded]);
 
   const showToast = (message: string) => setToast(message);
+  const telegramRequest = async (endpoint: string, body: Record<string, string>) => {
+    setTelegramBusy(true);
+    setTelegramError('');
+    try {
+      const response = await fetch(`/api/telegram/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok || data.error) throw new Error(data.error ?? 'Telegram request failed');
+      setTelegramOpen(true);
+      showToast('Telegram request sent');
+    } catch (error) {
+      setTelegramError(error instanceof Error ? error.message : 'Telegram request failed');
+    } finally {
+      setTelegramBusy(false);
+    }
+  };
+  const loadTelegramChat = async (chatId: string) => {
+    try {
+      const response = await fetch(`/api/telegram/chat/${chatId}/history?limit=50`);
+      const data = await response.json() as { messages?: Array<{ id: number; chat_id: number; date: number; content?: { '@type'?: string; text?: { text?: string } } }>; error?: string };
+      if (!response.ok || data.error) throw new Error(data.error ?? 'Could not load Telegram messages');
+      if (data.messages) {
+        const remoteMessages: Message[] = data.messages
+          .filter((message) => message.content?.text?.text)
+          .reverse()
+          .map((message) => ({
+            id: `telegram-${message.id}`,
+            chatId,
+            text: message.content?.text?.text ?? '',
+            time: new Date(message.date * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            mine: false,
+          }));
+        setMessages((current) => [...current.filter((message) => message.chatId !== chatId), ...remoteMessages]);
+      }
+    } catch (error) {
+      setTelegramError(error instanceof Error ? error.message : 'Could not load Telegram messages');
+    }
+  };
   const updateSelected = (update: Partial<Chat>) => setChats((current) => current.map((chat) => chat.id === selectedId ? { ...chat, ...update } : chat));
   const selectChat = (id: string) => {
     setSelectedId(id);
@@ -164,6 +281,10 @@ function Home() {
   const sendMessage = () => {
     const text = draft.trim();
     if (!text && !attachment) return;
+    if (telegramAuth === 'authorizationStateReady' && attachment) {
+      showToast('Text messages are live; attachments need a file upload step');
+      return;
+    }
     const now = new Date();
     const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newMessage: Message = { id: `m-${Date.now()}`, chatId: selectedId, text, time, mine: true, status: 'sent', attachment: attachment ?? undefined };
@@ -172,6 +293,18 @@ function Home() {
     setDraft('');
     setAttachment(null);
     if (composeRef.current) composeRef.current.style.height = 'auto';
+    if (telegramAuth === 'authorizationStateReady' && /^\d+$/.test(selectedId)) {
+      void fetch('/api/telegram/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: selectedId, text }),
+      }).then(async (response) => {
+        if (!response.ok) {
+          const result = await response.json() as { error?: string };
+          throw new Error(result.error ?? 'Telegram could not send this message');
+        }
+      }).catch((error: unknown) => setTelegramError(error instanceof Error ? error.message : 'Telegram could not send this message'));
+    }
   };
   const handleComposeKey = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }
@@ -245,7 +378,7 @@ function Home() {
             {archived.length > 0 && <><div className="chat-section-label"><span>Stored away</span></div><button type="button" className="archive-row" onClick={() => { setFolder('All'); setQuery(''); showToast(`${archived.length} archived chat${archived.length > 1 ? 's' : ''} hidden from the list`); }} data-testid="button-show-archive"><Archive size={15} /><span>Archived chats</span><span className="ml-auto font-mono text-[10px]">{archived.length}</span></button></>}
           </div>
           <div className="left-footer">
-            <button type="button" className="profile-button" onClick={() => setInfoOpen(true)} title="Open your profile and settings" data-testid="button-profile-settings"><div className="avatar avatar-sage small">AK</div><span><span className="profile-name">Amina Khalil</span><span className="profile-status"><span className="status-dot" />local only</span></span></button>
+            <button type="button" className="profile-button" onClick={() => { setInfoOpen(true); setTelegramOpen(true); }} title="Open Telegram connection" data-testid="button-profile-settings"><div className="avatar avatar-sage small">AK</div><span><span className="profile-name">Amina Khalil</span><span className="profile-status"><span className={`status-dot ${telegramAuth === 'authorizationStateReady' ? 'is-online' : ''}`} />{telegramAuth === 'authorizationStateReady' ? 'Telegram connected' : 'local preview'}</span></span></button>
             <IconButton label={prefs.dark ? 'Use light theme' : 'Use dark theme'} onClick={() => setPrefs((current: typeof prefs) => ({ ...current, dark: !current.dark }))} testId="button-toggle-theme">{prefs.dark ? <Sun size={16} /> : <Moon size={16} />}</IconButton>
           </div>
         </aside>
@@ -291,10 +424,28 @@ function Home() {
             <div className="info-section"><div className="section-caption">Contact details</div><div className="detail-row"><div className="detail-icon"><Hash size={14} /></div><div><div className="detail-label">Handle</div><div className="detail-value">{selected.handle}</div></div></div><div className="detail-row"><div className="detail-icon"><Info size={14} /></div><div><div className="detail-label">Location</div><div className="detail-value">{selected.location}</div></div></div></div>
             <div className="info-section"><div className="section-caption">Conversation</div><div className="action-list"><button type="button" className={`action-button ${selected.pinned ? 'is-on' : ''}`} onClick={() => updateSelected({ pinned: !selected.pinned })} data-testid="button-details-pin"><span className="action-leading"><Pin size={15} /><span>{selected.pinned ? 'Pinned to top' : 'Pin to top'}</span></span>{selected.pinned && <Check size={14} className="tiny-check" />}</button><button type="button" className={`action-button ${selected.muted ? 'is-on' : ''}`} onClick={() => updateSelected({ muted: !selected.muted })} data-testid="button-details-mute"><span className="action-leading">{selected.muted ? <BellOff size={15} /> : <Bell size={15} />}<span>{selected.muted ? 'Notifications muted' : 'Notifications on'}</span></span><span className={`switch-control ${selected.muted ? '' : 'is-on'}`} /></button><button type="button" className="action-button" onClick={() => { updateSelected({ archived: true }); setMobileChatsOpen(true); showToast('Conversation archived locally'); }} data-testid="button-details-archive"><span className="action-leading"><Archive size={15} /><span>Archive conversation</span></span></button></div></div>
             <div className="info-section"><div className="section-caption">App preferences</div><div className="action-list"><button type="button" className="action-button" onClick={() => setPrefs((current: typeof prefs) => ({ ...current, dark: !current.dark }))} data-testid="button-settings-theme"><span className="action-leading">{prefs.dark ? <Sun size={15} /> : <Moon size={15} />}<span>{prefs.dark ? 'Light theme' : 'Dark theme'}</span></span><span className={`switch-control ${prefs.dark ? 'is-on' : ''}`} /></button><button type="button" className="action-button" onClick={() => setPrefs((current: typeof prefs) => ({ ...current, notifications: !current.notifications }))} data-testid="button-settings-notifications"><span className="action-leading">{prefs.notifications ? <Bell size={15} /> : <BellOff size={15} />}<span>Desktop notifications</span></span><span className={`switch-control ${prefs.notifications ? 'is-on' : ''}`} /></button><button type="button" className="action-button" onClick={clearLocalData} data-testid="button-clear-local-data"><span className="action-leading"><Trash2 size={15} /><span>Reset sample workspace</span></span></button></div></div>
-            <div className="local-card" data-testid="status-local-mode"><ShieldCheck size={17} /><div><div className="local-card-title">Offline / local mode</div><div className="local-card-copy">Nothing leaves this browser. An official Telegram connection is not authorized here.</div></div></div>
+             <div className={`local-card ${telegramAuth === 'authorizationStateReady' ? 'is-connected' : ''}`} data-testid="status-local-mode"><ShieldCheck size={17} /><div><div className="local-card-title">{telegramAuth === 'authorizationStateReady' ? 'Telegram connected' : 'Local preview until connected'}</div><div className="local-card-copy">{telegramAuth === 'authorizationStateReady' ? 'Your session is handled by TDLib on this local server.' : 'Connect with the official Telegram API below to replace sample data with your account.'}</div></div></div>
+             <div className="info-section telegram-connection" data-testid="telegram-connection-panel">
+               <div className="section-caption">Official Telegram connection</div>
+               <div className="telegram-state" data-testid="status-telegram-auth">{telegramAuth.replace('authorizationState', '').replace(/([A-Z])/g, ' $1').trim()}</div>
+               {telegramError && <div className="telegram-error" role="alert" data-testid="status-telegram-error">{telegramError}</div>}
+               {telegramAuth !== 'authorizationStateReady' && <button type="button" className="primary-button telegram-connect-button" onClick={() => setTelegramOpen((value) => !value)} data-testid="button-open-telegram-connect">Connect Telegram</button>}
+               {telegramChatsLoaded && <div className="connected-note" data-testid="status-telegram-chats-loaded">Live chats are available through the local TDLib bridge.</div>}
+             </div>
           </div>
         </aside>}
       </div>
+      {telegramOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setTelegramOpen(false); }}>
+        <form className="modal-card" onSubmit={(event) => { event.preventDefault(); if (telegramAuth === 'authorizationStateWaitPhoneNumber') void telegramRequest('auth/start', { phone_number: telegramPhone }); else if (telegramAuth === 'authorizationStateWaitCode') void telegramRequest('auth/code', { code: telegramCode }); else if (telegramAuth === 'authorizationStateWaitPassword') void telegramRequest('auth/password', { password: telegramPassword }); }} aria-label="Connect official Telegram" data-testid="modal-telegram-connect">
+          <div className="modal-head"><div><div className="eyebrow">official TDLib bridge</div><div className="modal-title">Connect Telegram</div><div className="modal-copy">Your phone number and verification steps go directly to Telegram through the local TDLib process.</div></div><button type="button" className="modal-close" onClick={() => setTelegramOpen(false)} title="Close Telegram connection" aria-label="Close Telegram connection" data-testid="button-close-telegram-connect"><X size={17} /></button></div>
+          {telegramAuth === 'authorizationStateWaitTdlibParameters' && <div className="connection-wait">Starting the official Telegram client…</div>}
+          {telegramAuth === 'authorizationStateWaitPhoneNumber' && <div className="form-field"><label className="form-label" htmlFor="telegram-phone">Phone number</label><input id="telegram-phone" className="form-input" value={telegramPhone} onChange={(event) => setTelegramPhone(event.target.value)} placeholder="+20 100 000 0000" autoFocus data-testid="input-telegram-phone" /></div>}
+          {telegramAuth === 'authorizationStateWaitCode' && <div className="form-field"><label className="form-label" htmlFor="telegram-code">Telegram verification code</label><input id="telegram-code" className="form-input" inputMode="numeric" value={telegramCode} onChange={(event) => setTelegramCode(event.target.value)} autoFocus data-testid="input-telegram-code" /></div>}
+          {telegramAuth === 'authorizationStateWaitPassword' && <div className="form-field"><label className="form-label" htmlFor="telegram-password">Two-step verification password</label><input id="telegram-password" type="password" className="form-input" value={telegramPassword} onChange={(event) => setTelegramPassword(event.target.value)} autoFocus data-testid="input-telegram-password" /></div>}
+          {telegramAuth === 'authorizationStateReady' && <div className="connection-ready" data-testid="status-telegram-ready"><CheckCheck size={18} /> Telegram is connected through TDLib.</div>}
+          {telegramAuth !== 'authorizationStateReady' && telegramAuth !== 'authorizationStateWaitTdlibParameters' && <div className="modal-submit"><button type="button" className="secondary-button" onClick={() => setTelegramOpen(false)} data-testid="button-cancel-telegram-connect">Cancel</button><button type="submit" className="primary-button" disabled={telegramBusy} data-testid="button-submit-telegram-connect">{telegramBusy ? 'Sending…' : 'Continue'}</button></div>}
+        </form>
+      </div>}
       {newChatOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setNewChatOpen(false); }}><form className="modal-card" onSubmit={createChat} aria-label="Create new local chat" data-testid="modal-new-chat"><div className="modal-head"><div><div className="eyebrow">new local thread</div><div className="modal-title">Start a conversation</div><div className="modal-copy">Create a contact in this browser. No account or network connection is required.</div></div><button type="button" className="modal-close" title="Close new chat" aria-label="Close new chat" onClick={() => setNewChatOpen(false)} data-testid="button-close-new-chat"><X size={17} /></button></div><div className="form-field"><label className="form-label" htmlFor="new-chat-name">Name</label><input id="new-chat-name" autoFocus className="form-input" value={newChatName} onChange={(event) => setNewChatName(event.target.value)} placeholder="e.g. Noor Ibrahim" data-testid="input-new-chat-name" /></div><div className="form-field"><label className="form-label" htmlFor="new-chat-handle">Handle <span className="font-normal text-[hsl(var(--muted-foreground))]">(optional)</span></label><input id="new-chat-handle" className="form-input" value={newChatHandle} onChange={(event) => setNewChatHandle(event.target.value)} placeholder="@local_contact" data-testid="input-new-chat-handle" /></div><div className="form-field"><div className="form-label">Avatar color</div><div className="avatar-choice">{(['coral', 'saffron', 'slate', 'plum', 'sage'] as AvatarTone[]).map((tone) => <button type="button" className={newTone === tone ? 'is-selected' : ''} onClick={() => setNewTone(tone)} key={tone} aria-label={`Choose ${tone} avatar`} data-testid={`button-avatar-tone-${tone}`}><div className={`avatar avatar-${tone} small`}>N</div></button>)}</div></div><div className="modal-submit"><button type="button" className="secondary-button" onClick={() => setNewChatOpen(false)} data-testid="button-cancel-new-chat">Cancel</button><button type="submit" className="primary-button" data-testid="button-create-new-chat">Create local chat</button></div></form></div>}
       {toast && <div className="toast-note" role="status" data-testid="status-toast">{toast}</div>}
     </main>
