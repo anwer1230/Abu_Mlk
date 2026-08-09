@@ -532,7 +532,7 @@ async function doSendCode() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone })
         });
-        const data = await res.json();
+        const data = await readApiResponse(res);
         if (data.success) {
             loginPhone = phone;
             document.getElementById('codePhoneDisplay').textContent = phone;
@@ -540,10 +540,11 @@ async function doSendCode() {
             setTimeout(() => document.getElementById('codeInput').focus(), 100);
             toast('تم إرسال الكود إلى ' + phone, 'success');
         } else {
-            showMsg('phoneMsg', '❌ ' + data.message, 'error');
+            showMsg('phoneMsg', '❌ ' + (data.message || 'تعذر إرسال كود التحقق'), 'error');
         }
-    } catch {
-        showMsg('phoneMsg', '❌ حدث خطأ في الاتصال بالخادم', 'error');
+    } catch (error) {
+        console.error('send-code request failed:', error);
+        showMsg('phoneMsg', '❌ تعذر الاتصال بخدمة تسجيل الدخول. حاول مرة أخرى.', 'error');
     }
     setLoading('sendCodeBtn', false, 'إرسال كود التحقق');
 }
@@ -562,7 +563,7 @@ async function doCheckCode() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone: loginPhone, code })
         });
-        const data = await res.json();
+        const data = await readApiResponse(res);
         if (data.success) {
             toast('مرحباً! تم تسجيل الدخول بنجاح 🎉', 'success');
             setTimeout(() => window.location.href = '/', 800);
@@ -572,8 +573,9 @@ async function doCheckCode() {
         } else {
             showMsg('codeMsg', '❌ ' + data.message, 'error');
         }
-    } catch {
-        showMsg('codeMsg', '❌ حدث خطأ في الاتصال', 'error');
+    } catch (error) {
+        console.error('check-code request failed:', error);
+        showMsg('codeMsg', '❌ تعذر الاتصال بخدمة تسجيل الدخول. حاول مرة أخرى.', 'error');
     }
     setLoading('checkCodeBtn', false, 'تأكيد الكود');
 }
@@ -592,15 +594,16 @@ async function doCheckPassword() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone: loginPhone, password })
         });
-        const data = await res.json();
+        const data = await readApiResponse(res);
         if (data.success) {
             toast('مرحباً! تم تسجيل الدخول بنجاح 🎉', 'success');
             setTimeout(() => window.location.href = '/', 800);
         } else {
             showMsg('passwordMsg', '❌ ' + data.message, 'error');
         }
-    } catch {
-        showMsg('passwordMsg', '❌ حدث خطأ في الاتصال', 'error');
+    } catch (error) {
+        console.error('check-password request failed:', error);
+        showMsg('passwordMsg', '❌ تعذر الاتصال بخدمة تسجيل الدخول. حاول مرة أخرى.', 'error');
     }
     setLoading('checkPasswordBtn', false, 'تأكيد كلمة المرور');
 }
@@ -608,6 +611,14 @@ async function doCheckPassword() {
 // ═══════════════════════════════════════════════════════════════
 //  Enter shortcut
 // ═══════════════════════════════════════════════════════════════
+async function readApiResponse(response) {
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+        throw new Error(`Unexpected response (${response.status})`);
+    }
+    return response.json();
+}
+
 document.addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
     if (currentStep === 1) doSendCode();
@@ -619,8 +630,8 @@ document.addEventListener('keydown', e => {
 //  تهيئة
 // ═══════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
-    fetch('/api/auth/status').then(r => r.json()).then(d => {
-        if (d.is_authenticated) window.location.href = '/';
+    fetch('/api/auth/status', { cache: 'no-store' }).then(r => r.json()).then(d => {
+        if (d.is_authenticated || d.authenticated) window.location.href = '/';
     }).catch(() => {});
 });
 </script>
