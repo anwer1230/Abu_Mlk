@@ -1,0 +1,1 @@
+- [GitHub push credentials](github-push-credentials.md) — use the secure GITHUB_TOKEN secret with temporary GIT_ASKPASS when source-control OAuth is unavailable.
