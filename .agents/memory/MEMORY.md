@@ -1,1 +1,2 @@
 - [GitHub push credentials](github-push-credentials.md) — use the secure GITHUB_TOKEN secret with temporary GIT_ASKPASS when source-control OAuth is unavailable.
+- [Telegram session lookup](telegram-session-lookup.md) — post-login API calls must prefer the user-ID StringSession saved by authentication.

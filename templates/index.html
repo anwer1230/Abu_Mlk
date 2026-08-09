@@ -509,7 +509,24 @@ let currentTheme      = localStorage.getItem('theme') || 'dark';
 //  تهيئة Socket.IO
 // ============================================================
 function initSocket() {
-    socket = io({ transports: ['websocket', 'polling'] });
+    // Socket.IO is an enhancement; the chat list must still render if the
+    // CDN is unavailable or the proxy temporarily cannot upgrade a socket.
+    if (typeof io !== 'function') {
+        socket = { connected: false, emit() {}, on() {} };
+        showToast('ℹ️ تم تحميل الواجهة بدون الاتصال الفوري', 'info');
+        return;
+    }
+
+    // Polling is reliable through the Replit proxy and avoids a failed
+    // websocket upgrade leaving the rest of the page uninitialised.
+    try {
+        socket = io({ transports: ['polling'], upgrade: false });
+    } catch (error) {
+        console.warn('Socket.IO initialization failed:', error);
+        socket = { connected: false, emit() {}, on() {} };
+        showToast('ℹ️ تم تحميل الواجهة بدون الاتصال الفوري', 'info');
+        return;
+    }
 
     socket.on('connect', () => {
         socket.emit('register_user', { user_id: CURRENT_USER_ID });
@@ -616,8 +633,9 @@ async function loadChats(showLoader = true) {
     }
 
     // تدوير أيقونة التحديث
-    const btn = document.getElementById('refreshBtn').querySelector('i');
-    btn.classList.add('fa-spin');
+    const refreshButton = document.getElementById('refreshBtn');
+    const btn = refreshButton ? refreshButton.querySelector('i') : null;
+    if (btn) btn.classList.add('fa-spin');
 
     try {
         const res  = await fetch('/api/chats?limit=50');
@@ -646,7 +664,7 @@ async function loadChats(showLoader = true) {
             `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>${e.message}</p></div>`;
         showToast('❌ ' + e.message, 'error');
     } finally {
-        btn.classList.remove('fa-spin');
+        if (btn) btn.classList.remove('fa-spin');
     }
 }
 
@@ -1314,18 +1332,27 @@ function avatarColor(id) {
 //  تهيئة الصفحة
 // ============================================================
 document.addEventListener('DOMContentLoaded', async function() {
-    // تطبيق السمة
-    applyTheme(currentTheme);
+    try {
+        // تطبيق السمة
+        applyTheme(currentTheme);
 
-    // بدء Socket.IO
-    initSocket();
+        // بدء Socket.IO — لا يمنع ذلك تحميل بقية الواجهة
+        initSocket();
 
-    // تحميل البيانات
-    await Promise.all([loadUserInfo(), loadChats()]);
+        // تحميل البيانات
+        await Promise.all([loadUserInfo(), loadChats()]);
 
-    // في الشاشات الكبيرة، افتح أول محادثة
-    if (window.innerWidth > 820 && chatsData.length) {
-        await selectChat(chatsData[0].id);
+        // في الشاشات الكبيرة، افتح أول محادثة
+        if (window.innerWidth > 820 && chatsData.length) {
+            await selectChat(chatsData[0].id);
+        }
+    } catch (error) {
+        console.error('واجهة Telegram لم تكتمل تهيئتها:', error);
+        const list = document.getElementById('chatList');
+        if (list && !list.children.length) {
+            list.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>تعذر تحميل الواجهة، أعد تحديث الصفحة</p></div>';
+        }
+        showToast('❌ تعذر تحميل بعض بيانات الواجهة', 'error');
     }
 
     showToast('✅ مرحباً بك في مركز سرعة إنجاز', 'success');

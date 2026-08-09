@@ -19,6 +19,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 
 from config import Config
 from database import Database, get_db
+import auth as auth_module
 from auth import AuthManager
 from upload_handler import UploadHandler
 from bot_manager import BotManager
@@ -200,7 +201,7 @@ def handle_connect():
 
 
 @socketio.on('disconnect')
-def handle_disconnect():
+def handle_disconnect(reason=None):
     for uid, info in list(active_sessions.items()):
         if info.get('sid') == request.sid:
             del active_sessions[uid]
@@ -445,22 +446,65 @@ def _run_telethon(user_id: str, coro):
         import asyncio as _asyncio
         loop = _asyncio.new_event_loop()
         _asyncio.set_event_loop(loop)
+        client = None
         try:
             from telethon import TelegramClient
-            session_file = os.path.join(Config.SESSION_DIR, str(user_id))
-            client = TelegramClient(session_file, Config.TDLIB_API_ID, Config.TDLIB_API_HASH)
+            from telethon.sessions import StringSession
+
+            # Login stores a portable StringSession under the Telegram user ID.
+            # Prefer it over the phone-number session file created during login;
+            # the latter has a different filename and made the app look empty
+            # immediately after a successful login.
+            session_string = auth_module.load_string_session(str(user_id))
+            if not session_string:
+                stored_user = db.get_user(str(user_id)) or {}
+                session_string = stored_user.get('string_session')
+
+            if session_string:
+                client = TelegramClient(
+                    StringSession(session_string),
+                    Config.TDLIB_API_ID,
+                    Config.TDLIB_API_HASH,
+                    loop=loop,
+                )
+            else:
+                session_file = os.path.join(Config.SESSION_DIR, str(user_id))
+                client = TelegramClient(
+                    session_file,
+                    Config.TDLIB_API_ID,
+                    Config.TDLIB_API_HASH,
+                    loop=loop,
+                )
 
             async def _run():
                 await client.connect()
-                if not await client.is_user_authorized():
-                    raise RuntimeError('غير مصادق عليه')
-                result_box[0] = await coro(client)
-                await client.disconnect()
+                try:
+                    if not await client.is_user_authorized():
+                        raise RuntimeError('غير مصادق عليه')
+                    result_box[0] = await coro(client)
+                finally:
+                    if client.is_connected():
+                        await client.disconnect()
 
             loop.run_until_complete(_run())
         except Exception as ex:
             error_box[0] = ex
         finally:
+            if client is not None and client.is_connected():
+                try:
+                    loop.run_until_complete(client.disconnect())
+                except Exception:
+                    pass
+            pending = _asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            if pending:
+                try:
+                    loop.run_until_complete(
+                        _asyncio.gather(*pending, return_exceptions=True)
+                    )
+                except Exception:
+                    pass
             loop.close()
 
     t = threading.Thread(target=_worker, daemon=True)
