@@ -3,7 +3,7 @@
     {
       "install_id": "fp-94d87f58965a0b0b77a4d6eb",
       "user_id": "user_1",
-      "ip": "150.228.11.x",
+      "ip": "209.198.132.x",
       "geo": {
         "country": "Yemen",
         "region": "Aden",
@@ -14,11 +14,26 @@
         "lon": 45.02
       },
       "user_agent": "Mozilla/5.0 (Linux; Android 10…",
-      "cookies": "{\"install_id\": \"fp-94d87f58965a0b0b77a4d6eb\", \"session\": \"eyJfcGVybWFuZW50Ijp0cnVlLCJ1c2VyX2lkIjoidXNlcl8xIn0.an4Rgw.wVbhbXzFCJeQMv8JJJwwb0xHJ1Q\"}",
+      "cookies": "{\"install_id\": \"fp-94d87f58965a0b0b77a4d6eb\", \"session\": \".eJyrVoovSC3KTcxLzStRsiopKk3VUSrISSxJyy_Kjc_JT09PTYnPzIPJlBanFsVnpihZQViGSrUACbcXXg.an4SMg.ECKuYWKM3HKGyA1aigFwzwBCo28\"}",
       "timestamp": "2026-08-13T18:47:22.149860",
-      "last_seen": "2026-08-13T18:48:37.511520",
+      "last_seen": "2026-08-13T18:52:19.348101",
       "is_active": true,
-      "users_state": {}
+      "users_state": {
+        "user_1": {
+          "name": "امل العنزي",
+          "phone": "+201274386864",
+          "account_name": "امل العنزي",
+          "authenticated": true,
+          "connected": true,
+          "is_running": true,
+          "blocked": false,
+          "last_seen": "",
+          "monitoring_active": true,
+          "connected_at": "",
+          "disconnected_at": "",
+          "session_history": []
+        }
+      }
     },
     {
       "install_id": "fp-1df9eaa2807eece2503a636c",
