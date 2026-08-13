@@ -1,0 +1,10 @@
+{
+  "users": {
+    "user_1": {
+      "id": "user_1",
+      "name": "امل العنزي",
+      "icon": "fas fa-user",
+      "color": "#6366f1"
+    }
+  }
+}
