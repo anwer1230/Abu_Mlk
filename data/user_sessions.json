@@ -43,9 +43,24 @@
       "user_agent": "undici",
       "cookies": "{}",
       "timestamp": "2026-07-17T13:43:41.913234",
-      "last_seen": "2026-08-13T18:47:04.279702",
+      "last_seen": "2026-08-15T21:32:21.742163",
       "is_active": true,
-      "users_state": {}
+      "users_state": {
+        "user_1": {
+          "name": "امل العنزي",
+          "phone": "+201274386864",
+          "account_name": "",
+          "authenticated": false,
+          "connected": false,
+          "is_running": false,
+          "blocked": false,
+          "last_seen": "",
+          "monitoring_active": false,
+          "connected_at": "",
+          "disconnected_at": "",
+          "session_history": []
+        }
+      }
     },
     {
       "install_id": "fp-679c606fa6dc83cc86db4ead",
