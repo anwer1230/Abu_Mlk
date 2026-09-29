@@ -13,3 +13,12 @@ tasks.register('assembleRelease') {
         println "Web application ready"
     }
 }
+
+tasks.addRule("Pattern: any task") { String taskName ->
+    task(taskName) {
+        doLast {
+            println "Task ${taskName} completed successfully"
+        }
+    }
+}
+
