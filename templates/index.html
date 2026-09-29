@@ -858,7 +858,7 @@
                 <i class="fas fa-redo-alt"></i>
               </button>
 
-              {% if uid not in ['user_1', 'user_2', 'user_3', 'user_4', 'user_5'] %}
+              {% if uid != 'user_1' %}
               <button type="button"
                       class="btn btn-sm text-danger tg-item-delete-btn"
                       title="حذف هذا الحساب نهائياً"
@@ -947,8 +947,8 @@
 
         <!-- مؤشر حالة المراقبة + زر تنظيف الكل -->
         <div class="monitoring-status">
-            <span id="monitoringIndicator" class="badge bg-secondary">
-                <i class="fas fa-circle"></i> غير نشط
+            <span id="monitoringIndicator" class="badge bg-success shadow-sm" style="font-size:0.85rem; padding: 6px 12px; border-radius: 8px;">
+                <i class="fas fa-shield-alt text-white me-1"></i> المراقبة التلقائية الذكية: <strong class="text-white">نشطة دائماً</strong>
             </span>
             <button id="globalResetBtn"
                     title="تنظيف والخروج من كل الجلسات لجميع الحسابات"
@@ -1219,7 +1219,7 @@
                             </span>
                             <div class="text-end" style="text-align: right;">
                                 <div class="fw-bold fs-6 mb-0 text-white">الأدوات والوظائف السريعة</div>
-                                <small class="text-white-50" style="font-size: 0.75rem;">انقر لإظهار أو إخفاء الأيقونات (11 وظيفة)</small>
+                                <small class="text-white-50" style="font-size: 0.75rem;">انقر لإظهار أو إخفاء الأيقونات (12 وظيفة)</small>
                             </div>
                         </div>
                         <div class="d-flex align-items-center gap-2">
@@ -1233,7 +1233,15 @@
                         <div class="card-body bg-light p-3 border-top">
                             <div class="row g-2">
                                 <div class="col-6 col-md-4">
-                                    <button type="button" class="btn btn-outline-success w-100 h-100 py-3 d-flex flex-column align-items-center justify-content-center position-relative shadow-sm" id="btnLinkRadar" onclick="window.open('/link_radar','_blank')">
+                                    <button type="button" class="btn btn-outline-primary w-100 h-100 py-3 d-flex flex-column align-items-center justify-content-center position-relative shadow-sm" id="btnAiDocAnalyzerCollapse" data-bs-toggle="modal" data-bs-target="#aiDocAnalyzerModal" onclick="document.getElementById('aiDocAnalyzerFrame').src='/ai_doc_analyzer'">
+                                        <i class="fas fa-brain fa-2x mb-2 text-primary"></i>
+                                        <span class="small fw-bold">محلل المستندات والصور (AI)</span>
+                                        <span class="badge bg-success mt-1" style="font-size:0.6rem;">⚡ 5 مفاتيح متتالية</span>
+                                        <span class="badge bg-dark text-info mt-1" style="font-size:0.58rem; border: 1px solid rgba(59,130,246,0.3);">رفع سريع · ملفات ضخمة</span>
+                                    </button>
+                                </div>
+                                <div class="col-6 col-md-4">
+                                    <button type="button" class="btn btn-outline-success w-100 h-100 py-3 d-flex flex-column align-items-center justify-content-center position-relative shadow-sm" id="btnLinkRadar" data-bs-toggle="modal" data-bs-target="#linkRadarModal" onclick="openLinkRadarModal()">
                                         <i class="fas fa-satellite-dish fa-2x mb-2 text-success"></i>
                                         <span class="small fw-bold">رادار الروابط والانضمام</span>
                                         <span class="badge bg-success mt-1" style="font-size:0.6rem;">🟢 شغال دائماً</span>
@@ -1294,9 +1302,16 @@
                                     </button>
                                 </div>
                                 <div class="col-6 col-md-4">
-                                    <button type="button" class="btn btn-outline-primary w-100 h-100 py-3 d-flex flex-column align-items-center justify-content-center" onclick="window.open('/saved_links','_blank')">
+                                    <button type="button" class="btn btn-outline-primary w-100 h-100 py-3 d-flex flex-column align-items-center justify-content-center" id="btnSavedLinks" data-bs-toggle="modal" data-bs-target="#savedLinksModal" onclick="openSavedLinksModal()">
                                         <i class="fas fa-bookmark fa-2x mb-2"></i>
                                         <span class="small fw-bold">الروابط المحفوظة</span>
+                                    </button>
+                                </div>
+                                <div class="col-6 col-md-4">
+                                    <button type="button" class="btn btn-outline-info w-100 h-100 py-3 d-flex flex-column align-items-center justify-content-center position-relative shadow-sm" id="btnEmailSettings" data-bs-toggle="modal" data-bs-target="#emailSettingsModal" onclick="openEmailSettingsModal()">
+                                        <i class="fas fa-envelope-open-text fa-2x mb-2 text-info"></i>
+                                        <span class="small fw-bold">تنبيهات البريد</span>
+                                        <span id="emailStatusBadge" class="badge bg-secondary mt-1" style="font-size:0.6rem;">خدمة البريد</span>
                                     </button>
                                 </div>
                                 <div class="col-6 col-md-4" id="sysLogsCardCol">
@@ -1348,7 +1363,7 @@
                                             style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-size: 0.8rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; border: none; cursor: pointer; transition: all 0.2s ease;">
                                         <i class="fas fa-file-signature"></i>
                                         <span>مسودات</span>
-                                        <span class="badge bg-white text-dark rounded-pill px-2 py-0" style="font-size: 0.72rem; font-weight: 800;">11 إعلان</span>
+                                        <span class="badge bg-white text-dark rounded-pill px-2 py-0" style="font-size: 0.72rem; font-weight: 800;">12 إعلان</span>
                                     </button>
                                 </div>
                                 <textarea class="form-control" id="message" rows="3"
@@ -1408,15 +1423,64 @@
 
                             <div class="mb-3">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <label for="watchWords" class="form-label mb-0">كلمات المراقبة (المخزنة والدائمة في النظام)</label>
+                                    <label for="watchWords" class="form-label mb-0 fw-bold">
+                                        <i class="fas fa-binoculars text-primary me-1"></i>كلمات المراقبة (المخزنة والدائمة في النظام)
+                                    </label>
                                     <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25" style="font-size:0.75rem;">
                                         <i class="fas fa-shield-alt me-1"></i> مراقبة دائمة نشطة
                                     </span>
                                 </div>
                                 <textarea class="form-control" id="watchWords" rows="6"
-                                          placeholder="ضع كل كلمة في سطر منفصل">{{ '\n'.join(settings.watch_words or []) }}</textarea>
-                                <div class="form-text">
-                                    ⚠️ الكلمات المحددة أعلاه مخزنة وتتم مراقبتها بشكل دائم وأبدي في كامل مجموعات ومحادثات الحساب، ويمكنك إضافة المزيد إليها بوضع كل كلمة جديدة في سطر منفصل
+                                          placeholder="ضع كل كلمة أو عبارة في سطر منفصل">{{ '\n'.join(settings.watch_words or []) }}</textarea>
+                                <div class="form-text small" style="font-size:0.75rem; line-height: 1.5;">
+                                    <i class="fas fa-magic text-warning me-1"></i>
+                                    <strong>مطابقة كاملة وذكية بدون حساسية للهمزات والتشكيل:</strong> يُعامل كل سطر كعبارة/كلمة كاملة، وتتم المطابقة تلقائياً بصرف النظر عن الهمزات (أ، إ، آ، ا) أو النقاط (ى/ي، ة/ه) أو التشكيل والحركات (مثال: <code>ابي مساعدة</code> تطابق <code>ابى مساعده</code> و <code>أبي مساعدة</code> بكل دقة).
+                                </div>
+                            </div>
+
+                            <!-- بطاقة الرد التلقائي الخاص بكلمات المراقبة -->
+                            <div class="card p-3 mb-3 rounded-3" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(14, 165, 233, 0.05) 100%); border: 1.5px solid rgba(16, 185, 129, 0.35);">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <label class="form-check-label fw-bold text-success d-flex align-items-center mb-0" for="keywordAutoReplyEnabled" style="font-size: 0.95rem; cursor: pointer;">
+                                        <i class="fas fa-reply-all text-success me-2"></i>
+                                        الرد التلقائي على مرسل الكلمة المراقبة (بالخاص)
+                                    </label>
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="keywordAutoReplyEnabled"
+                                               style="cursor: pointer; width: 2.4em; height: 1.25em;"
+                                               {{ 'checked' if (settings.keyword_auto_reply_enabled is not defined or settings.keyword_auto_reply_enabled) else '' }}>
+                                    </div>
+                                </div>
+                                
+                                <p class="text-muted small mb-2" style="line-height: 1.5; font-size: 0.78rem;">
+                                    عند رصد أي كلمة من كلمات المراقبة أعلاه في المجموعات، يقوم النظام تلقائياً بإرسال رسالة خاصة إلى حساب المرسل مع إعادة توجيه رسالته الأصلية وإرسال الرد تحتها مباشرة.
+                                </p>
+
+                                <div id="keywordAutoReplyOptions" style="{{ '' if (settings.keyword_auto_reply_enabled is not defined or settings.keyword_auto_reply_enabled) else 'display:none;' }}">
+                                    <div class="mb-2">
+                                        <label for="keywordAutoReplyText" class="form-label fw-bold small text-dark mb-1">
+                                            <i class="fas fa-comment-dots text-primary me-1"></i>نص الرد التلقائي بالخاص:
+                                        </label>
+                                        <input type="text" class="form-control form-control-sm fw-bold" id="keywordAutoReplyText"
+                                               value="{{ settings.keyword_auto_reply_text or 'ابشر' }}"
+                                               placeholder="ابشر" style="border-radius: 8px;">
+                                        <div class="form-text text-muted small" style="font-size: 0.72rem;">
+                                            الافتراضي: <strong>ابشر</strong> (يتم إرساله تحت الرسالة الموجهة إلى خاص المرسل).
+                                        </div>
+                                    </div>
+
+                                    <div class="form-check mb-1">
+                                        <input class="form-check-input" type="checkbox" id="keywordAutoReplyForward"
+                                               {{ 'checked' if (settings.keyword_auto_reply_forward is not defined or settings.keyword_auto_reply_forward) else '' }}>
+                                        <label class="form-check-label small" for="keywordAutoReplyForward" style="font-size: 0.78rem;">
+                                            إعادة توجيه الرسالة التي تحتوي على الكلمة المراقبة أولاً، ثم كتابة الرد تحتها.
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="mt-2 pt-2 border-top border-success-subtle text-muted" style="font-size: 0.73rem;">
+                                    <i class="fas fa-info-circle text-info me-1"></i>
+                                    <strong>ملاحظة أمان:</strong> تفعيل أو إيقاف هذه الميزة متاح في أي وقت، ولا يؤثر إطلاقاً على عمل مراقب الكلمات ولا على إرسال التنبيهات.
                                 </div>
                             </div>
 
@@ -1458,46 +1522,71 @@
                             </div>
 
                             <div class="mb-3" id="intervalDiv" style="{{ 'display: none;' if settings.send_type != 'scheduled' else '' }}">
-                                <label for="intervalSeconds" class="form-label">فترة الإرسال (بالدقائق)</label>
-                                <input type="number" class="form-control" id="intervalSeconds"
-                                       value="{{ ((settings.interval_seconds or 1500) // 60) }}" min="1">
-                                <div class="form-text">الحد الأدنى: دقيقة واحدة — الافتراضي: 25 دقيقة</div>
-                            </div>
-
-                            <!-- دورة التشغيل والتوقف للإرسال المجدول -->
-                            <div class="mb-3" id="scheduledTimeDiv" style="{{ 'display: none;' if settings.send_type != 'scheduled' else '' }}">
-                                <label for="scheduleDuration" class="form-label">
-                                    <i class="fas fa-hourglass-half me-2 text-warning"></i>مدة تشغيل كل دورة
+                                <label for="intervalSeconds" class="form-label fw-bold">
+                                    <i class="fas fa-clock text-primary me-1"></i>فترة الإرسال بين الرسائل (بالدقائق)
                                 </label>
                                 <div class="input-group">
-                                    <input type="number" class="form-control" id="scheduleDuration"
-                                           min="0" step="0.5"
-                                           value="{{ settings.schedule_duration_hours or 0 }}"
-                                           placeholder="0">
-                                    <span class="input-group-text">ساعة</span>
+                                    <input type="number" class="form-control text-center fw-bold" id="intervalSeconds"
+                                           value="{{ ((settings.interval_seconds or 1500) // 60) }}" min="1">
+                                    <span class="input-group-text bg-light">دقيقة</span>
                                 </div>
-                                <div class="form-text">
-                                    <i class="fas fa-info-circle me-1 text-info"></i>
-                                    <strong>0 = بدون حد زمني</strong> (يعمل حتى إيقاف يدوي) —
-                                    مثال: 3 = يتوقف تلقائياً بعد 3 ساعات ويظهر زر استئناف
+                                <div class="form-text text-muted small">
+                                    <i class="fas fa-info-circle me-1 text-primary"></i>الافتراضي: <strong>25 دقيقة</strong> (يتم إرسال الرسالة للمجموعات كل 25 دقيقة خلال فترة التشغيل).
                                 </div>
                             </div>
 
-
-                            <div class="mb-3" id="schedulePauseDiv" style="{{ 'display: none;' if settings.send_type != 'scheduled' else '' }}">
-                                <label for="schedulePause" class="form-label">
-                                    <i class="fas fa-pause-circle me-2 text-info"></i>مدة التوقف بين الدورات
-                                </label>
-                                <div class="input-group">
-                                    <input type="number" class="form-control" id="schedulePause"
-                                           min="0" step="0.5"
-                                           value="{{ settings.schedule_pause_hours or 0 }}"
-                                           placeholder="0">
-                                    <span class="input-group-text">ساعة</span>
+                            <!-- دورة التشغيل والتوقف التلقائية للإرسال المجدول (الدورة الدائرية) -->
+                            <div class="p-3 mb-3 rounded-3" id="cyclicSettingsCard" style="{{ 'display: none;' if settings.send_type != 'scheduled' else '' }}; background: linear-gradient(135deg, rgba(0, 136, 204, 0.05) 0%, rgba(28, 200, 138, 0.05) 100%); border: 1.5px solid rgba(0, 136, 204, 0.25);">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="fw-bold text-primary" style="font-size: 0.95rem;">
+                                        <i class="fas fa-sync-alt text-info me-1"></i> نظام الجدولة الدائرية الآلية المستمرة
+                                    </span>
+                                    <span class="badge bg-success rounded-pill px-2 py-1" style="font-size: 0.72rem;">تلقائي بدون تدخل</span>
                                 </div>
-                                <div class="form-text">
-                                    <i class="fas fa-sync-alt me-1 text-info"></i>
-                                    <strong>0 = لا يوجد تكرار تلقائي</strong> — مثال: تشغيل 3 ساعات ثم توقف 4 ساعات، وتتكرر الدورة تلقائياً.
+                                <p class="text-muted small mb-3" style="line-height: 1.5;">
+                                    يعمل النظام بنمط دائري مغلق: إرسال مجدول ⬅️ إيقاف آلي ⬅️ استراحة ⬅️ استئناف آلي، وتستمر الدورة تلقائياً بدقة تامة.
+                                </p>
+
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-6" id="scheduledTimeDiv">
+                                        <label for="scheduleDuration" class="form-label fw-bold small">
+                                            <i class="fas fa-play-circle text-success me-1"></i>1. مدة التشغيل قبل التوقف الآلي:
+                                        </label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" class="form-control text-center fw-bold" id="scheduleDuration"
+                                                   min="0" step="0.5"
+                                                   value="{{ settings.schedule_duration_hours or 0 }}"
+                                                   placeholder="3">
+                                            <span class="input-group-text bg-light">ساعة</span>
+                                        </div>
+                                        <div class="form-text small" style="font-size: 0.72rem;">
+                                            مثال: <strong>3</strong> = يعمل الإرسال المجدول 3 ساعات ثم يتوقف.
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6" id="schedulePauseDiv">
+                                        <label for="schedulePause" class="form-label fw-bold small">
+                                            <i class="fas fa-pause-circle text-warning me-1"></i>2. مدة التوقف قبل الاستئناف الآلي:
+                                        </label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" class="form-control text-center fw-bold" id="schedulePause"
+                                                   min="0" step="0.5"
+                                                   value="{{ settings.schedule_pause_hours or 0 }}"
+                                                   placeholder="4">
+                                            <span class="input-group-text bg-light">ساعة</span>
+                                        </div>
+                                        <div class="form-text small" style="font-size: 0.72rem;">
+                                            مثال: <strong>4</strong> = يستريح 4 ساعات ثم يُعيد التشغيل تلقائياً.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- شرح حي تفاعلي للدورة -->
+                                <div class="p-2 rounded-2 mt-2" style="background: rgba(255, 255, 255, 0.85); border: 1px dashed rgba(0, 136, 204, 0.35); font-size: 0.8rem;">
+                                    <i class="fas fa-sync text-primary fa-spin me-1"></i>
+                                    <span id="cycleLiveSummary">
+                                        سيتم الإرسال كل <strong><span id="sumIntervalText">{{ ((settings.interval_seconds or 1500) // 60) }}</span> دقيقة</strong> لمدة <strong><span id="sumDurationText">{{ settings.schedule_duration_hours or 3 }}</span> ساعات</strong>، ثم يتوقف تلقائياً لمدة <strong><span id="sumPauseText">{{ settings.schedule_pause_hours or 4 }}</span> ساعات</strong>، ثم يستأنف آلياً لـ <strong><span id="sumDurationText2">{{ settings.schedule_duration_hours or 3 }}</span> ساعات</strong>، وهكذا تستمر العملية دائرياً ومنتظماً.
+                                    </span>
                                 </div>
                             </div>
                             <div class="row">
@@ -1520,7 +1609,12 @@
                                     <span style="font-weight:700;color:#38bdf8;font-size:0.9rem;" id="sendLiveProgressTitle">
                                         <i class="fas fa-circle-notch fa-spin me-2"></i>جارٍ الإرسال الفوري...
                                     </span>
-                                    <span class="badge bg-primary" id="sendLiveProgressBadge" style="font-size:0.8rem;">0%</span>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-danger" id="stopSendNowBtn" style="display:none;font-size:0.75rem;padding:2px 8px;border-radius:6px;">
+                                            <i class="fas fa-stop me-1"></i>إيقاف الإرسال
+                                        </button>
+                                        <span class="badge bg-primary" id="sendLiveProgressBadge" style="font-size:0.8rem;">0%</span>
+                                    </div>
                                 </div>
                                 <div class="progress mb-2" style="height:8px;background:rgba(255,255,255,0.1);border-radius:4px;">
                                     <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" id="sendLiveProgressBar" role="progressbar" style="width:0%;"></div>
@@ -1533,39 +1627,58 @@
                             </div>
                         </form>
 
-                        <!-- أزرار التحكم -->
+                        <!-- أزرار وحالة المراقبة التلقائية -->
                         <div class="row mt-3">
+                            <div class="col-12 mb-2">
+                                <div id="monitoringActiveBanner" class="alert alert-success d-flex align-items-center justify-content-between p-2 mb-2 rounded-3 shadow-sm border-success" style="background: rgba(16, 185, 129, 0.12);">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-shield-alt text-success fa-lg me-2 fa-beat" style="--fa-animation-duration: 2.5s;"></i>
+                                        <div>
+                                            <div class="fw-bold text-success" style="font-size: 0.88rem;">المراقبة الذكية التلقائية نشطة وتعمل على مدار الساعة</div>
+                                            <div class="small text-muted" style="font-size: 0.72rem;">ترصد الكلمات في كامل المجموعات وتُرسل التنبيهات والردود آلياً</div>
+                                        </div>
+                                    </div>
+                                    <span class="badge bg-success rounded-pill px-2 py-1" style="font-size: 0.72rem;">
+                                        <i class="fas fa-check-circle me-1"></i>تعمل آلياً
+                                    </span>
+                                </div>
+                            </div>
                             <div class="col-md-6 mb-2">
-                                <button class="btn btn-warning w-100" id="startMonitoringBtn">
+                                <button class="btn btn-warning w-100 fw-bold" id="startMonitoringBtn" style="display: none;">
                                     <i class="fas fa-play me-2"></i>
-                                    بدء المراقبة
+                                    تشغيل المراقبة
                                 </button>
                             </div>
                             <div class="col-md-6 mb-2">
-                                <button class="btn btn-danger w-100" id="stopMonitoringBtn" style="display: none;">
-                                    <i class="fas fa-stop me-2"></i>
-                                    إيقاف المراقبة
+                                <button class="btn btn-outline-danger w-100" id="stopMonitoringBtn">
+                                    <i class="fas fa-pause me-2"></i>
+                                    إيقاف مؤقت للمراقبة
                                 </button>
                             </div>
                         </div>
 
-                        <!-- زر استئناف الإرسال المجدول + شريط الحالة -->
-                        <div id="scheduleStatusBar" style="display:none;margin-top:10px;border-radius:10px;
-                             padding:10px 14px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);">
-                          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                            <span id="scheduleStatusIcon" style="font-size:1.3rem;">⏹</span>
-                            <div style="flex:1;min-width:120px;">
-                              <div id="scheduleStatusText"
-                                   style="font-size:0.82rem;font-weight:700;color:#fbbf24;"></div>
-                              <div id="scheduleCountdown"
-                                   style="font-size:0.72rem;color:#8b949e;margin-top:2px;"></div>
+                        <!-- شريط المتابعة الحية للدورة الدائرية + زر الاستئناف -->
+                        <div id="scheduleStatusBar" style="display:none;margin-top:10px;border-radius:12px;
+                             padding:12px 16px;background:rgba(245,158,11,0.12);border:1.5px solid rgba(245,158,11,0.35);box-shadow: 0 4px 14px rgba(0,0,0,0.06);">
+                          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <span id="scheduleStatusIcon" style="font-size:1.6rem;">🔄</span>
+                            <div style="flex:1;min-width:140px;">
+                              <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                                <span id="scheduleStatusText" style="font-size:0.88rem;font-weight:700;color:#fbbf24;"></span>
+                                <span class="badge bg-primary rounded-pill px-2 py-1" id="scheduleRoundBadge" style="display:none;font-size:0.72rem;">الدورة #1</span>
+                              </div>
+                              <div id="scheduleCountdown" style="font-size:0.8rem;color:#8b949e;font-weight:600;"></div>
                             </div>
                             <button id="resumeScheduleBtn" onclick="resumeSchedule()"
                                     style="display:none;background:linear-gradient(135deg,#10b981,#059669);
                                            border:none;color:#fff;padding:8px 18px;border-radius:8px;
-                                           font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;">
-                              <i class="fas fa-redo me-1"></i>استئناف الإرسال
+                                           font-size:0.85rem;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow: 0 2px 8px rgba(16,185,129,0.3);">
+                              <i class="fas fa-play me-1"></i>استئناف فوري
                             </button>
+                          </div>
+                          <!-- شريط تقدم الدورة -->
+                          <div id="scheduleProgressBarWrap" style="display:none;margin-top:8px;height:4px;background:rgba(0,0,0,0.08);border-radius:2px;overflow:hidden;">
+                            <div id="scheduleProgressBar" style="height:100%;width:100%;background:#10b981;transition:width 1s linear;"></div>
                           </div>
                         </div>
                     </div>
@@ -1593,7 +1706,7 @@
                                 <!-- 0. رادار الروابط والإنضمام الذكي -->
                                 <li>
                                     <a class="dropdown-item py-3 d-flex align-items-center gap-3"
-                                       href="/link_radar" target="_blank" style="border-bottom:1px solid #f0f0f0;">
+                                       href="#" data-bs-toggle="modal" data-bs-target="#linkRadarModal" onclick="openLinkRadarModal()" style="border-bottom:1px solid #f0f0f0;">
                                         <span style="width:38px;height:38px;background:linear-gradient(135deg,#10b981,#059669);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                                             <i class="fas fa-satellite-dish text-white"></i>
                                         </span>
@@ -1634,19 +1747,18 @@
                                         </span>
                                     </a>
                                 </li>
-                                <!-- 3. تحويل HTML إلى وورد -->
+                                <!-- 3. تحويل HTML إلى وورد (استوديو مباشر + ذكاء اصطناعي) -->
                                 <li>
                                     <a class="dropdown-item py-3 d-flex align-items-center gap-3"
-                                       href="#" style="border-bottom:1px solid #f0f0f0;"
-                                       data-bs-toggle="modal" data-bs-target="#fileFormatterModal"
-                                       onclick="document.getElementById('formatterFrame').src='/formatter?section=html2word'">
-                                        <span style="width:38px;height:38px;background:linear-gradient(135deg,#2980b9,#1a6ea8);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                       href="/html_to_word" target="_blank" style="border-bottom:1px solid #f0f0f0;">
+                                        <span style="width:38px;height:38px;background:linear-gradient(135deg,#2563eb,#1d4ed8);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                                             <i class="fas fa-file-word text-white"></i>
                                         </span>
                                         <span>
-                                            <strong class="d-block">تحويل كود HTML إلى ملف وورد</strong>
-                                            <small class="text-muted">تحويل احترافي مع الحفاظ على التنسيق</small>
+                                            <strong class="d-block">استوديو تحويل كود HTML إلى Word (معاينة حية + ذكاء اصطناعي)</strong>
+                                            <small class="text-muted">واجهة مستقلة · محرر كود · معاينة حية · تصدير Word حقيقي وثابت</small>
                                         </span>
+                                        <span class="badge bg-primary ms-auto">✨ جديد AI</span>
                                     </a>
                                 </li>
                                 <!-- 4. تحويل HTML إلى اكسل -->
@@ -1683,7 +1795,7 @@
                                 <li>
                                     <a class="dropdown-item py-3 d-flex align-items-center gap-3"
                                        href="#"
-                                       data-bs-toggle="modal" data-bs-target="#presentationModal">
+                                       data-bs-toggle="modal" data-bs-target="#presentationModal" style="border-bottom:1px solid #f0f0f0;">
                                         <span style="width:38px;height:38px;background:linear-gradient(135deg,#8e44ad,#6c3483);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                                             <i class="fas fa-desktop text-white"></i>
                                         </span>
@@ -1691,6 +1803,20 @@
                                             <strong class="d-block">استخراج عرض باوربوينت من ملف أو نص</strong>
                                             <small class="text-muted">إنشاء عرض PowerPoint احترافي تلقائياً</small>
                                         </span>
+                                    </a>
+                                </li>
+                                <!-- 7. المستكشف والمحلل الذكي للمستندات والصور (AI Q&A) -->
+                                <li>
+                                    <a class="dropdown-item py-3 d-flex align-items-center gap-3"
+                                       href="#" data-bs-toggle="modal" data-bs-target="#aiDocAnalyzerModal" onclick="document.getElementById('aiDocAnalyzerFrame').src='/ai_doc_analyzer'">
+                                        <span style="width:38px;height:38px;background:linear-gradient(135deg,#06b6d4,#3b82f6);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                            <i class="fas fa-brain text-white"></i>
+                                        </span>
+                                        <span>
+                                            <strong class="d-block">المحلل والمستكشف الذكي للمستندات والصور (AI Q&A)</strong>
+                                            <small class="text-muted">رفع فائق السرعة لملفات ضخمة · قراءة وتحليل عميق · 5 مفاتيح ذكاء متتالية دون توقف</small>
+                                        </span>
+                                        <span class="badge bg-primary ms-auto">⚡ 5 مفاتيح AI</span>
                                     </a>
                                 </li>
                             </ul>
@@ -1779,10 +1905,10 @@
               <div class="col-md-5">
                 <div class="d-flex gap-1 justify-content-md-end flex-wrap" id="draftCategoryFilter">
                   <button type="button" class="btn btn-sm btn-warning draft-cat-btn active" data-category="all" onclick="filterDraftsCategory('all', this)">
-                    الكل (11)
+                    الكل (12)
                   </button>
                   <button type="button" class="btn btn-sm btn-outline-secondary text-light draft-cat-btn" data-category="student" onclick="filterDraftsCategory('student', this)">
-                    📚 طلابية وبحوث (7)
+                    📚 طلابية وبحوث (8)
                   </button>
                   <button type="button" class="btn btn-sm btn-outline-secondary text-light draft-cat-btn" data-category="medical" onclick="filterDraftsCategory('medical', this)">
                     🏥 طبية وسكليف (4)
@@ -4958,6 +5084,36 @@
       </div>
     </div>
 
+    <!-- ===== مودال المستكشف والمحلل الذكي للمستندات والصور (AI Document & Image Q&A) ===== -->
+    <div class="modal fade" id="aiDocAnalyzerModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content" style="display:flex;flex-direction:column;">
+          <div class="modal-header text-white py-2 flex-shrink-0" style="background:linear-gradient(135deg,#06b6d4,#3b82f6)">
+            <div class="d-flex align-items-center gap-2">
+              <span class="d-inline-flex align-items-center justify-content-center bg-white bg-opacity-20 rounded-circle" style="width: 38px; height: 38px;">
+                <i class="fas fa-brain fa-lg text-warning"></i>
+              </span>
+              <div>
+                <h5 class="modal-title mb-0 fw-bold">المستكشف والمحلل الذكي للمستندات والصور (AI Q&A)</h5>
+                <small class="text-white-50" style="font-size:0.75rem;">رفع فائق السرعة لملفات ضخمة · 5 مفاتيح ذكاء متتالية دون توقف · إجابة فورية ودقيقة</small>
+              </div>
+            </div>
+            <div class="ms-auto d-flex gap-2 align-items-center">
+              <a href="/ai_doc_analyzer" target="_blank" class="btn btn-sm btn-light opacity-75" title="فتح في تبويب مستقل">
+                <i class="fas fa-external-link-alt me-1"></i> فتح في نافذة مستقلة
+              </a>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+          </div>
+          <div class="modal-body p-0 flex-grow-1" style="overflow:hidden;min-height:0;">
+            <iframe id="aiDocAnalyzerFrame" src="/ai_doc_analyzer"
+              style="width:100%;height:100%;border:none;display:block;"
+              title="المستكشف والمحلل الذكي للملفات والمستندات"></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== مودال التحليل الأكاديمي الذكي ===== -->
     <div class="modal fade" id="academicModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-fullscreen">
@@ -8093,29 +8249,82 @@ async function executeResetSingle() {
     function _el(id) { return document.getElementById(id); }
 
     function _fmtDur(seconds) {
+        if (!seconds || seconds <= 0) return '0ث';
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
         const s = Math.floor(seconds % 60);
-        if (h > 0) return `${h}س ${m}د`;
+        if (h > 0) return `${h}س ${m}د ${s}ث`;
         if (m > 0) return `${m}د ${s}ث`;
         return `${s}ث`;
+    }
+
+    let _timerInterval = null;
+    let _currentState = null;
+
+    function _updateLiveCountdown() {
+        if (!_currentState || !_currentState.targetTimestamp) return;
+        const now = Date.now();
+        const diffSec = Math.max(0, Math.floor((_currentState.targetTimestamp - now) / 1000));
+        const cd = _el('scheduleCountdown');
+        const pbar = _el('scheduleProgressBar');
+
+        if (_currentState.totalSec && _currentState.totalSec > 0 && pbar) {
+            const pct = Math.min(100, Math.max(0, (diffSec / _currentState.totalSec) * 100));
+            pbar.style.width = pct + '%';
+        }
+
+        if (cd) {
+            if (_currentState.phase === 'paused') {
+                cd.textContent = 'إعادة التشغيل والاستئناف تلقائياً خلال: ' + _fmtDur(diffSec);
+            } else if (_currentState.phase === 'running') {
+                cd.textContent = 'الوقت المتبقي حتى التوقف المؤقت: ' + _fmtDur(diffSec);
+            }
+        }
+    }
+
+    function _startTicker(phase, targetTs, totalSec) {
+        if (_timerInterval) clearInterval(_timerInterval);
+        _currentState = { phase, targetTimestamp: targetTs, totalSec };
+        _updateLiveCountdown();
+        _timerInterval = setInterval(_updateLiveCountdown, 1000);
+    }
+
+    function _stopTicker() {
+        if (_timerInterval) clearInterval(_timerInterval);
+        _timerInterval = null;
+        _currentState = null;
     }
 
     function _showBar(show) {
         const bar = _el('scheduleStatusBar');
         if (bar) bar.style.display = show ? 'block' : 'none';
+        const pbWrap = _el('scheduleProgressBarWrap');
+        if (pbWrap) pbWrap.style.display = show ? 'block' : 'none';
     }
 
-    function _setBar(icon, text, countdown, showResume, barColor) {
+    function _setBar(icon, text, countdown, showResume, resumeBtnText, barColor, roundNum) {
         const ic  = _el('scheduleStatusIcon');
         const tx  = _el('scheduleStatusText');
         const cd  = _el('scheduleCountdown');
         const btn = _el('resumeScheduleBtn');
         const bar = _el('scheduleStatusBar');
+        const badge = _el('scheduleRoundBadge');
+
         if (ic)  ic.textContent  = icon;
         if (tx)  tx.textContent  = text;
         if (cd)  cd.textContent  = countdown;
-        if (btn) btn.style.display = showResume ? 'inline-block' : 'none';
+        if (badge) {
+            if (roundNum) {
+                badge.style.display = 'inline-block';
+                badge.textContent = `الدورة #${roundNum}`;
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+        if (btn) {
+            btn.style.display = showResume ? 'inline-block' : 'none';
+            if (resumeBtnText) btn.innerHTML = resumeBtnText;
+        }
         if (bar && barColor) bar.style.background = barColor;
     }
 
@@ -8126,15 +8335,15 @@ async function executeResetSingle() {
             const r = await fetch('/api/resume_scheduled', { method: 'POST' });
             const d = await r.json();
             if (d.success) {
-                _setBar('🔄', 'جاري الاستئناف...', '', false, 'rgba(16,185,129,0.12)');
+                _setBar('🔄', 'جاري الاستئناف...', '', false, null, 'rgba(16,185,129,0.12)');
                 if (typeof showAlert === 'function') showAlert('success', d.message);
             } else {
                 if (typeof showAlert === 'function') showAlert('danger', '❌ ' + d.message);
-                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-redo me-1"></i>استئناف الإرسال'; }
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-play me-1"></i>استئناف فوري'; }
             }
         } catch(e) {
             if (typeof showAlert === 'function') showAlert('danger', '❌ ' + e.message);
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-redo me-1"></i>استئناف الإرسال'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-play me-1"></i>استئناف فوري'; }
         }
     };
 
@@ -8143,35 +8352,57 @@ async function executeResetSingle() {
         if (!s) { setTimeout(_tryBind, 300); return; }
 
         s.on('schedule_status', function(data) {
+            const roundNum = data.cycle_round || 1;
+
             if (data.cycle_phase === 'paused') {
                 _showBar(true);
                 const pauseRem = data.pause_remaining_seconds || 0;
-                _setBar('⏸️', 'توقف مؤقت — سيُستأنف الإرسال تلقائياً', 'إعادة التشغيل خلال: ' + _fmtDur(pauseRem), false, 'rgba(14,165,233,0.12)');
-                if (_el('scheduleStatusBar')) _el('scheduleStatusBar').style.border = '1px solid rgba(14,165,233,0.4)';
+                const totalSec = (data.pause_duration_hours || 0) * 3600;
+                const targetTs = data.target_timestamp ? (data.target_timestamp * 1000) : (Date.now() + pauseRem * 1000);
+
+                _setBar('⏸️', 'فترة التوقف المؤقت (ستُستأنف آلياً)', 'إعادة التشغيل والاستئناف تلقائياً خلال: ' + _fmtDur(pauseRem), true, '<i class="fas fa-play me-1"></i>استئناف فوري وتخطي الاستراحة', 'rgba(14,165,233,0.14)', roundNum);
+                if (_el('scheduleStatusBar')) _el('scheduleStatusBar').style.border = '1.5px solid rgba(14,165,233,0.45)';
                 const tx = _el('scheduleStatusText');
                 if (tx) tx.style.color = '#38bdf8';
+                const pbar = _el('scheduleProgressBar');
+                if (pbar) pbar.style.background = '#0284c7';
+
+                _startTicker('paused', targetTs, totalSec);
                 return;
             }
+
             if (data.running) {
                 _showBar(true);
                 const dur = data.duration_hours || 0;
                 const rem = data.remaining_seconds;
                 let countdown = '';
-                if (dur > 0 && rem != null) countdown = 'المتبقي: ' + _fmtDur(rem);
-                else if (dur <= 0)           countdown = 'بدون حد زمني';
-                _setBar('🔄', 'الإرسال المجدول يعمل', countdown, false, 'rgba(16,185,129,0.12)');
+                if (dur > 0 && rem != null) countdown = 'الوقت المتبقي حتى التوقف المؤقت: ' + _fmtDur(rem);
+                else if (dur <= 0)           countdown = 'بدون حد زمني (يعمل مستمراً)';
+
+                _setBar('🔄', 'الإرسال المجدول يعمل بنشاط', countdown, false, null, 'rgba(16,185,129,0.12)', roundNum);
                 if (_el('scheduleStatusBar')) {
-                    _el('scheduleStatusBar').style.border = '1px solid rgba(16,185,129,0.4)';
+                    _el('scheduleStatusBar').style.border = '1.5px solid rgba(16,185,129,0.4)';
                     const tx = _el('scheduleStatusText');
                     if (tx) tx.style.color = '#34d399';
                 }
+                const pbar = _el('scheduleProgressBar');
+                if (pbar) pbar.style.background = '#10b981';
+
+                if (dur > 0 && rem != null) {
+                    const totalSec = dur * 3600;
+                    const targetTs = data.target_timestamp ? (data.target_timestamp * 1000) : (Date.now() + rem * 1000);
+                    _startTicker('running', targetTs, totalSec);
+                } else {
+                    _stopTicker();
+                }
             } else {
+                _stopTicker();
                 if (data.stopped_by_duration) {
                     _showBar(true);
                     const h = (data.duration_hours || 0).toFixed(1);
-                    _setBar('⏹', `توقف تلقائياً بعد ${h} ساعة`, 'اضغط استئناف للعودة', true, 'rgba(245,158,11,0.12)');
+                    _setBar('⏹', `توقف تلقائياً بعد انتهاء ${h} ساعة`, 'اضغط استئناف لبدء دورة جديدة', true, '<i class="fas fa-redo me-1"></i>استئناف الإرسال', 'rgba(245,158,11,0.12)', roundNum);
                     if (_el('scheduleStatusBar')) {
-                        _el('scheduleStatusBar').style.border = '1px solid rgba(245,158,11,0.4)';
+                        _el('scheduleStatusBar').style.border = '1.5px solid rgba(245,158,11,0.4)';
                         const tx = _el('scheduleStatusText');
                         if (tx) tx.style.color = '#fbbf24';
                     }
@@ -8185,10 +8416,11 @@ async function executeResetSingle() {
 
         s.on('schedule_remaining', function(data) {
             const rem = data.remaining_seconds || 0;
-            const cd = _el('scheduleCountdown');
-            if (cd) cd.textContent = data.phase === 'paused'
-                ? 'إعادة التشغيل تلقائياً خلال: ' + _fmtDur(rem)
-                : 'المتبقي: ' + _fmtDur(rem);
+            const targetTs = data.target_timestamp ? (data.target_timestamp * 1000) : (Date.now() + rem * 1000);
+            const totalSec = data.phase === 'paused'
+                ? ((data.remaining_hours || 0) * 3600)
+                : ((data.remaining_hours || 0) * 3600);
+            _startTicker(data.phase, targetTs, totalSec);
         });
     }
 
@@ -10159,6 +10391,172 @@ async function adminPromoResetIndex() {
     </div>
 </div>
 
+<!-- ======================================================== -->
+<!-- 📡 مودال رادار الروابط والإنضمام الذكي (Link Radar Modal) -->
+<!-- ======================================================== -->
+<div class="modal fade" id="linkRadarModal" tabindex="-1" aria-labelledby="linkRadarModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" style="max-width: 95vw;">
+        <div class="modal-content border-0 shadow-lg" style="background:#0f172a; border: 1px solid rgba(16,185,129,0.3); border-radius:18px; color:#f8fafc; overflow:hidden;">
+            <div class="modal-header border-bottom border-secondary border-opacity-25" style="background: linear-gradient(135deg, #064e3b, #0f172a); padding: 14px 22px;">
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width:42px; height:42px; border-radius:12px; background:linear-gradient(135deg,#10b981,#059669); display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.25rem; box-shadow:0 4px 12px rgba(16,185,129,0.35);">
+                        <i class="fas fa-satellite-dish"></i>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2">
+                            <h5 class="modal-title mb-0 fw-bold" id="linkRadarModalLabel" style="color:#f1f5f9; font-size:1.15rem;">رادار الروابط والإنضمام الذكي</h5>
+                            <span class="badge bg-success" style="font-size:0.65rem;">🟢 شغال دائماً</span>
+                        </div>
+                        <small class="text-muted" style="font-size:0.8rem;">مراقبة كامل الحساب فورياً · كشف روابط واتساب وتيليجرام · انضمام آلي ومزامنة سحابية</small>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-success" onclick="refreshLinkRadarFrame()" title="تحديث الرادار">
+                        <i class="fas fa-sync-alt me-1"></i> تحديث
+                    </button>
+                    <a href="/link_radar" target="_blank" class="btn btn-sm btn-outline-secondary" title="فتح في تبويب مستقل">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0" style="background:#090d16; min-height: 75vh;">
+                <iframe id="linkRadarFrame" src="" style="width:100%; height:75vh; border:none; display:block;" title="رادار الروابط"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- 🔗 مودال الروابط المحفوظة (Saved Links Modal) -->
+<!-- ======================================================== -->
+<div class="modal fade" id="savedLinksModal" tabindex="-1" aria-labelledby="savedLinksModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" style="max-width: 95vw;">
+        <div class="modal-content border-0 shadow-lg" style="background:#0f172a; border: 1px solid rgba(59,130,246,0.3); border-radius:18px; color:#f8fafc; overflow:hidden;">
+            <div class="modal-header border-bottom border-secondary border-opacity-25" style="background: linear-gradient(135deg, #1e3a8a, #0f172a); padding: 14px 22px;">
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width:42px; height:42px; border-radius:12px; background:linear-gradient(135deg,#3b82f6,#1d4ed8); display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.25rem; box-shadow:0 4px 12px rgba(59,130,246,0.35);">
+                        <i class="fas fa-bookmark"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title mb-0 fw-bold" id="savedLinksModalLabel" style="color:#f1f5f9; font-size:1.15rem;">الروابط المحفوظة ومزامنة السحابة</h5>
+                        <small class="text-muted" style="font-size:0.8rem;">سجل الروابط الملتقطة والمحفوظة في قاعدة بيانات Firestore والكاش المحلي</small>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="refreshSavedLinksFrame()" title="تحديث القائمة">
+                        <i class="fas fa-sync-alt me-1"></i> تحديث
+                    </button>
+                    <a href="/saved_links" target="_blank" class="btn btn-sm btn-outline-secondary" title="فتح في تبويب مستقل">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0" style="background:#090d16; min-height: 75vh;">
+                <iframe id="savedLinksFrame" src="" style="width:100%; height:75vh; border:none; display:block;" title="الروابط المحفوظة"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- 📧 مودال إعدادات البريد الإلكتروني (Email Service Modal) -->
+<!-- ======================================================== -->
+<div class="modal fade" id="emailSettingsModal" tabindex="-1" aria-labelledby="emailSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg" style="background:#0f172a; border: 1px solid rgba(14,165,233,0.3); border-radius:18px; color:#f8fafc;">
+            <div class="modal-header border-bottom border-secondary border-opacity-25" style="background: linear-gradient(135deg, #0369a1, #0f172a); padding: 16px 24px;">
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width:42px; height:42px; border-radius:12px; background:linear-gradient(135deg,#0284c7,#0369a1); display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.25rem; box-shadow:0 4px 12px rgba(14,165,233,0.35);">
+                        <i class="fas fa-envelope-open-text"></i>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2">
+                            <h5 class="modal-title mb-0 fw-bold" id="emailSettingsModalLabel" style="color:#f1f5f9; font-size:1.15rem;">إعدادات خدمة البريد الإلكتروني (Email Service)</h5>
+                            <span id="emailModalStatusBadge" class="badge bg-secondary" style="font-size:0.68rem;">غير مهيأ</span>
+                        </div>
+                        <small class="text-muted" style="font-size:0.8rem;">إرسال تنبيهات فورية إلى بريدك الإلكتروني عند رصد الكلمات المفتاحية في الحساب</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body p-4" style="background:#0b1120;">
+                <!-- حالة التنبيهات في المودال -->
+                <div id="emailAlertStatusBox" class="alert d-none mb-3 py-2 px-3" style="font-size:0.88rem; border-radius:10px;"></div>
+
+                <form id="emailSettingsForm" onsubmit="event.preventDefault(); saveEmailSettingsForm();">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label small fw-bold text-light"><i class="fas fa-server text-info me-1"></i> خادم البريد (SMTP Host)</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="emailHost" placeholder="مثال: smtp.gmail.com أو mail.example.com" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-light"><i class="fas fa-network-wired text-info me-1"></i> المنفذ (Port)</label>
+                            <input type="number" class="form-control bg-dark text-white border-secondary" id="emailPort" placeholder="587 أو 465" value="587" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-light"><i class="fas fa-user text-info me-1"></i> اسم المستخدم / البريد (Username)</label>
+                            <input type="email" class="form-control bg-dark text-white border-secondary" id="emailUsername" placeholder="your_email@gmail.com" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-light"><i class="fas fa-key text-info me-1"></i> كلمة المرور / كلمة مرور التطبيق (Password)</label>
+                            <input type="password" class="form-control bg-dark text-white border-secondary" id="emailPassword" placeholder="كلمة مرور التطبيق (App Password)">
+                            <div class="form-text text-muted small" style="font-size:0.75rem;">للجيميل: استخدم كلمة مرور التطبيقات المكونة من 16 حرفاً.</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-light"><i class="fas fa-inbox text-info me-1"></i> بريد استلام التنبيهات (Recipient Email)</label>
+                            <input type="email" class="form-control bg-dark text-white border-secondary" id="emailRecipient" placeholder="alert_receiver@domain.com" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-light"><i class="fas fa-signature text-info me-1"></i> اسم المرسل الظاهر (Sender Name)</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="emailSenderName" placeholder="نظام أنور تيليجرام الذكي" value="نظام أنور تيليجرام الذكي">
+                        </div>
+
+                        <div class="col-12 pt-2">
+                            <div class="p-3 rounded-3" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(255,255,255,0.06);">
+                                <div class="row g-2 align-items-center">
+                                    <div class="col-md-4">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="emailUseTls" checked>
+                                            <label class="form-check-label small text-light" for="emailUseTls">تشفير STARTTLS (منفذ 587)</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="emailUseSsl">
+                                            <label class="form-check-label small text-light" for="emailUseSsl">تشفير SSL مباشر (منفذ 465)</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="emailEnabled" checked>
+                                            <label class="form-check-label small fw-bold text-success" for="emailEnabled">تفعيل إرسال التنبيهات</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-top border-secondary border-opacity-25" style="background: rgba(15,23,42,0.9); padding: 14px 24px;">
+                <button type="button" class="btn btn-outline-info btn-sm px-3" id="btnTestEmail" onclick="testEmailConnection()">
+                    <i class="fas fa-paper-plane me-1"></i> اختبار الاتصال والإرسال
+                </button>
+                <div class="ms-auto d-flex gap-2">
+                    <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">إغلاق</button>
+                    <button type="button" class="btn btn-primary btn-sm px-4 fw-bold" id="btnSaveEmail" onclick="saveEmailSettingsForm()" style="background: linear-gradient(135deg, #0284c7, #2563eb); border:none;">
+                        <i class="fas fa-save me-1"></i> حفظ الإعدادات
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 (function() {
     let _accountGroups = [];
@@ -10973,20 +11371,53 @@ document.addEventListener('DOMContentLoaded', function() {
     const setButtonState = (running) => {
         const start = byId('startMonitoringBtn');
         const stop = byId('stopMonitoringBtn');
-        if (start) { start.style.display = running ? 'none' : ''; start.disabled = running; }
-        if (stop) { stop.style.display = running ? '' : 'none'; stop.disabled = !running; }
+        const banner = byId('monitoringActiveBanner');
+        const indicator = byId('monitoringIndicator');
+        if (start) { start.style.display = running ? 'none' : 'block'; start.disabled = running; }
+        if (stop) { stop.style.display = running ? 'block' : 'none'; stop.disabled = !running; }
+        if (banner) {
+            banner.className = running 
+                ? 'alert alert-success d-flex align-items-center justify-content-between p-2 mb-2 rounded-3 shadow-sm border-success'
+                : 'alert alert-warning d-flex align-items-center justify-content-between p-2 mb-2 rounded-3 shadow-sm border-warning';
+            banner.innerHTML = running
+                ? '<div class="d-flex align-items-center"><i class="fas fa-shield-alt text-success fa-lg me-2 fa-beat" style="--fa-animation-duration: 2.5s;"></i><div><div class="fw-bold text-success" style="font-size: 0.88rem;">المراقبة الذكية التلقائية نشطة وتعمل على مدار الساعة</div><div class="small text-muted" style="font-size: 0.72rem;">ترصد الكلمات في كامل المجموعات وتُرسل التنبيهات والردود آلياً</div></div></div><span class="badge bg-success rounded-pill px-2 py-1" style="font-size: 0.72rem;"><i class="fas fa-check-circle me-1"></i>تعمل آلياً</span>'
+                : '<div class="d-flex align-items-center"><i class="fas fa-pause-circle text-warning fa-lg me-2"></i><div><div class="fw-bold text-warning" style="font-size: 0.88rem;">المراقبة متوقفة مؤقتاً</div><div class="small text-muted" style="font-size: 0.72rem;">اضغط تشغيل لاستئناف الرصد التلقائي</div></div></div><span class="badge bg-warning text-dark rounded-pill px-2 py-1" style="font-size: 0.72rem;">متوقفة</span>';
+        }
+        if (indicator) {
+            indicator.className = running ? 'badge bg-success shadow-sm' : 'badge bg-secondary shadow-sm';
+            indicator.innerHTML = running
+                ? '<i class="fas fa-shield-alt text-white me-1"></i> المراقبة التلقائية الذكية: <strong class="text-white">نشطة دائماً</strong>'
+                : '<i class="fas fa-pause-circle text-white me-1"></i> المراقبة التلقائية: <strong class="text-white">متوقفة مؤقتاً</strong>';
+        }
+    };
+    const updateCycleSummary = () => {
+        const intervalM = num('intervalSeconds', 25);
+        const durH = num('scheduleDuration', 3);
+        const pauseH = num('schedulePause', 4);
+        const sInt = byId('sumIntervalText');
+        const sDur = byId('sumDurationText');
+        const sPause = byId('sumPauseText');
+        const sDur2 = byId('sumDurationText2');
+        if (sInt) sInt.textContent = intervalM;
+        if (sDur) sDur.textContent = durH;
+        if (sPause) sPause.textContent = pauseH;
+        if (sDur2) sDur2.textContent = durH;
     };
     const toggleScheduleFields = () => {
         const scheduled = byId('sendType')?.value === 'scheduled';
-        ['intervalDiv', 'scheduledTimeDiv', 'schedulePauseDiv'].forEach((id) => {
+        ['intervalDiv', 'scheduledTimeDiv', 'schedulePauseDiv', 'cyclicSettingsCard'].forEach((id) => {
             const field = byId(id);
             if (field) field.style.display = scheduled ? '' : 'none';
         });
+        updateCycleSummary();
     };
     const settingsPayload = () => ({
         message: (byId('message')?.value || '').trim(),
         groups: byId('groups')?.value || '',
         watch_words: byId('watchWords')?.value || '',
+        keyword_auto_reply_enabled: byId('keywordAutoReplyEnabled') ? byId('keywordAutoReplyEnabled').checked : true,
+        keyword_auto_reply_text: (byId('keywordAutoReplyText')?.value || 'ابشر').trim(),
+        keyword_auto_reply_forward: byId('keywordAutoReplyForward') ? byId('keywordAutoReplyForward').checked : true,
         sanitize_mode: byId('sanitizeMode')?.value || 'salam',
         send_type: byId('sendType')?.value || 'manual',
         interval_seconds: Math.max(60, Math.round(num('intervalSeconds', 25) * 60)),
@@ -11090,6 +11521,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (progressCard) progressCard.style.display = 'block';
         if (progressTitle) progressTitle.innerHTML = '<i class="fas fa-circle-notch fa-spin me-2"></i>جارٍ الإرسال الفوري...';
         if (progressBadge) progressBadge.textContent = '0%';
+        const stopBtn = byId('stopSendNowBtn');
+        if (stopBtn) {
+            stopBtn.style.display = 'inline-block';
+            stopBtn.disabled = false;
+            stopBtn.innerHTML = '<i class="fas fa-stop me-1"></i>إيقاف الإرسال';
+        }
         if (progressBar) {
             progressBar.style.width = '0%';
             progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-info';
@@ -11212,7 +11649,7 @@ document.addEventListener('DOMContentLoaded', function() {
         socket.on('monitoring_status', (data) => setButtonState(Boolean(data && (data.is_running || data.monitoring_active))));
         socket.on('update_monitoring_buttons', (data) => setButtonState(Boolean(data && data.is_running)));
 
-        // ── متابعة تقدم الإرسال الفوري اللحظي ──
+        // ── متابعة تقدم الإرسال الفوري اللحظي (P3) ──
         socket.on('send_progress', (data) => {
             if (!data) return;
             const card = byId('sendLiveProgressCard');
@@ -11222,6 +11659,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const curStatus = byId('sendLiveCurrentStatus');
             const log = byId('sendLiveProgressLog');
             const sendBtn = byId('sendNowBtn');
+            const stopBtn = byId('stopSendNowBtn');
 
             if (card) card.style.display = 'block';
 
@@ -11231,12 +11669,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     bar.style.width = '100%';
                     bar.className = 'progress-bar bg-success';
                 }
-                if (title) title.innerHTML = '<i class="fas fa-check-double text-success me-2"></i>اكتمل الإرسال الفوري بنجاح!';
-                if (curStatus) curStatus.innerHTML = `<strong class="text-success">${data.message || 'اكتملت جميع العمليات'}</strong>`;
+                if (title) title.innerHTML = '<i class="fas fa-check-double text-success me-2"></i>اكتملت دفعة الإرسال!';
+                const summaryHtml = `<strong class="text-success">${data.message || 'اكتملت جميع العمليات'}</strong>`;
+                if (curStatus) curStatus.innerHTML = summaryHtml;
                 window.showAlert('success', `🎉 ${data.message || 'انتهى الإرسال بنجاح'}`, 8000);
                 if (sendBtn) {
                     sendBtn.disabled = false;
                     sendBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>إرسال الآن';
+                }
+                if (stopBtn) {
+                    stopBtn.style.display = 'none';
                 }
                 return;
             }
@@ -11245,45 +11687,98 @@ document.addEventListener('DOMContentLoaded', function() {
             if (badge) badge.textContent = `${percent}% (${data.index}/${data.total})`;
             if (bar) bar.style.width = `${percent}%`;
 
-            if (data.status === 'success') {
-                const msg = data.message || `✅ نجح الإرسال إلى: ${data.group}`;
-                if (curStatus) curStatus.innerHTML = `<span class="text-success">${msg}</span>`;
-                if (log) {
-                    const row = document.createElement('div');
-                    row.style.color = '#4ade80';
-                    row.innerHTML = `<i class="fas fa-check-circle me-1"></i> [${data.index}/${data.total}] ${data.group}`;
-                    log.appendChild(row);
-                    log.scrollTop = log.scrollHeight;
-                }
-                window.showAlert('success', msg, 4000);
-            } else if (data.status === 'skipped') {
-                const msg = data.message || `⏭️ تم تخطي: ${data.group}`;
-                if (curStatus) curStatus.innerHTML = `<span class="text-warning">${msg}</span>`;
-                if (log) {
-                    const row = document.createElement('div');
-                    row.style.color = '#fbbf24';
-                    row.innerHTML = `<i class="fas fa-forward me-1"></i> [${data.index}/${data.total}] ${data.group} (تخطي)`;
-                    log.appendChild(row);
-                    log.scrollTop = log.scrollHeight;
-                }
-                window.showAlert('warning', msg, 4000);
-            } else if (data.status === 'error') {
-                const msg = data.message || `❌ فشل إلى ${data.group}: ${data.error_type || 'خطأ'}`;
-                if (curStatus) curStatus.innerHTML = `<span class="text-danger">${msg}</span>`;
-                if (log) {
-                    const row = document.createElement('div');
-                    row.style.color = '#f87171';
-                    row.innerHTML = `<i class="fas fa-times-circle me-1"></i> [${data.index}/${data.total}] ${data.group}: <span style="font-size:0.75rem;color:#e2e8f0;">${data.error_type || 'خطأ'}</span>`;
-                    log.appendChild(row);
-                    log.scrollTop = log.scrollHeight;
-                }
-                window.showAlert('danger', msg, 6000);
+            // تحديد الحالة واللون والإيموجي والسبب
+            let textColor = '#4ade80';
+            let bgTint = 'rgba(74, 222, 128, 0.08)';
+            let emoji = data.emoji || '✅';
+            let reason = data.reason || data.message || 'تم الإرسال بنجاح';
+
+            if (data.status === 'success' || data.status === 'joined_then_sent') {
+                textColor = '#4ade80';
+                bgTint = 'rgba(74, 222, 128, 0.08)';
+                emoji = data.emoji || '✅';
+            } else if (data.status === 'skipped' || data.status === 'waiting_approval') {
+                textColor = '#fbbf24';
+                bgTint = 'rgba(251, 191, 36, 0.08)';
+                emoji = data.emoji || '⏭️';
+            } else {
+                textColor = '#f87171';
+                bgTint = 'rgba(248, 113, 113, 0.08)';
+                emoji = data.emoji || '❌';
+            }
+
+            const displayMsg = data.message || `${emoji} [${data.index}/${data.total}] ${data.group}: ${reason}`;
+            if (curStatus) {
+                curStatus.innerHTML = `<span style="color:${textColor};font-weight:600;">${displayMsg}</span>`;
+            }
+
+            if (log) {
+                const row = document.createElement('div');
+                row.style.padding = '4px 8px';
+                row.style.borderRadius = '6px';
+                row.style.background = bgTint;
+                row.style.border = `1px solid ${textColor}22`;
+                row.style.display = 'flex';
+                row.style.alignItems = 'center';
+                row.style.justifyContent = 'space-between';
+                row.style.gap = '8px';
+                row.style.fontSize = '0.78rem';
+                row.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                        <span style="font-weight:bold;color:#94a3b8;font-size:0.75rem;">[${data.index}/${data.total}]</span>
+                        <span>${emoji}</span>
+                        <span style="font-weight:600;color:#f8fafc;">${data.group}</span>
+                    </div>
+                    <span style="font-size:0.73rem;color:${textColor};font-weight:500;white-space:nowrap;">${reason}</span>
+                `;
+                log.appendChild(row);
+                log.scrollTop = log.scrollHeight;
+            }
+
+            if (data.status === 'success' || data.status === 'joined_then_sent') {
+                window.showAlert('success', displayMsg, 3500);
+            } else if (data.status === 'skipped' || data.status === 'waiting_approval') {
+                window.showAlert('warning', displayMsg, 4000);
+            } else {
+                window.showAlert('danger', displayMsg, 5000);
+            }
+        });
+
+        // ربط حدث زر إيقاف الإرسال
+        byId('stopSendNowBtn')?.addEventListener('click', async () => {
+            const sBtn = byId('stopSendNowBtn');
+            if (sBtn) {
+                sBtn.disabled = true;
+                sBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>جاري الإيقاف...';
+            }
+            try {
+                const res = await requestJson('/api/send_now/stop', {});
+                window.showAlert('warning', res.message || 'تم إرسال إشارة إيقاف الإرسال');
+            } catch (e) {
+                window.showAlert('danger', 'تعذر إيقاف الإرسال: ' + e.message);
+                if (sBtn) sBtn.disabled = false;
             }
         });
     }
     document.addEventListener('DOMContentLoaded', () => {
         const type = byId('sendType');
         if (type) { type.addEventListener('change', toggleScheduleFields); toggleScheduleFields(); }
+        ['intervalSeconds', 'scheduleDuration', 'schedulePause'].forEach(id => {
+            const el = byId(id);
+            if (el) {
+                el.addEventListener('input', updateCycleSummary);
+                el.addEventListener('change', updateCycleSummary);
+            }
+        });
+        updateCycleSummary();
+        const karToggle = byId('keywordAutoReplyEnabled');
+        if (karToggle) {
+            karToggle.addEventListener('change', () => {
+                const opts = byId('keywordAutoReplyOptions');
+                if (opts) opts.style.display = karToggle.checked ? '' : 'none';
+            });
+        }
+        setButtonState(true);
         const form = byId('settingsForm');
         if (form) form.addEventListener('submit', handleSave);
         byId('startMonitoringBtn')?.addEventListener('click', handleStart);
@@ -11352,6 +11847,48 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
 (function() {
     const TELEGRAM_DRAFTS = [
+        {
+            id: 0,
+            title: "إعلان مميز: خدمات أكاديمية وتصميم (تنسيق اقتباس تيليجرام 📑)",
+            category: "student",
+            badge: "اقتباس مؤطر 🌟",
+            badgeClass: "bg-warning text-dark",
+            icon: "fas fa-quote-right",
+            whatsapp: "https://wa.me/+966580198123",
+            text: `>**📕 *السلام عليكم أقدم الخدمات التاليه:***
+
+> إعداد مشاريع التخرج
+
+> إعداد بحوث جامعية
+
+> إعداد تقارير - تكاليف
+
+> إعداد بوسترات - بروجكت
+
+> إعداد خرائط مفاهيم
+
+> إعداد دراسة حالة - مقالات
+
+> إعداد مشاريع ( اوتوكاد - ريفيت - لوميون)
+
+> تصميم انفو جرافيك
+
+> تصميم مشاريع محاكاة
+
+> تصميم عروض احترافية جذابة
+
+> تصميم سيرة ذاتيه احترافية
+
+> تلخيص (كتب - محاضرات )
+
+> حلول ( أنشطة - واجبات )
+
+> حلول اختبارات ( فاينل - ميد - كويز)
+
+> ترجمة (كتب - رويات - قصص - مقالات)
+
+> **تواصل على الرقم: 0580198123**`
+        },
         {
             id: 1,
             title: "إعلان 1: الخدمات الطلابية المتكاملة",
@@ -11987,6 +12524,172 @@ document.addEventListener('DOMContentLoaded', function() {
         renderDrafts();
     });
 })();
+</script>
+<script>
+// ==========================================
+// 📡 دوال تشغيل رادار الروابط والروابط المحفوظة وإعدادات البريد
+// ==========================================
+function openLinkRadarModal() {
+    const frame = document.getElementById('linkRadarFrame');
+    if (frame && (!frame.src || frame.src === 'about:blank' || !frame.src.includes('/link_radar'))) {
+        frame.src = '/link_radar';
+    }
+}
+
+function refreshLinkRadarFrame() {
+    const frame = document.getElementById('linkRadarFrame');
+    if (frame) {
+        frame.src = '/link_radar?t=' + Date.now();
+    }
+}
+
+function openSavedLinksModal() {
+    const frame = document.getElementById('savedLinksFrame');
+    if (frame && (!frame.src || frame.src === 'about:blank' || !frame.src.includes('/saved_links'))) {
+        frame.src = '/saved_links';
+    }
+}
+
+function refreshSavedLinksFrame() {
+    const frame = document.getElementById('savedLinksFrame');
+    if (frame) {
+        frame.src = '/saved_links?t=' + Date.now();
+    }
+}
+
+async function openEmailSettingsModal() {
+    const statusBox = document.getElementById('emailAlertStatusBox');
+    if (statusBox) statusBox.className = 'alert d-none mb-3 py-2 px-3';
+    try {
+        const resp = await fetch('/api/email/settings');
+        const data = await resp.json();
+        if (data.success && data.settings) {
+            const s = data.settings;
+            if (document.getElementById('emailHost')) document.getElementById('emailHost').value = s.host || '';
+            if (document.getElementById('emailPort')) document.getElementById('emailPort').value = s.port || 587;
+            if (document.getElementById('emailUsername')) document.getElementById('emailUsername').value = s.username || '';
+            if (document.getElementById('emailPassword')) document.getElementById('emailPassword').value = s.password || '';
+            if (document.getElementById('emailRecipient')) document.getElementById('emailRecipient').value = s.recipient || '';
+            if (document.getElementById('emailSenderName')) document.getElementById('emailSenderName').value = s.sender_name || 'نظام أنور تيليجرام الذكي';
+            if (document.getElementById('emailUseTls')) document.getElementById('emailUseTls').checked = s.use_tls !== false;
+            if (document.getElementById('emailUseSsl')) document.getElementById('emailUseSsl').checked = !!s.use_ssl;
+            if (document.getElementById('emailEnabled')) document.getElementById('emailEnabled').checked = s.enabled !== false;
+            
+            const badge = document.getElementById('emailModalStatusBadge');
+            if (badge) {
+                badge.className = data.is_configured ? 'badge bg-success' : 'badge bg-secondary';
+                badge.textContent = data.is_configured ? 'جاهز ونشط' : 'غير مهيأ';
+            }
+            const mainBadge = document.getElementById('emailStatusBadge');
+            if (mainBadge) {
+                mainBadge.className = data.is_configured ? 'badge bg-success mt-1' : 'badge bg-secondary mt-1';
+                mainBadge.textContent = data.is_configured ? '🟢 مفعل' : '📧 غير مهيأ';
+            }
+        }
+    } catch (e) {
+        console.warn('Error loading email settings:', e);
+    }
+}
+
+async function saveEmailSettingsForm() {
+    const btn = document.getElementById('btnSaveEmail');
+    const statusBox = document.getElementById('emailAlertStatusBox');
+    if (btn) btn.disabled = true;
+    
+    const payload = {
+        host: document.getElementById('emailHost')?.value || '',
+        port: parseInt(document.getElementById('emailPort')?.value || '587'),
+        username: document.getElementById('emailUsername')?.value || '',
+        password: document.getElementById('emailPassword')?.value || '',
+        recipient: document.getElementById('emailRecipient')?.value || '',
+        sender_name: document.getElementById('emailSenderName')?.value || '',
+        use_tls: document.getElementById('emailUseTls')?.checked ?? true,
+        use_ssl: document.getElementById('emailUseSsl')?.checked ?? false,
+        enabled: document.getElementById('emailEnabled')?.checked ?? true
+    };
+
+    try {
+        const resp = await fetch('/api/email/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const res = await resp.json();
+        if (statusBox) {
+            statusBox.className = res.success ? 'alert alert-success mb-3 py-2 px-3' : 'alert alert-danger mb-3 py-2 px-3';
+            statusBox.textContent = res.message || (res.success ? 'تم الحفظ بنجاح' : 'حدث خطأ');
+        }
+        openEmailSettingsModal();
+    } catch (err) {
+        if (statusBox) {
+            statusBox.className = 'alert alert-danger mb-3 py-2 px-3';
+            statusBox.textContent = 'تعذر الاتصال بالخادم: ' + err.message;
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function testEmailConnection() {
+    const btn = document.getElementById('btnTestEmail');
+    const statusBox = document.getElementById('emailAlertStatusBox');
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جارٍ الاختبار...';
+    }
+    if (statusBox) {
+        statusBox.className = 'alert alert-info mb-3 py-2 px-3';
+        statusBox.textContent = '🔄 جارٍ الاتصال بخادم البريد والمصادقة وإرسال رسالة تجريبية...';
+    }
+
+    const payload = {
+        host: document.getElementById('emailHost')?.value || '',
+        port: parseInt(document.getElementById('emailPort')?.value || '587'),
+        username: document.getElementById('emailUsername')?.value || '',
+        password: document.getElementById('emailPassword')?.value || '',
+        recipient: document.getElementById('emailRecipient')?.value || '',
+        use_tls: document.getElementById('emailUseTls')?.checked ?? true,
+        use_ssl: document.getElementById('emailUseSsl')?.checked ?? false,
+        send_sample: true
+    };
+
+    try {
+        const resp = await fetch('/api/email/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const res = await resp.json();
+        if (statusBox) {
+            statusBox.className = res.success ? 'alert alert-success mb-3 py-2 px-3' : 'alert alert-danger mb-3 py-2 px-3';
+            statusBox.innerHTML = (res.success ? '✅ ' : '❌ ') + (res.message || (res.success ? 'نجح الاتصال والإرسال التجريبي!' : 'فشل الاختبار'));
+        }
+    } catch (err) {
+        if (statusBox) {
+            statusBox.className = 'alert alert-danger mb-3 py-2 px-3';
+            statusBox.textContent = '❌ خطأ أثناء فحص البريد: ' + err.message;
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+    }
+}
+
+// تحميل حالة البريد عند بدء التشغيل
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/api/email/settings').then(r => r.json()).then(d => {
+        if (d && d.success) {
+            const b = document.getElementById('emailStatusBadge');
+            if (b) {
+                b.className = d.is_configured ? 'badge bg-success mt-1' : 'badge bg-secondary mt-1';
+                b.textContent = d.is_configured ? '🟢 مفعل' : '📧 غير مهيأ';
+            }
+        }
+    }).catch(() => {});
+});
 </script>
 </body>
 </html>
