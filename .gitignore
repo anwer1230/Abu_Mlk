@@ -61,3 +61,4 @@ sessions/
 .gradle/
 build/
 *.keystore
+*.keystore.base64
