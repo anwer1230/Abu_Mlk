@@ -2660,27 +2660,43 @@ class TelegramClientManager:
 
     async def _handle_auto_reply(self, event, message, group_identifier):
         try:
-            settings = load_settings(self.user_id)
-            if not settings.get('auto_reply_enabled', True):
-                return
+            settings = load_settings(self.user_id) or {}
+            user_rules = settings.get('user_auto_replies', []) or []
+            global_enabled = settings.get('auto_reply_enabled', True)
 
             # ──────────────────────────────────────────────────────────
             # 1) الرد التلقائي حسب معرف المستخدم (Target User Auto-Reply)
             # الرد على رسالته من حيث أرسلها + إرسالها له بالخاص أيضاً
             # ──────────────────────────────────────────────────────────
-            user_rules = settings.get('user_auto_replies', []) or []
             if user_rules:
+                sender = None
                 try:
                     sender = await event.get_sender()
                 except Exception:
-                    sender = None
+                    pass
 
                 sender_id = getattr(event, 'sender_id', None)
                 if not sender_id and sender:
                     sender_id = getattr(sender, 'id', None)
 
+                # إذا لم يكن المعرف النصي متاحاً في كاش الحدث، استخرجه من الكيان الكامل
                 sender_username = (getattr(sender, 'username', '') or '').strip().lstrip('@').lower()
+                if not sender_username and sender_id:
+                    try:
+                        sender_ent = await self.client.get_entity(sender_id)
+                        if sender_ent:
+                            if not sender:
+                                sender = sender_ent
+                            sender_username = (getattr(sender_ent, 'username', '') or '').strip().lstrip('@').lower()
+                    except Exception:
+                        pass
+
                 sender_id_str = str(sender_id) if sender_id else ''
+
+                # عدم الرد على الحساب الشخصي نفسه
+                await self._ensure_my_info()
+                if sender_id and self.my_id and sender_id == self.my_id:
+                    return
 
                 for u_rule in user_rules:
                     if not isinstance(u_rule, dict):
@@ -2689,11 +2705,25 @@ class TelegramClientManager:
                         continue
 
                     target_raw = (u_rule.get('username') or u_rule.get('target_user') or '').strip()
-                    target_clean = target_raw.lstrip('@').lower()
+                    target_clean = target_raw.replace('https://t.me/', '').replace('http://t.me/', '').replace('t.me/', '').strip().lstrip('@').lower()
                     reply_text = (u_rule.get('reply') or '').strip()
 
                     if not target_clean or not reply_text:
                         continue
+
+                    target_uid = u_rule.get('target_user_id')
+                    if not target_uid and target_clean and not target_clean.isdigit():
+                        try:
+                            t_ent = await self.client.get_entity(target_clean)
+                            if t_ent and hasattr(t_ent, 'id'):
+                                target_uid = t_ent.id
+                                u_rule['target_user_id'] = target_uid
+                                settings['user_auto_replies'] = user_rules
+                                save_settings(self.user_id, settings)
+                        except Exception:
+                            pass
+                    elif not target_uid and target_clean.isdigit():
+                        target_uid = int(target_clean)
 
                     # فحص المطابقة: بالمعرف @username أو برقم الـ ID
                     is_match = False
@@ -2701,8 +2731,18 @@ class TelegramClientManager:
                         is_match = True
                     elif sender_id_str and (target_clean == sender_id_str):
                         is_match = True
+                    elif target_uid and sender_id and (target_uid == sender_id):
+                        is_match = True
 
                     if is_match:
+                        msg_uid = f"user_reply_{sender_id}_{message.id}"
+                        if msg_uid in self._processed_msg_ids:
+                            return
+                        self._processed_msg_ids.add(msg_uid)
+
+                        sent_any = False
+                        logger.info(f"🎯 تطابق رد المستخدم: @{target_clean} (ID={sender_id}) في {group_identifier}")
+
                         # 1) الرد على رسالته من حيث أرسلها (المجموعة أو القناة أو المحادثة)
                         try:
                             await self.client.send_message(
@@ -2710,46 +2750,87 @@ class TelegramClientManager:
                                 message=reply_text,
                                 reply_to=message.id
                             )
-                            logger.info(f"✅ User auto-reply sent to @{target_clean} in {group_identifier}")
+                            sent_any = True
+                            logger.info(f"✅ User auto-reply sent to @{target_clean} in chat {group_identifier}")
+                        except FloodWaitError as fwe:
+                            wait_s = int(getattr(fwe, 'seconds', 10) or 10)
+                            logger.warning(f"⚠️ FloodWait ({wait_s}s) عند الرد على @{target_clean} في {group_identifier}")
+                            async def _delayed_chat_reply(chat_e, rep_t, rep_id, w_secs, u_name):
+                                await asyncio.sleep(w_secs + 2)
+                                try:
+                                    await self.client.send_message(chat_e, rep_t, reply_to=rep_id)
+                                    logger.info(f"✅ تم إرسال الرد المؤجل بنجاح لـ @{u_name} في المحادثة")
+                                except Exception as err:
+                                    logger.warning(f"تعذر الرد المؤجل في المحادثة لـ @{u_name}: {err}")
+                            asyncio.create_task(_delayed_chat_reply(event.chat_id, reply_text, message.id, wait_s, target_clean))
+                            sent_any = True
                         except Exception as reply_err:
-                            logger.error(f"❌ Failed to reply in chat to @{target_clean}: {reply_err}")
+                            logger.warning(f"تعذر الرد في المحادثة لـ @{target_clean}: {reply_err}")
 
                         # 2) وبالخاص أيضاً (إذا لم تكن المحادثة خاصة بالفعل)
                         send_dm = u_rule.get('send_dm', True)
                         if send_dm and not event.is_private:
+                            dm_target = sender
+                            if not dm_target and sender_id:
+                                try:
+                                    dm_target = await self.client.get_entity(sender_id)
+                                except Exception:
+                                    dm_target = sender_id
+                            if not dm_target:
+                                try:
+                                    dm_target = await self.client.get_entity(target_clean)
+                                except Exception:
+                                    dm_target = target_clean
+
                             try:
-                                dm_target = sender or sender_id or (int(target_clean) if target_clean.isdigit() else target_clean)
                                 await self.client.send_message(
                                     entity=dm_target,
                                     message=reply_text
                                 )
+                                sent_any = True
                                 logger.info(f"✅ User auto-reply DM sent to @{target_clean}")
+                            except FloodWaitError as dm_fwe:
+                                dm_wait = int(getattr(dm_fwe, 'seconds', 10) or 10)
+                                logger.warning(f"⚠️ FloodWait ({dm_wait}s) عند إرسال DM لـ @{target_clean}")
+                                async def _delayed_dm_reply(tgt, rep_t, w_secs, u_name):
+                                    await asyncio.sleep(w_secs + 2)
+                                    try:
+                                        await self.client.send_message(tgt, rep_t)
+                                        logger.info(f"✅ تم إرسال DM المؤجل لـ @{u_name}")
+                                    except Exception as err:
+                                        logger.warning(f"تعذر إرسال DM المؤجل لـ @{u_name}: {err}")
+                                asyncio.create_task(_delayed_dm_reply(dm_target, reply_text, dm_wait, target_clean))
+                                sent_any = True
                             except Exception as dm_err:
                                 logger.warning(f"⚠️ Could not send DM to @{target_clean}: {dm_err}")
 
-                        # إشعار لواجهة المستخدم وتسجيل الإحصائيات
-                        try:
-                            _emit_log_update('INFO',
-                                f"👤 رد تلقائي للمستخدم @{target_clean} في {group_identifier} وبالخاص",
-                                self.user_id)
-                            socketio.emit('auto_reply_triggered', {
-                                "keyword": f"المستخدم: @{target_clean}",
-                                "reply": reply_text,
-                                "chat": f"{group_identifier} + خاص",
-                                "timestamp": time.strftime('%H:%M:%S')
-                            }, to=self.user_id)
-                        except Exception:
-                            pass
+                        if sent_any:
+                            # إشعار لواجهة المستخدم وتسجيل الإحصائيات
+                            try:
+                                _emit_log_update('INFO',
+                                    f"👤 رد تلقائي للمستخدم @{target_clean} في {group_identifier} وبالخاص: «{reply_text}»",
+                                    self.user_id)
+                                socketio.emit('auto_reply_triggered', {
+                                    "keyword": f"المستخدم: @{target_clean}",
+                                    "reply": reply_text,
+                                    "chat": f"{group_identifier} + خاص",
+                                    "timestamp": time.strftime('%H:%M:%S')
+                                }, to=self.user_id)
+                            except Exception:
+                                pass
 
-                        try:
-                            u_rule['used_count'] = int(u_rule.get('used_count') or 0) + 1
-                            u_rule['last_used'] = time.strftime('%Y-%m-%d %H:%M:%S')
-                            settings['user_auto_replies'] = user_rules
-                            save_settings(self.user_id, settings)
-                        except Exception:
-                            pass
+                            try:
+                                u_rule['used_count'] = int(u_rule.get('used_count') or 0) + 1
+                                u_rule['last_used'] = time.strftime('%Y-%m-%d %H:%M:%S')
+                                settings['user_auto_replies'] = user_rules
+                                save_settings(self.user_id, settings)
+                            except Exception:
+                                pass
 
                         return
+
+            if not global_enabled:
+                return
 
             rules = settings.get('auto_replies', []) or []
             if not rules:
@@ -7829,6 +7910,9 @@ def api_send_now():
                         m = _re.search(r'(\d+)', error_msg)
                         wait_s = int(m.group(1)) if m else '؟'
                         error_type = f"تجاوز حد الإرسال المؤقت (FloodWait: {wait_s}s)"
+                        if isinstance(wait_s, int) and wait_s > 0:
+                            logger.warning(f"🛑 تم إيقاف الحملة مؤقتاً لمدة {wait_s} ثانية حتى انقضاء الـ FloodWait لحماية الحساب والردود...")
+                            time.sleep(min(wait_s + 2, 300))
                     elif "slow" in error_lower:
                         error_type = "مفعّل الوضع البطيء (Slow Mode) في المجموعة"
                     elif "timeout" in error_lower:
@@ -10131,14 +10215,21 @@ def api_get_auto_replies():
 def _normalize_user_auto_reply(rule):
     if not isinstance(rule, dict):
         return None
-    username = (rule.get('username') or rule.get('target_user') or '').strip()
+    username_raw = (rule.get('username') or rule.get('target_user') or '').strip()
     reply = (rule.get('reply') or '').strip()
-    if not username or not reply:
+    if not username_raw or not reply:
         return None
-    username_clean = username.lstrip('@')
+    username_clean = username_raw.replace('https://t.me/', '').replace('http://t.me/', '').replace('t.me/', '').strip().lstrip('@')
+    target_uid = None
+    if username_clean.isdigit():
+        target_uid = int(username_clean)
+    elif str(rule.get('target_user_id', '')).isdigit():
+        target_uid = int(rule.get('target_user_id'))
+
     return {
         'username': username_clean,
         'display_username': f"@{username_clean}" if not username_clean.isdigit() else username_clean,
+        'target_user_id': target_uid,
         'reply': reply,
         'send_dm': bool(rule.get('send_dm', True)),
         'enabled': bool(rule.get('enabled', True)),
@@ -10153,6 +10244,22 @@ def api_add_user_auto_reply():
     rule = _normalize_user_auto_reply(data)
     if not rule:
         return jsonify({"success": False, "message": "❌ معرف المستخدم ونص الرد مطلوبان"})
+
+    # محاولة استخراج ID المستخدم فورياً عبر تليجرام لضمان التطابق 100%
+    if not rule.get('target_user_id') and rule.get('username'):
+        try:
+            with USERS_LOCK:
+                cm = USERS.get(user_id, {}).get('client_manager')
+            if cm and cm.client and cm.client.is_connected():
+                u_ent = cm.run_coroutine(cm.client.get_entity(rule['username']))
+                if u_ent and hasattr(u_ent, 'id'):
+                    rule['target_user_id'] = u_ent.id
+                    if hasattr(u_ent, 'username') and u_ent.username:
+                        rule['username'] = u_ent.username
+                        rule['display_username'] = f"@{u_ent.username}"
+                    logger.info(f"✅ تم ربط معرف تيليجرام الرقمي ({u_ent.id}) بقاعدة الرد للمستخدم {rule['display_username']}")
+        except Exception as _res_err:
+            logger.debug(f"Could not pre-resolve target user {rule['username']}: {_res_err}")
 
     settings = load_settings(user_id)
     rules = settings.get('user_auto_replies', []) or []
