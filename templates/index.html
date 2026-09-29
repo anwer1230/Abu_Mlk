@@ -1453,28 +1453,56 @@
                                 </div>
                                 
                                 <p class="text-muted small mb-2" style="line-height: 1.5; font-size: 0.78rem;">
-                                    عند رصد أي كلمة من كلمات المراقبة أعلاه في المجموعات، يقوم النظام تلقائياً بإرسال رسالة خاصة إلى حساب المرسل مع إعادة توجيه رسالته الأصلية وإرسال الرد تحتها مباشرة.
+                                    عند رصد أي كلمة من كلمات المراقبة في المجموعات، يقوم النظام فوراً بإرسال إشعار كامل وتحويل الرسالة إلى حسابك الخاص، مع الرد التلقائي على العميل في المجموعة والخاص.
                                 </p>
 
                                 <div id="keywordAutoReplyOptions" style="{{ '' if (settings.keyword_auto_reply_enabled is not defined or settings.keyword_auto_reply_enabled) else 'display:none;' }}">
                                     <div class="mb-2">
                                         <label for="keywordAutoReplyText" class="form-label fw-bold small text-dark mb-1">
-                                            <i class="fas fa-comment-dots text-primary me-1"></i>نص الرد التلقائي بالخاص:
+                                            <i class="fas fa-comment-dots text-primary me-1"></i>نص الرد التلقائي (في المجموعة والخاص):
                                         </label>
                                         <input type="text" class="form-control form-control-sm fw-bold" id="keywordAutoReplyText"
                                                value="{{ settings.keyword_auto_reply_text or 'ابشر' }}"
                                                placeholder="ابشر" style="border-radius: 8px;">
                                         <div class="form-text text-muted small" style="font-size: 0.72rem;">
-                                            الافتراضي: <strong>ابشر</strong> (يتم إرساله تحت الرسالة الموجهة إلى خاص المرسل).
+                                            الافتراضي: <strong>ابشر</strong> (يتم إرساله كرد مرتبط على الرسالة المحولة أو مباشرة في المجموعة).
                                         </div>
                                     </div>
 
-                                    <div class="form-check mb-1">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="keywordAutoReplyInGroup"
+                                               {{ 'checked' if (settings.keyword_auto_reply_in_group is not defined or settings.keyword_auto_reply_in_group) else '' }}>
+                                        <label class="form-check-label small fw-bold text-dark" for="keywordAutoReplyInGroup" style="font-size: 0.78rem;">
+                                            <i class="fas fa-users text-primary me-1"></i>الرد في المجموعة مباشرة (الرد على رسالة العميل داخل نفس المجموعة).
+                                        </label>
+                                    </div>
+
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="keywordAutoReplyInDm"
+                                               {{ 'checked' if (settings.keyword_auto_reply_in_dm is not defined or settings.keyword_auto_reply_in_dm) else '' }}>
+                                        <label class="form-check-label small fw-bold text-dark" for="keywordAutoReplyInDm" style="font-size: 0.78rem;">
+                                            <i class="fas fa-user-shield text-success me-1"></i>الرد في الخاص (إرسال رسالة رد لمرسل الكلمة في محادثته الخاصة).
+                                        </label>
+                                    </div>
+
+                                    <div class="form-check mb-2">
                                         <input class="form-check-input" type="checkbox" id="keywordAutoReplyForward"
                                                {{ 'checked' if (settings.keyword_auto_reply_forward is not defined or settings.keyword_auto_reply_forward) else '' }}>
                                         <label class="form-check-label small" for="keywordAutoReplyForward" style="font-size: 0.78rem;">
-                                            إعادة توجيه الرسالة التي تحتوي على الكلمة المراقبة أولاً، ثم كتابة الرد تحتها.
+                                            إعادة توجيه الرسالة الأصلية بالخاص أولاً، ثم إرسال الرد كرد مرتبط بها (reply_to).
                                         </label>
+                                    </div>
+
+                                    <div class="mb-2 mt-2 pt-2 border-top">
+                                        <label for="alertTargetUser" class="form-label fw-bold small text-dark mb-1">
+                                            <i class="fas fa-bell text-warning me-1"></i>حساب استلام إشعارات وتنبيهات الكلمات المراقبة:
+                                        </label>
+                                        <input type="text" class="form-control form-control-sm fw-bold" id="alertTargetUser"
+                                               value="{{ settings.alert_target_user or 'me' }}"
+                                               placeholder="me أو @username أو معرف الحساب" style="border-radius: 8px;">
+                                        <div class="form-text text-muted small" style="font-size: 0.72rem;">
+                                            اتركه <code>me</code> لتصل التنبيهات والرسائل المحولة إلى <strong>الرسائل المحفوظة (Saved Messages)</strong>، أو ضع معرف حسابك الخاص مثل <code>@username</code>.
+                                        </div>
                                     </div>
                                 </div>
 
@@ -11418,6 +11446,9 @@ document.addEventListener('DOMContentLoaded', function() {
         keyword_auto_reply_enabled: byId('keywordAutoReplyEnabled') ? byId('keywordAutoReplyEnabled').checked : true,
         keyword_auto_reply_text: (byId('keywordAutoReplyText')?.value || 'ابشر').trim(),
         keyword_auto_reply_forward: byId('keywordAutoReplyForward') ? byId('keywordAutoReplyForward').checked : true,
+        keyword_auto_reply_in_group: byId('keywordAutoReplyInGroup') ? byId('keywordAutoReplyInGroup').checked : true,
+        keyword_auto_reply_in_dm: byId('keywordAutoReplyInDm') ? byId('keywordAutoReplyInDm').checked : true,
+        alert_target_user: (byId('alertTargetUser')?.value || 'me').trim(),
         sanitize_mode: byId('sanitizeMode')?.value || 'salam',
         send_type: byId('sendType')?.value || 'manual',
         interval_seconds: Math.max(60, Math.round(num('intervalSeconds', 25) * 60)),

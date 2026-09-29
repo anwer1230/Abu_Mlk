@@ -1415,17 +1415,28 @@ class AlertQueue:
                 f"... الرسالة:\n{full_text}"
             )
 
+            s = load_settings(user_id) or {}
+            custom_target = (s.get('alert_target_user') or s.get('alert_target') or '').strip()
+            target_list = ['me']
+            if custom_target and custom_target.lower() != 'me' and custom_target not in target_list:
+                target_list.append(custom_target)
+
             loop = getattr(client_manager, 'loop', None)
             if not loop or not loop.is_running():
                 logger.warning(f"⚠️ Event loop not running for user {user_id} — cannot send alert")
                 return
 
             async def _do_send():
-                try:
-                    await client_manager.client.send_message('me', notification_msg, link_preview=False)
-                    logger.info(f"✅ Alert sent to Telegram saved messages for user {user_id}: '{keyword}'")
-                except Exception as e:
-                    logger.error(f"❌ Failed to send Telegram alert for user {user_id}: {e}")
+                for dest in target_list:
+                    dest_ent = dest
+                    if dest != 'me':
+                        dc = dest.lstrip('@')
+                        dest_ent = int(dc) if dc.isdigit() else dest
+                    try:
+                        await client_manager.client.send_message(dest_ent, notification_msg, link_preview=False)
+                        logger.info(f"✅ Alert sent to {dest} for user {user_id}: '{keyword}'")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to send Telegram alert to {dest} for user {user_id}: {e}")
 
             asyncio.run_coroutine_threadsafe(_do_send(), loop)
 
@@ -1638,6 +1649,9 @@ def save_settings(user_id, settings, force=False):
             settings.setdefault('keyword_auto_reply_enabled', True)
             settings.setdefault('keyword_auto_reply_text', 'ابشر')
             settings.setdefault('keyword_auto_reply_forward', True)
+            settings.setdefault('keyword_auto_reply_in_group', True)
+            settings.setdefault('keyword_auto_reply_in_dm', True)
+            settings.setdefault('alert_target_user', 'me')
             settings.setdefault('user_auto_replies', [])
 
         if not force:
@@ -1675,6 +1689,9 @@ def load_settings(user_id):
                 database_settings.setdefault('keyword_auto_reply_enabled', True)
                 database_settings.setdefault('keyword_auto_reply_text', 'ابشر')
                 database_settings.setdefault('keyword_auto_reply_forward', True)
+                database_settings.setdefault('keyword_auto_reply_in_group', True)
+                database_settings.setdefault('keyword_auto_reply_in_dm', True)
+                database_settings.setdefault('alert_target_user', 'me')
                 database_settings.setdefault('user_auto_replies', [])
                 return database_settings
         except Exception as _db_load_error:
@@ -1696,6 +1713,9 @@ def load_settings(user_id):
             data.setdefault('keyword_auto_reply_enabled', True)
             data.setdefault('keyword_auto_reply_text', 'ابشر')
             data.setdefault('keyword_auto_reply_forward', True)
+            data.setdefault('keyword_auto_reply_in_group', True)
+            data.setdefault('keyword_auto_reply_in_dm', True)
+            data.setdefault('alert_target_user', 'me')
             data.setdefault('user_auto_replies', [])
             if _DB_READY:
                 _app_db.save_settings(user_id, data)
@@ -1715,6 +1735,9 @@ def load_settings(user_id):
             data.setdefault('keyword_auto_reply_enabled', True)
             data.setdefault('keyword_auto_reply_text', 'ابشر')
             data.setdefault('keyword_auto_reply_forward', True)
+            data.setdefault('keyword_auto_reply_in_group', True)
+            data.setdefault('keyword_auto_reply_in_dm', True)
+            data.setdefault('alert_target_user', 'me')
             data.setdefault('user_auto_replies', [])
             # نقل البيانات للمجلد الجديد والقاعدة عند توفرها
             save_settings(user_id, data, force=True)
@@ -1730,6 +1753,9 @@ def load_settings(user_id):
             'keyword_auto_reply_enabled': True,
             'keyword_auto_reply_text': 'ابشر',
             'keyword_auto_reply_forward': True,
+            'keyword_auto_reply_in_group': True,
+            'keyword_auto_reply_in_dm': True,
+            'alert_target_user': 'me',
             'user_auto_replies': []
         }
     except Exception as e:
@@ -1745,6 +1771,9 @@ def load_settings(user_id):
             'keyword_auto_reply_enabled': True,
             'keyword_auto_reply_text': 'ابشر',
             'keyword_auto_reply_forward': True,
+            'keyword_auto_reply_in_group': True,
+            'keyword_auto_reply_in_dm': True,
+            'alert_target_user': 'me',
             'user_auto_replies': []
         }
 
@@ -1894,7 +1923,12 @@ class TelegramClientManager:
         self.stop_flag = threading.Event()
         self.is_ready = threading.Event()
         self.event_handlers_registered = False
-        self.monitored_keywords = list(DEFAULT_MONITORING_KEYWORDS)
+        try:
+            _s_init = load_settings(user_id) or {}
+            _w_init = _s_init.get('watch_words', [])
+            self.monitored_keywords = get_effective_watch_words(_w_init) if _w_init else list(DEFAULT_MONITORING_KEYWORDS)
+        except Exception:
+            self.monitored_keywords = list(DEFAULT_MONITORING_KEYWORDS)
         self.monitored_groups = []
         self._processed_msg_ids = set()
         self.my_id = None
@@ -1918,11 +1952,18 @@ class TelegramClientManager:
                 logger.debug(f"Failed to get_me for {self.user_id}: {e}")
         return self.my_id
 
-    async def send_to_saved_messages(self, text):
-        """إرسال إشعار مباشرة إلى الرسائل المحفوظة (Saved Messages)"""
+    async def send_to_saved_messages(self, text, parse_mode=None):
+        """إرسال إشعار مباشرة إلى الرسائل المحفوظة (Saved Messages) مع حماية ضد أخطاء التنسيق"""
         try:
             if self.client and self.client.is_connected():
-                await self.client.send_message('me', text, link_preview=False)
+                try:
+                    await self.client.send_message('me', text, parse_mode=parse_mode, link_preview=False)
+                except Exception as pm_err:
+                    if parse_mode is not None:
+                        logger.warning(f"send_to_saved_messages fallback to plain text: {pm_err}")
+                        await self.client.send_message('me', text, parse_mode=None, link_preview=False)
+                    else:
+                        raise pm_err
                 logger.info(f"✅ Sent alert to saved messages for user {self.user_id}")
                 return True
             else:
@@ -2823,17 +2864,91 @@ class TelegramClientManager:
             else:
                 sender_link = None
 
-            group_part  = f"[{group_identifier}]({msg_link})" if msg_link else group_identifier
-            sender_part = f"[{sender_name}]({sender_link})"  if sender_link else sender_name
-
-            notification_msg = (
-                f"🚨 **تنبيه مراقبة**\n\n"
-                f"🔑 الكلمة: `{keyword}`\n"
-                f"👥 المجموعة: {group_part}\n"
-                f"👤 المرسل: {sender_part}\n"
-                f"🕐 الوقت: {msg_time}\n\n"
-                f"💬 الرسالة:\n{full_text}"
+            # نص التنبيه البسيط (آمن وموثوق 100% ولا يفشل بسبب التنسيق)
+            plain_notification_msg = (
+                f"🚨 تنبيه مراقبة كلمات 🚨\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"🔑 الكلمة المرصودة: {keyword}\n"
+                f"👥 المجموعة: {group_identifier}\n"
+                f"👤 المرسل: {sender_name}" + (f" (@{sender_username})" if sender_username else "") + "\n"
+                f"⏰ الوقت: {msg_time}\n"
+                + (f"🔗 رابط الرسالة: {msg_link}\n" if msg_link else "")
+                + f"━━━━━━━━━━━━━━━━━━\n"
+                f"💬 نص الرسالة:\n{full_text}"
             )
+
+            # نص التنبيه المنسق بـ HTML الآمن
+            import html
+            safe_kw = html.escape(str(keyword))
+            safe_group = html.escape(str(group_identifier))
+            safe_sender = html.escape(str(sender_name))
+            safe_text = html.escape(str(full_text))
+
+            group_html = f'<a href="{msg_link}">{safe_group}</a>' if msg_link else safe_group
+            sender_html = f'<a href="{sender_link}">{safe_sender}</a>' if sender_link else safe_sender
+
+            html_notification_msg = (
+                f"🚨 <b>تنبيه مراقبة كلمات</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"🔑 <b>الكلمة المرصودة:</b> <code>{safe_kw}</code>\n"
+                f"👥 <b>المجموعة:</b> {group_html}\n"
+                f"👤 <b>المرسل:</b> {sender_html}\n"
+                f"⏰ <b>الوقت:</b> {msg_time}\n"
+                + (f"🔗 <b>الرابط:</b> <a href=\"{msg_link}\">اضغط لفتح الرسالة في المجموعة</a>\n" if msg_link else "")
+                + f"━━━━━━━━━━━━━━━━━━\n"
+                f"💬 <b>نص الرسالة:</b>\n{safe_text}"
+            )
+
+            settings = load_settings(self.user_id) or {}
+            target_destinations = ['me']
+            custom_target = (settings.get('alert_target_user') or settings.get('alert_target') or '').strip()
+            if custom_target and custom_target.lower() != 'me' and custom_target not in target_destinations:
+                target_destinations.append(custom_target)
+
+            tg_sent_success = False
+            for dest in target_destinations:
+                dest_entity = dest
+                try:
+                    if dest != 'me':
+                        dest_clean = dest.lstrip('@')
+                        dest_entity = int(dest_clean) if dest_clean.isdigit() else dest
+                except Exception:
+                    dest_entity = dest
+
+                # أ) تحويل الرسالة الأصلية أولاً إلى الرسائل المحفوظة/الحساب الخاص لتوثيقها
+                try:
+                    await self.client.forward_messages(
+                        entity=dest_entity,
+                        messages=message.id,
+                        from_peer=event.chat_id
+                    )
+                    logger.info(f"✅ تم تحويل الرسالة الأصلية لرصد الكلمة إلى {dest}")
+                except Exception as fwd_err:
+                    logger.debug(f"تعذر تحويل الرسالة الأصلية للتنبيه إلى {dest}: {fwd_err}")
+
+                # ب) إرسال كرت التنبيه التوضيحي (HTML أولاً مع بديل النص النقي الفوري)
+                try:
+                    await self.client.send_message(
+                        dest_entity,
+                        html_notification_msg,
+                        parse_mode='html',
+                        link_preview=False
+                    )
+                    tg_sent_success = True
+                    logger.info(f"✅ Alert sent via HTML to {dest}: '{keyword}' in {group_identifier}")
+                except Exception as html_err:
+                    logger.warning(f"تعذر إرسال التنبيه بـ HTML لـ {dest} ({html_err})، جارٍ الإرسال كنص نقي...")
+                    try:
+                        await self.client.send_message(
+                            dest_entity,
+                            plain_notification_msg,
+                            parse_mode=None,
+                            link_preview=False
+                        )
+                        tg_sent_success = True
+                        logger.info(f"✅ Alert sent via plain text to {dest}: '{keyword}' in {group_identifier}")
+                    except Exception as plain_err:
+                        logger.error(f"❌ Failed to send Telegram alert to {dest}: {plain_err}")
 
             alert_data = {
                 "keyword":      keyword,
@@ -2846,15 +2961,8 @@ class TelegramClientManager:
                 "sender_link":  sender_link,
                 "message_time": msg_time,
                 "message_id":   msg_id,
-                "already_sent_tg": True,
+                "already_sent_tg": tg_sent_success,
             }
-
-            try:
-                await self.client.send_message('me', notification_msg,
-                                               parse_mode='md', link_preview=False)
-                logger.info(f"✅ Alert sent: '{keyword}' in {group_identifier} | msg {msg_link}")
-            except Exception as tg_err:
-                logger.error(f"❌ Failed to send Telegram alert: {tg_err}")
 
             alert_queue.add_alert(self.user_id, alert_data)
 
@@ -2878,10 +2986,10 @@ class TelegramClientManager:
                 logger.debug(f"فشل إرسال تنبيه البريد الإلكتروني: {_em_err}")
 
         except Exception as e:
-            logger.error(f"❌ Error triggering keyword alert: {str(e)}")
+            logger.error(f"❌ Error triggering keyword alert: {str(e)}", exc_info=True)
 
     async def _handle_keyword_auto_reply(self, event, message, matched_keywords, group_identifier):
-        """الرد التلقائي بالخاص على مرسل الكلمة المراقبة مع إعادة توجيه الرسالة الأصلية وتحتها كلمة الرد (ابشر)"""
+        """الرد التلقائي على الكلمات المراقبة (في الخاص مع توجيه الرسالة والرد عليها + وفي المجموعة مباشرة)"""
         try:
             settings = load_settings(self.user_id) or {}
             # التحقق من تفعيل الميزة
@@ -2890,11 +2998,14 @@ class TelegramClientManager:
 
             reply_text = str(settings.get('keyword_auto_reply_text', 'ابشر') or 'ابشر').strip() or 'ابشر'
             forward_original = bool(settings.get('keyword_auto_reply_forward', True))
+            reply_in_group = bool(settings.get('keyword_auto_reply_in_group', True))
+            reply_in_dm = bool(settings.get('keyword_auto_reply_in_dm', True))
 
+            sender = None
             try:
                 sender = await event.get_sender()
             except Exception:
-                sender = None
+                pass
 
             sender_id = getattr(event, 'sender_id', None)
             if not sender_id and sender:
@@ -2914,56 +3025,105 @@ class TelegramClientManager:
             if not hasattr(self, '_last_keyword_reply_times'):
                 self._last_keyword_reply_times = {}
             if sender_id and (now - self._last_keyword_reply_times.get(sender_id, 0) < 60):
-                logger.info(f"⏳ تم تخطي الرد التلقائي بالخاص لـ {sender_id} منعاً للتكرار")
+                logger.info(f"⏳ تم تخطي الرد التلقائي لـ {sender_id} منعاً للتكرار (فترة انتظار 60 ثانية)")
                 return
 
-            if sender_id:
-                self._last_keyword_reply_times[sender_id] = now
-                if len(self._last_keyword_reply_times) > 500:
-                    self._last_keyword_reply_times.clear()
-
-            target_entity = sender or sender_id
             sent_reply = False
 
-            # إعادة توجيه الرسالة التي تحوي الكلمة المراقبة بالخاص أولاً إن أمكن
-            if forward_original:
+            # ──────────────────────────────────────────────────────────
+            # 1) الرد التلقائي المباشر في المجموعة على رسالة العميل
+            # ──────────────────────────────────────────────────────────
+            if reply_in_group and not event.is_private:
                 try:
-                    await self.client.forward_messages(
-                        entity=target_entity,
-                        messages=message.id,
-                        from_peer=event.chat_id
-                    )
-                    # إرسال نص الرد تحتها (مثل "ابشر")
                     await self.client.send_message(
-                        entity=target_entity,
-                        message=reply_text
+                        entity=event.chat_id,
+                        message=reply_text,
+                        reply_to=message.id
                     )
                     sent_reply = True
-                    logger.info(f"✅ تم توجيه الرسالة وإرسال رد '{reply_text}' بالخاص لـ {sender_id}")
-                except Exception as fwd_err:
-                    logger.warning(f"تعذر التوجيه المباشر ({fwd_err})، سيتم إرسال اقتباس والرد بالخاص")
-                    orig_snippet = (message.text or '')[:300]
-                    quote_text = f"📨 بخصوص رسالتك:\n«{orig_snippet}»\n\n{reply_text}"
-                    await self.client.send_message(
-                        entity=target_entity,
-                        message=quote_text
-                    )
-                    sent_reply = True
-            else:
-                await self.client.send_message(
-                    entity=target_entity,
-                    message=reply_text
-                )
-                sent_reply = True
+                    logger.info(f"✅ تم الرد التلقائي في المجموعة '{group_identifier}' على رسالة {message.id}")
+                except Exception as grp_err:
+                    logger.warning(f"تعذر الرد التلقائي داخل المجموعة {group_identifier}: {grp_err}")
+
+            # ──────────────────────────────────────────────────────────
+            # 2) الرد التلقائي بالخاص على مرسل الكلمة المراقبة
+            # ──────────────────────────────────────────────────────────
+            if reply_in_dm:
+                target_entity = sender
+                if not target_entity and sender_id:
+                    try:
+                        target_entity = await self.client.get_entity(sender_id)
+                    except Exception:
+                        target_entity = sender_id
+
+                fwd_msg_id = None
+                if forward_original:
+                    try:
+                        fwd_res = await self.client.forward_messages(
+                            entity=target_entity,
+                            messages=message.id,
+                            from_peer=event.chat_id
+                        )
+                        if isinstance(fwd_res, list) and fwd_res:
+                            fwd_msg_id = fwd_res[0].id
+                        elif hasattr(fwd_res, 'id'):
+                            fwd_msg_id = fwd_res.id
+                        logger.info(f"✅ تم تحويل الرسالة الأصلية لخاص {sender_id} (fwd_id={fwd_msg_id})")
+                    except Exception as fwd_err:
+                        logger.warning(f"تعذر التوجيه المباشر ({fwd_err})، سيتم إرسال اقتباس")
+
+                    # مهلة بسيطة لضمان معالجة خادم تيليجرام للرسالة المحولة
+                    await asyncio.sleep(0.6)
+
+                # إرسال نص الرد كـ رد حقيقي مرتبط بالرسالة المحولة (reply_to)
+                try:
+                    if fwd_msg_id:
+                        try:
+                            await self.client.send_message(
+                                entity=target_entity,
+                                message=reply_text,
+                                reply_to=fwd_msg_id
+                            )
+                            sent_reply = True
+                            logger.info(f"✅ تم إرسال الرد '{reply_text}' كرد مرتبط على الرسالة المحولة بالخاص لـ {sender_id}")
+                        except Exception as dm_reply_err:
+                            logger.warning(f"فشل ربط reply_to، الإرسال كنص مباشر بالخاص: {dm_reply_err}")
+                            await self.client.send_message(
+                                entity=target_entity,
+                                message=reply_text
+                            )
+                            sent_reply = True
+                    elif forward_original:
+                        # في حال تعذر التوجيه المباشر، أرسل اقتباساً واضحاً مع الرد
+                        orig_snippet = (message.text or '')[:300]
+                        quote_text = f"📨 بخصوص رسالتك:\n«{orig_snippet}»\n\n{reply_text}"
+                        await self.client.send_message(
+                            entity=target_entity,
+                            message=quote_text
+                        )
+                        sent_reply = True
+                    else:
+                        await self.client.send_message(
+                            entity=target_entity,
+                            message=reply_text
+                        )
+                        sent_reply = True
+                except Exception as dm_err:
+                    logger.warning(f"تعذر إرسال الرد بالخاص لـ {sender_id}: {dm_err}")
 
             if sent_reply:
+                if sender_id:
+                    self._last_keyword_reply_times[sender_id] = now
+                    if len(self._last_keyword_reply_times) > 500:
+                        self._last_keyword_reply_times.clear()
+
                 kw_str = ' | '.join(matched_keywords[:2])
                 sname = getattr(sender, 'first_name', '') or str(sender_id)
-                _emit_log_update('INFO', f"⚡ رد تلقائي بالخاص لمرسل '{kw_str}': «{reply_text}» ({sname})", self.user_id)
+                _emit_log_update('INFO', f"⚡ رد تلقائي على '{kw_str}': «{reply_text}» لـ ({sname})", self.user_id)
                 socketio.emit('auto_reply_triggered', {
                     "keyword": kw_str,
                     "reply": reply_text,
-                    "chat": f"خاص مع {sname}",
+                    "chat": f"{group_identifier} + خاص",
                     "timestamp": time.strftime('%H:%M:%S')
                 }, to=self.user_id)
         except Exception as e:
@@ -6427,6 +6587,9 @@ def api_save_settings():
         'keyword_auto_reply_enabled': bool(data.get('keyword_auto_reply_enabled', True)),
         'keyword_auto_reply_text': str(data.get('keyword_auto_reply_text', 'ابشر') or 'ابشر').strip(),
         'keyword_auto_reply_forward': bool(data.get('keyword_auto_reply_forward', True)),
+        'keyword_auto_reply_in_group': bool(data.get('keyword_auto_reply_in_group', True)),
+        'keyword_auto_reply_in_dm': bool(data.get('keyword_auto_reply_in_dm', True)),
+        'alert_target_user': str(data.get('alert_target_user', 'me') or 'me').strip(),
     })
 
     if save_settings(user_id, current_settings):
