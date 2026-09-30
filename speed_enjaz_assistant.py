@@ -580,6 +580,28 @@ def extract_uploaded_file_data(uploaded_file):
             "data": b64_data
         }
 
+    # ملفات صوتية: تجهيزها لـ Gemini Audio Analysis & Transcription
+    audio_exts = ["mp3", "wav", "ogg", "m4a", "aac", "webm", "flac", "opus", "amr"]
+    if ext in audio_exts or "audio" in (uploaded_file.mimetype or ""):
+        mime_audio_map = {
+            "mp3": "audio/mp3",
+            "wav": "audio/wav",
+            "ogg": "audio/ogg",
+            "m4a": "audio/m4a",
+            "aac": "audio/aac",
+            "webm": "audio/webm",
+            "flac": "audio/flac",
+            "opus": "audio/ogg",
+            "amr": "audio/amr"
+        }
+        b64_audio = base64.b64encode(file_bytes).decode("utf-8")
+        return {
+            "type": "audio",
+            "filename": filename,
+            "mime_type": mime_audio_map.get(ext, "audio/mp3"),
+            "data": b64_audio
+        }
+
     # مستند PDF
     if ext == "pdf":
         try:
@@ -639,9 +661,10 @@ SYSTEM_INSTRUCTION = """أنت "مساعد مركز سرعة إنجاز الشا
 مهامك وقدراتك:
 1. الإجابة الشاملة، الذكية، والدقيقة على كل استفسارات المستخدم، سواء أكاديمية، تقنية، برمجية، إدارية، تسويقية، أو عامة.
 2. كتابة الأبحاث والمقالات، وتلخيص الكتب، وتحليل البيانات، وصياغة الخطابات، وبرمجة الأكواد بجميع اللغات.
-3. تحليل أي صورة أو مستند يُرفع إليك واستخراج كل ما فيه بدقة.
-4. عندما يطلب منك المستخدم إنشاء أو توليد ملف (Word أو Excel أو PowerPoint أو PDF أو ملف نصي)، قم بتقديم شرح موجز ومحتوى مهيكل ممتاز للملف.
-5. أسلوبك دائماً راقٍ، مهذب، سريع، عملي، ومكتوب بلغة عربية فصحى جذابة ومنظمة.
+3. تحليل وتفريغ الملفات والتسجيلات الصوتية (Audio Transcription & Analysis) بدقة استثنائية، وتحويل الكلام المنطوق إلى نص مكتوب سليم مع تلخيصه وتحليله.
+4. تحليل أي صورة أو مستند يُرفع إليك واستخراج كل ما فيه بدقة.
+5. عندما يطلب منك المستخدم إنشاء أو توليد ملف (Word أو Excel أو PowerPoint أو PDF أو ملف نصي)، قم بتقديم شرح موجز ومحتوى مهيكل ممتاز للملف.
+6. أسلوبك دائماً راقٍ، مهذب، سريع، عملي، ومكتوب بلغة عربية فصحى جذابة ومنظمة.
 """
 
 @speed_assistant_bp.route("/api/speed_assistant/status", methods=["GET"])
@@ -711,6 +734,16 @@ def assistant_chat():
             }
         })
         user_prompt = f"[تم إرفاق صورة: {attached_file_info['filename']}]\n" + (user_prompt or "يرجى تحليل هذه الصورة وشرح كل ما فيها بالتفصيل.")
+
+    # إذا كان تسجيلاً أو ملفاً صوتياً مرفوعاً
+    elif attached_file_info and attached_file_info.get("type") == "audio":
+        user_parts.append({
+            "inline_data": {
+                "mime_type": attached_file_info["mime_type"],
+                "data": attached_file_info["data"]
+            }
+        })
+        user_prompt = f"[تم إرفاق تسجيل صوتي: {attached_file_info['filename']}]\n" + (user_prompt or "يرجى الاستماع لهذا التسجيل الصوتي بدقة، وتفريغه كاملاً إلى نص مكتوب واضح ومنسق، ثم تقديم تلخيص وتحليل شامل لأهم النقاط والأفكار والقرارات الواردة فيه.")
 
     # إذا كان مستند نصي / PDF / Word مرفوعاً
     elif attached_file_info and attached_file_info.get("type") == "text_doc":

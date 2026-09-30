@@ -8018,8 +8018,11 @@
         <button class="ai-tool-pill" onclick="triggerAiFileType('pdf')" title="طلب إنشاء تقرير PDF">
             <i class="fas fa-file-pdf" style="color:#f87171;"></i> ملف PDF
         </button>
-        <button class="ai-tool-pill" onclick="triggerAiAttachClick()" title="إرفاق صورة أو مستند لتحليله">
-            <i class="fas fa-paperclip" style="color:#c084fc;"></i> إرفاق صورة/ملف
+        <button class="ai-tool-pill" onclick="triggerAiAudioSelect()" title="رفع تسجيل صوتي لتفريغه وتحليله">
+            <i class="fas fa-microphone" style="color:#f43f5e;"></i> تفريغ صوتي
+        </button>
+        <button class="ai-tool-pill" onclick="triggerAiAttachClick()" title="إرفاق صورة أو مستند أو صوت">
+            <i class="fas fa-paperclip" style="color:#c084fc;"></i> إرفاق ملف
         </button>
     </div>
 
@@ -8029,6 +8032,7 @@
             <div style="font-weight:700; color:#38bdf8; margin-bottom:4px;">👋 أهلاً بك في مساعد مركز سرعة إنجاز الذكي!</div>
             أنا مساعدك الذكي الشامل، متصل مباشرة بالذكاء الاصطناعي للإجابة على كل استفساراتك وتنفيذ كل ما تطلبه فورياً:<br><br>
             • 💬 <strong>محادثة مفتوحة:</strong> اسألني أي سؤال أو اطلب كتابة، برمجة، ترجمة، أو صياغة.<br>
+            • 🎙️ <strong>تفريغ وتحليل التسجيلات الصوتية:</strong> ارفع أي تسجيل صوتي (MP3, WAV, M4A, OGG) وسأقوم بتفريغه لنص بدقة وتلخيص محتواه.<br>
             • 📁 <strong>توليد ملفات حقيقية للهاتف:</strong> اطلب مني أي ملف (Word، Excel، PowerPoint، PDF) وسأقوم ببنائه وتجهيزه للتحميل المباشر والفتح في جوالك.<br>
             • 📷 <strong>تحليل الصور والمستندات:</strong> انقر على زر المشبك 📎 لرفع أي صورة أو مستند لتحليله فوراً.<br>
             • 🔑 <strong>استقرار مستمر:</strong> مدعوم بنظام تدوير متتالي وتلقائي للمفاتيح لتجنب أي انقطاع مع شريط تتبع يومي يتجدد كل 24 ساعة.
@@ -8038,7 +8042,7 @@
     <!-- شريط معاينة الملف المرفق قبل الإرسال -->
     <div id="aiFilePreviewBanner" class="ai-attachment-preview">
         <div class="ai-preview-meta">
-            <i class="fas fa-file-upload text-info"></i>
+            <i id="aiPreviewIcon" class="fas fa-file-upload text-info"></i>
             <span id="aiPreviewFilename">ملف مرفق</span>
             <small id="aiPreviewFilesize" class="text-muted"></small>
         </div>
@@ -8047,11 +8051,15 @@
 
     <!-- مدخل النص والإرسال والمرفقات -->
     <div class="ai-input-area">
-        <input type="file" id="aiFileInput" style="display:none;" accept="image/*,.pdf,.docx,.txt" onchange="handleAiFileSelect(event)">
-        <button type="button" class="ai-attach-btn" onclick="triggerAiAttachClick()" title="إرفاق صورة أو مستند">
+        <input type="file" id="aiFileInput" style="display:none;" accept="image/*,audio/*,.pdf,.docx,.txt,.mp3,.wav,.ogg,.m4a,.aac,.webm,.flac" onchange="handleAiFileSelect(event)">
+        <input type="file" id="aiAudioInput" style="display:none;" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.webm,.flac" onchange="handleAiFileSelect(event)">
+        <button type="button" class="ai-attach-btn" onclick="triggerAiAttachClick()" title="إرفاق صورة أو مستند أو صوت">
             📎
         </button>
-        <textarea id="aiInput" placeholder="اكتب سؤالك أو اطلب توليد ملف (Word/Excel/PowerPoint)..." rows="1"
+        <button type="button" class="ai-attach-btn" onclick="triggerAiAudioSelect()" title="رفع تسجيل صوتي" style="color:#f43f5e;">
+            🎤
+        </button>
+        <textarea id="aiInput" placeholder="اكتب سؤالك، اطلب ملف، أو ارفع تسجيلاً صوتياً..." rows="1"
                   onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAiMessage();}"
                   oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'"></textarea>
         <button id="aiSendBtn" onclick="sendAiMessage()" title="إرسال">➤</button>
@@ -8088,6 +8096,15 @@ function triggerAiAttachClick() {
     if (fileInp) fileInp.click();
 }
 
+function triggerAiAudioSelect() {
+    var audioInp = document.getElementById('aiAudioInput') || document.getElementById('aiFileInput');
+    var inp = document.getElementById('aiInput');
+    if (inp && !inp.value.trim()) {
+        inp.value = 'يرجى تفريغ هذا التسجيل الصوتي إلى نص مكتوب بدقة، وتلخيص أهم النقاط والقرارات.';
+    }
+    if (audioInp) audioInp.click();
+}
+
 function handleAiFileSelect(e) {
     var file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -8096,9 +8113,24 @@ function handleAiFileSelect(e) {
     var banner = document.getElementById('aiFilePreviewBanner');
     var fnameEl = document.getElementById('aiPreviewFilename');
     var fsizeEl = document.getElementById('aiPreviewFilesize');
+    var iconEl = document.getElementById('aiPreviewIcon');
+
+    var isAudio = file.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|webm|flac|opus|amr)$/i.test(file.name);
+    var isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(file.name);
 
     if (banner) banner.style.display = 'flex';
-    if (fnameEl) fnameEl.textContent = file.name;
+    if (iconEl) {
+        if (isAudio) {
+            iconEl.className = 'fas fa-microphone-alt text-danger';
+        } else if (isImage) {
+            iconEl.className = 'fas fa-image text-success';
+        } else {
+            iconEl.className = 'fas fa-file-alt text-info';
+        }
+    }
+    if (fnameEl) {
+        fnameEl.textContent = (isAudio ? '🎙️ تسجيل صوتي: ' : (isImage ? '🖼️ صورة: ' : '📄 مستند: ')) + file.name;
+    }
     if (fsizeEl) fsizeEl.textContent = '(' + (file.size / 1024).toFixed(1) + ' KB)';
 }
 
@@ -8106,6 +8138,8 @@ function clearAiAttachedFile() {
     _aiSelectedFile = null;
     var fileInp = document.getElementById('aiFileInput');
     if (fileInp) fileInp.value = '';
+    var audioInp = document.getElementById('aiAudioInput');
+    if (audioInp) audioInp.value = '';
     var banner = document.getElementById('aiFilePreviewBanner');
     if (banner) banner.style.display = 'none';
 }
@@ -8230,7 +8264,10 @@ async function sendAiMessage() {
 
     var userDisplayMsg = text;
     if (_aiSelectedFile) {
-        userDisplayMsg = (text ? text + '\n' : '') + '📎 [مرفق: ' + _aiSelectedFile.name + ']';
+        var isAudio = _aiSelectedFile.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|webm|flac|opus|amr)$/i.test(_aiSelectedFile.name);
+        var isImage = _aiSelectedFile.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(_aiSelectedFile.name);
+        var badgeLabel = isAudio ? '🎙️ [تسجيل صوتي: ' : (isImage ? '🖼️ [صورة: ' : '📄 [مستند: ');
+        userDisplayMsg = (text ? text + '\n' : '') + badgeLabel + _aiSelectedFile.name + ']';
     }
 
     input.value = '';
