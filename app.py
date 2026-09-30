@@ -15374,11 +15374,21 @@ SAVED_LINKS_FILE = os.path.join(DATA_DIR, 'saved_links.json')
 
 def load_saved_links():
     """تحميل الروابط المحفوظة من Firestore أولاً ثم الملف المحلي أو GitHub"""
+    def _sanitize(d):
+        if not isinstance(d, dict):
+            return {"links": []}
+        val = d.get("links", [])
+        while isinstance(val, dict):
+            val = val.get("links", [])
+        if not isinstance(val, list):
+            val = []
+        return {"links": [l for l in val if isinstance(l, dict) and "url" in l]}
+
     try:
         import firestore_sync
         fs_links = firestore_sync.get_firestore_links()
         if fs_links:
-            data = {"links": fs_links}
+            data = _sanitize({"links": fs_links})
             try:
                 with open(SAVED_LINKS_FILE, 'w', encoding='utf-8') as f:
                     json.dump(data, f, ensure_ascii=False, indent=2)
@@ -15391,13 +15401,13 @@ def load_saved_links():
     try:
         if os.path.exists(SAVED_LINKS_FILE):
             with open(SAVED_LINKS_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                return _sanitize(json.load(f))
     except Exception:
         pass
     try:
         content = download_from_github("data/saved_links.json")
         if content:
-            data = json.loads(content.decode("utf-8"))
+            data = _sanitize(json.loads(content.decode("utf-8")))
             with open(SAVED_LINKS_FILE, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             return data
