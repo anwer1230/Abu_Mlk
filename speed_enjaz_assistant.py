@@ -78,9 +78,9 @@ if _env_key and not any(k["key"] == _env_key for k in PERMANENT_GEMINI_KEYS):
 
 # النماذج المعتمدة بالترتيب (الأحدث والأسرع أولاً لتجنب الازدحام)
 MODELS_PRIORITY = [
-    "gemini-3.8-flash",
     "gemini-3.1-flash-lite",
-    "gemini-flash-latest"
+    "gemini-flash-latest",
+    "gemini-3.8-flash"
 ]
 
 # الحد اليومي التقديري المريح لجميع المفاتيح مجتمعة (لحساب النسبة المئوية في الشريط)
@@ -243,9 +243,12 @@ def call_gemini_api(contents, system_instruction=None):
                 last_error = f"HTTP {e.code}: {err_body[:200]}"
                 logger.warning(f"⚠️ فشل المفتاح {key_info['hint']} على النموذج {model}: {last_error}")
 
-                # إذا كان الخطأ متعلقاً بالحصص (429 أو 403 أو RESOURCE_EXHAUSTED) نتخطى هذا المفتاح فوراً للمفتاح التالي
+                # إذا كان الخطأ متعلقاً بالحصص (429 أو 403 أو RESOURCE_EXHAUSTED)
                 if e.code in (429, 403) or "QUOTA" in err_body.upper() or "RESOURCE_EXHAUSTED" in err_body.upper():
                     record_usage_failure(key_info["id"], f"quota_{e.code}")
+                    # إذا كانت الحصة تخص هذا النموذج بالذات (per_model) نجرب النموذج التالي على نفس المفتاح
+                    if "per_model" in err_body.lower() or "tokens_per_model" in err_body.lower():
+                        continue
                     break  # التبديل إلى المفتاح التالي مباشرة
 
             except Exception as ex:
