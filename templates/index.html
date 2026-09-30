@@ -7595,22 +7595,22 @@
 
 #aiPanel {
     position: fixed;
-    bottom: 100px;
+    bottom: 95px;
     left: 16px;
     z-index: 8999;
-    width: min(420px, calc(100vw - 32px));
-    height: min(580px, calc(100vh - 130px));
-    background: #0d1117;
+    width: min(440px, calc(100vw - 24px));
+    height: min(650px, calc(100vh - 120px));
+    background: #0f172a;
     border-radius: 20px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+    box-shadow: 0 25px 65px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(99, 102, 241, 0.25);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    transition: opacity 0.3s, transform 0.3s;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     opacity: 0;
     transform: translateY(20px) scale(0.95);
     pointer-events: none;
-    border: 1px solid rgba(102, 126, 234, 0.25);
+    border: 1px solid rgba(129, 140, 248, 0.3);
 }
 #aiPanel.ai-open {
     opacity: 1;
@@ -7619,206 +7619,454 @@
 }
 
 .ai-header {
-    background: linear-gradient(135deg, #1a1a4e, #12123a);
-    color: #e2e8f0;
-    padding: 14px 18px;
+    background: linear-gradient(135deg, #1e1b4b, #0f172a);
+    color: #f8fafc;
+    padding: 12px 16px;
     display: flex;
-    align-items: center;
-    gap: 12px;
-    border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+    flex-direction: column;
+    gap: 8px;
+    border-bottom: 1px solid rgba(129, 140, 248, 0.2);
     flex-shrink: 0;
 }
+.ai-header-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
 .ai-header .ai-avatar {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+}
+.ai-header-info { flex: 1; }
+.ai-header-title {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #e0e7ff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.ai-header-sub {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 1px;
+}
+.ai-close-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    color: #94a3b8;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
-    background: rgba(102, 126, 234, 0.3);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+.ai-close-btn:hover { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+/* شريط الاستخدام اليومي والمفاتيح - يتجدد كل 24 ساعة */
+.ai-usage-card {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(129, 140, 248, 0.2);
+    border-radius: 10px;
+    padding: 7px 10px;
+    font-size: 11px;
+}
+.ai-usage-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.ai-key-badge {
+    background: rgba(99, 102, 241, 0.25);
+    color: #a5b4fc;
+    border: 1px solid rgba(129, 140, 248, 0.4);
+    padding: 2px 7px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+}
+.ai-progress-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(15, 23, 42, 0.8);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+.ai-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+.ai-usage-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+    font-size: 9.5px;
+    color: #94a3b8;
+}
+
+/* شريط الأدوات السريعة لتوليد الملفات */
+.ai-quick-tools {
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px;
+    background: #0b1120;
+    border-bottom: 1px solid rgba(129, 140, 248, 0.15);
+    overflow-x: auto;
+    flex-shrink: 0;
+}
+.ai-quick-tools::-webkit-scrollbar { height: 3px; }
+.ai-quick-tools::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+.ai-tool-pill {
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    color: #e2e8f0;
+    padding: 4px 10px;
+    border-radius: 16px;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+}
+.ai-tool-pill:hover {
+    background: rgba(99, 102, 241, 0.25);
+    border-color: #818cf8;
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+#aiMessages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #090d16;
+}
+#aiMessages::-webkit-scrollbar { width: 5px; }
+#aiMessages::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+.ai-msg {
+    max-width: 90%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 13px;
+    line-height: 1.65;
+    word-wrap: break-word;
+    animation: aiMsgIn 0.25s ease;
+}
+.ai-msg-user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: #ffffff;
+    border-bottom-right-radius: 3px;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+}
+.ai-msg-bot {
+    align-self: flex-start;
+    background: #1e293b;
+    color: #f1f5f9;
+    border: 1px solid rgba(129, 140, 248, 0.2);
+    border-bottom-left-radius: 3px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.ai-msg-bot pre {
+    background: #0f172a;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 8px;
+    padding: 10px;
+    overflow-x: auto;
+    font-size: 12px;
+    color: #38bdf8;
+    margin: 8px 0;
+    direction: ltr;
+    text-align: left;
+}
+.ai-msg-bot code {
+    background: rgba(15, 23, 42, 0.6);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #38bdf8;
+}
+
+/* كرت تحميل الملف المولد الحقيقي للجوال */
+.ai-download-card {
+    margin-top: 10px;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
+    border: 1.5px solid #38bdf8;
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 6px 16px rgba(56, 189, 248, 0.15);
+}
+.ai-file-icon-box {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: rgba(56, 189, 248, 0.15);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 20px;
     flex-shrink: 0;
 }
-.ai-header-info { flex: 1; }
-.ai-header-title {
-    font-size: 14px;
+.ai-file-info {
+    flex: 1;
+    overflow: hidden;
+}
+.ai-file-title {
     font-weight: 700;
-    color: #a5b4fc;
+    font-size: 13px;
+    color: #f8fafc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.ai-header-sub {
+.ai-file-subtext {
     font-size: 11px;
-    color: #8b949e;
-    margin-top: 1px;
+    color: #38bdf8;
+    margin-top: 2px;
 }
-.ai-close-btn {
+.ai-download-action-btn {
+    background: linear-gradient(135deg, #0284c7, #2563eb);
+    color: #fff !important;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none !important;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.ai-download-action-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+}
+
+/* شريط معاينة الملف المرفق قبل الإرسال */
+.ai-attachment-preview {
+    display: none;
+    background: rgba(30, 41, 59, 0.9);
+    border-top: 1px solid rgba(129, 140, 248, 0.2);
+    padding: 6px 14px;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: #e2e8f0;
+}
+.ai-preview-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ai-remove-attach {
     background: none;
     border: none;
-    color: #8b949e;
-    font-size: 20px;
+    color: #f87171;
     cursor: pointer;
-    transition: color 0.2s;
-    padding: 0 4px;
-}
-.ai-close-btn:hover { color: #e2e8f0; }
-
-#aiMessages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    background: #0d1117;
-}
-#aiMessages::-webkit-scrollbar { width: 5px; }
-#aiMessages::-webkit-scrollbar-track { background: #0d1117; }
-#aiMessages::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
-
-.ai-msg {
-    max-width: 88%;
-    padding: 10px 14px;
-    border-radius: 14px;
-    font-size: 13.5px;
-    line-height: 1.7;
-    word-wrap: break-word;
-    white-space: pre-wrap;
-    animation: aiMsgIn 0.3s ease;
-}
-@keyframes aiMsgIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-.ai-msg-user {
-    align-self: flex-end;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: #fff;
-    border-bottom-right-radius: 4px;
-}
-.ai-msg-bot {
-    align-self: flex-start;
-    background: #1e1e3a;
-    color: #cdd6f4;
-    border: 1px solid rgba(102, 126, 234, 0.2);
-    border-bottom-left-radius: 4px;
-}
-.ai-msg-bot a { color: #7dd3fc; text-decoration: none; }
-.ai-msg-bot a:hover { text-decoration: underline; }
-.ai-msg-bot .whatsapp-btn-inline {
-    display: inline-block;
-    background: #25D366;
-    color: #fff;
-    padding: 4px 14px;
-    border-radius: 20px;
-    font-weight: 600;
-    font-size: 13px;
-    margin-top: 6px;
-    transition: background 0.2s;
-}
-.ai-msg-bot .whatsapp-btn-inline:hover { background: #128C7E; text-decoration: none; }
-.ai-msg-bot .contact-text {
-    display: block;
-    margin-top: 8px;
-    padding: 10px 14px;
-    background: rgba(37, 211, 102, 0.12);
-    border-radius: 10px;
-    border: 1px solid rgba(37, 211, 102, 0.25);
-}
-
-.ai-typing { display: flex; gap: 5px; align-items: center; padding: 8px 12px; }
-.ai-typing span {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #667eea; animation: aiTypingDot 1.2s infinite;
-}
-.ai-typing span:nth-child(2) { animation-delay: 0.2s; }
-.ai-typing span:nth-child(3) { animation-delay: 0.4s; }
-@keyframes aiTypingDot {
-    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-    30%            { transform: translateY(-6px); opacity: 1; }
+    font-size: 14px;
+    padding: 2px 6px;
 }
 
 .ai-input-area {
-    padding: 12px 14px;
-    border-top: 1px solid rgba(102, 126, 234, 0.15);
-    background: #0d1117;
+    padding: 10px 12px;
+    border-top: 1px solid rgba(129, 140, 248, 0.15);
+    background: #0f172a;
     display: flex;
     align-items: flex-end;
     gap: 8px;
     flex-shrink: 0;
 }
+.ai-attach-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgba(30, 41, 59, 0.7);
+    color: #a5b4fc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+.ai-attach-btn:hover {
+    background: rgba(99, 102, 241, 0.25);
+    color: #fff;
+    border-color: #818cf8;
+}
 #aiInput {
     flex: 1;
-    border: 1.5px solid rgba(102, 126, 234, 0.25);
+    border: 1.5px solid rgba(129, 140, 248, 0.3);
     border-radius: 12px;
-    padding: 9px 14px;
+    padding: 9px 12px;
     font-size: 13px;
     resize: none;
-    min-height: 42px;
-    max-height: 120px;
+    min-height: 38px;
+    max-height: 100px;
     font-family: inherit;
     outline: none;
     transition: border-color 0.2s;
     direction: rtl;
-    background: #161b22;
-    color: #e2e8f0;
+    background: #1e293b;
+    color: #f8fafc;
 }
-#aiInput:focus { border-color: #667eea; }
-#aiInput::placeholder { color: #6b7280; }
+#aiInput:focus { border-color: #818cf8; box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2); }
+#aiInput::placeholder { color: #64748b; }
+
 #aiSendBtn {
-    width: 42px; height: 42px;
-    border-radius: 50%; border: none;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: #fff; font-size: 18px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: transform 0.2s; flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, opacity 0.2s;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
 }
-#aiSendBtn:hover { transform: scale(1.08); }
+#aiSendBtn:hover { transform: scale(1.06); }
 #aiSendBtn:disabled { opacity: 0.5; transform: none; cursor: not-allowed; }
 </style>
 
-<!-- مؤشر حالة الرد التلقائي (ثابت داخل كرت الوظيفة — انظر الكود أدناه) -->
-
-<!-- زر مساعد الذكاء -->
-<button id="aiAssistantBtn" onclick="toggleAiPanel()" title="مساعد التطبيق">
+<!-- زر مساعد الذكاء الاصطناعي لمركز سرعة إنجاز -->
+<button id="aiAssistantBtn" onclick="toggleAiPanel()" title="مساعد مركز سرعة إنجاز الذكي">
     🤖
     <span class="ai-badge" id="aiUnreadBadge" style="display:none;">!</span>
 </button>
 
-<!-- لوحة مساعد الذكاء -->
+<!-- لوحة مساعد مركز سرعة إنجاز الذكي الشامل -->
 <div id="aiPanel">
+    <!-- الترويسة وشريط الاستخدام اليومي للمفاتيح -->
     <div class="ai-header">
-        <div class="ai-avatar">🤖</div>
-        <div class="ai-header-info">
-            <div class="ai-header-title">مساعد مركز سرعة إنجاز</div>
-            <div class="ai-header-sub">اسألني عن وظائف التطبيق وكيفية استخدامها</div>
+        <div class="ai-header-top">
+            <div class="ai-avatar">⚡</div>
+            <div class="ai-header-info">
+                <div class="ai-header-title">
+                    <span>مساعد مركز سرعة إنجاز</span>
+                    <span style="font-size:10px; color:#4ade80; font-weight:normal;">● متصل بالذكاء</span>
+                </div>
+                <div class="ai-header-sub">محادثة مباشرة • توليد ملفات للجوال • تحليل صور ومستندات</div>
+            </div>
+            <button class="ai-close-btn" onclick="toggleAiPanel()" title="إغلاق">✕</button>
         </div>
-        <button class="ai-close-btn" onclick="toggleAiPanel()">✕</button>
+
+        <!-- شريط الاستخدام اليومي لمفاتيح الذكاء الاصطناعي (يتجدد كل 24 ساعة) -->
+        <div class="ai-usage-card">
+            <div class="ai-usage-row">
+                <span id="aiUsageText" style="color:#e2e8f0; font-weight:600;">📊 الاستخدام اليومي: جارِ القياس...</span>
+                <span id="aiActiveKeyBadge" class="ai-key-badge">🔑 المفتاح 1/8</span>
+            </div>
+            <div class="ai-progress-track">
+                <div id="aiProgressBar" class="ai-progress-fill" style="width: 2%;"></div>
+            </div>
+            <div class="ai-usage-meta">
+                <span id="aiUsagePercentLabel">0% مستخدم اليوم</span>
+                <span><i class="fas fa-history me-1"></i> يتجدد تلقائياً كل 24 ساعة</span>
+            </div>
+        </div>
     </div>
 
+    <!-- شريط الإجراءات السريعة لتوليد المستندات والملفات للجوال -->
+    <div class="ai-quick-tools">
+        <button class="ai-tool-pill" onclick="triggerAiFileType('docx')" title="طلب إنشاء مستند Word">
+            <i class="fas fa-file-word" style="color:#38bdf8;"></i> مستند Word
+        </button>
+        <button class="ai-tool-pill" onclick="triggerAiFileType('xlsx')" title="طلب إنشاء جدول Excel">
+            <i class="fas fa-file-excel" style="color:#4ade80;"></i> جدول Excel
+        </button>
+        <button class="ai-tool-pill" onclick="triggerAiFileType('pptx')" title="طلب إنشاء عرض شرائح">
+            <i class="fas fa-file-powerpoint" style="color:#fb923c;"></i> عرض PowerPoint
+        </button>
+        <button class="ai-tool-pill" onclick="triggerAiFileType('pdf')" title="طلب إنشاء تقرير PDF">
+            <i class="fas fa-file-pdf" style="color:#f87171;"></i> ملف PDF
+        </button>
+        <button class="ai-tool-pill" onclick="triggerAiAttachClick()" title="إرفاق صورة أو مستند لتحليله">
+            <i class="fas fa-paperclip" style="color:#c084fc;"></i> إرفاق صورة/ملف
+        </button>
+    </div>
+
+    <!-- الرسائل وسجل المحادثة المباشرة -->
     <div id="aiMessages">
         <div class="ai-msg ai-msg-bot">
-            👋 أهلاً بك في مركز سرعة إنجاز!<br><br>
-            أنا مساعدك الذكي، أستطيع شرح جميع وظائف التطبيق وكيفية استخدامها.<br><br>
-            <strong>مثال:</strong> "كيف أستخدم خاصية الانضمام المتقدم؟"<br>
-            <strong>مثال:</strong> "ما هي الردود التلقائية؟"<br><br>
-            <span style="color:#8b949e;font-size:12px;">💡 ملاحظة: أنا هنا لشرح الاستخدام فقط، ولا أقدم أكواد برمجية أو حلولاً تقنية.</span>
+            <div style="font-weight:700; color:#38bdf8; margin-bottom:4px;">👋 أهلاً بك في مساعد مركز سرعة إنجاز الذكي!</div>
+            أنا مساعدك الذكي الشامل، متصل مباشرة بالذكاء الاصطناعي للإجابة على كل استفساراتك وتنفيذ كل ما تطلبه فورياً:<br><br>
+            • 💬 <strong>محادثة مفتوحة:</strong> اسألني أي سؤال أو اطلب كتابة، برمجة، ترجمة، أو صياغة.<br>
+            • 📁 <strong>توليد ملفات حقيقية للهاتف:</strong> اطلب مني أي ملف (Word، Excel، PowerPoint، PDF) وسأقوم ببنائه وتجهيزه للتحميل المباشر والفتح في جوالك.<br>
+            • 📷 <strong>تحليل الصور والمستندات:</strong> انقر على زر المشبك 📎 لرفع أي صورة أو مستند لتحليله فوراً.<br>
+            • 🔑 <strong>استقرار مستمر:</strong> مدعوم بنظام تدوير متتالي وتلقائي للمفاتيح لتجنب أي انقطاع مع شريط تتبع يومي يتجدد كل 24 ساعة.
         </div>
     </div>
 
+    <!-- شريط معاينة الملف المرفق قبل الإرسال -->
+    <div id="aiFilePreviewBanner" class="ai-attachment-preview">
+        <div class="ai-preview-meta">
+            <i class="fas fa-file-upload text-info"></i>
+            <span id="aiPreviewFilename">ملف مرفق</span>
+            <small id="aiPreviewFilesize" class="text-muted"></small>
+        </div>
+        <button type="button" class="ai-remove-attach" onclick="clearAiAttachedFile()" title="إلغاء الملف">✕</button>
+    </div>
+
+    <!-- مدخل النص والإرسال والمرفقات -->
     <div class="ai-input-area">
-        <textarea id="aiInput" placeholder="اكتب سؤالك هنا..." rows="1"
+        <input type="file" id="aiFileInput" style="display:none;" accept="image/*,.pdf,.docx,.txt" onchange="handleAiFileSelect(event)">
+        <button type="button" class="ai-attach-btn" onclick="triggerAiAttachClick()" title="إرفاق صورة أو مستند">
+            📎
+        </button>
+        <textarea id="aiInput" placeholder="اكتب سؤالك أو اطلب توليد ملف (Word/Excel/PowerPoint)..." rows="1"
                   onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAiMessage();}"
-                  oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+                  oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'"></textarea>
         <button id="aiSendBtn" onclick="sendAiMessage()" title="إرسال">➤</button>
     </div>
 </div>
 
 <script>
 // ============================================================
-// مساعد الذكاء الاصطناعي - نظام المحادثة
+// مساعد مركز سرعة إنجاز الذكي الشامل (Speed Enjaz AI Live)
 // ============================================================
 var _aiMessages = [];
 var _aiPanelOpen = false;
 var _aiTyping = false;
+var _aiSelectedFile = null;
+var _aiRequestedFileType = null;
 
 function toggleAiPanel() {
     _aiPanelOpen = !_aiPanelOpen;
@@ -7829,20 +8077,130 @@ function toggleAiPanel() {
         if (badge) badge.style.display = 'none';
         var inp = document.getElementById('aiInput');
         if (inp) inp.focus();
+        fetchAssistantStatus();
     } else {
         if (panel) panel.classList.remove('ai-open');
     }
 }
 
-function appendAiMessage(role, text, isHtml) {
+function triggerAiAttachClick() {
+    var fileInp = document.getElementById('aiFileInput');
+    if (fileInp) fileInp.click();
+}
+
+function handleAiFileSelect(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    _aiSelectedFile = file;
+
+    var banner = document.getElementById('aiFilePreviewBanner');
+    var fnameEl = document.getElementById('aiPreviewFilename');
+    var fsizeEl = document.getElementById('aiPreviewFilesize');
+
+    if (banner) banner.style.display = 'flex';
+    if (fnameEl) fnameEl.textContent = file.name;
+    if (fsizeEl) fsizeEl.textContent = '(' + (file.size / 1024).toFixed(1) + ' KB)';
+}
+
+function clearAiAttachedFile() {
+    _aiSelectedFile = null;
+    var fileInp = document.getElementById('aiFileInput');
+    if (fileInp) fileInp.value = '';
+    var banner = document.getElementById('aiFilePreviewBanner');
+    if (banner) banner.style.display = 'none';
+}
+
+function triggerAiFileType(type) {
+    _aiRequestedFileType = type;
+    var inp = document.getElementById('aiInput');
+    var hints = {
+        'docx': 'أنشئ لي مستند Word منسق عن: ',
+        'xlsx': 'أنشئ لي جدول بيانات Excel عن: ',
+        'pptx': 'أنشئ لي عرض شرائح PowerPoint احترافي عن: ',
+        'pdf': 'أنشئ لي تقرير PDF متكامل عن: '
+    };
+    if (inp) {
+        inp.value = hints[type] || '';
+        inp.focus();
+    }
+}
+
+// تحديث شريط الاستخدام اليومي كل 24 ساعة
+async function fetchAssistantStatus() {
+    try {
+        var res = await fetch('/api/speed_assistant/status');
+        if (!res.ok) return;
+        var data = await res.json();
+        if (data && data.success) {
+            updateUsageUI(data);
+        }
+    } catch (e) {
+        console.warn('Status fetch error:', e);
+    }
+}
+
+function updateUsageUI(data) {
+    var txtEl = document.getElementById('aiUsageText');
+    var barEl = document.getElementById('aiProgressBar');
+    var pctEl = document.getElementById('aiUsagePercentLabel');
+    var badgeEl = document.getElementById('aiActiveKeyBadge');
+
+    var reqs = data.daily_requests || 0;
+    var limit = data.daily_limit_est || 2000;
+    var pct = Math.min(100, Math.round((reqs / limit) * 100));
+
+    if (txtEl) txtEl.textContent = '📊 الاستخدام اليومي: ' + reqs + ' / ' + limit + ' طلب';
+    if (barEl) barEl.style.width = Math.max(3, pct) + '%';
+    if (pctEl) pctEl.textContent = pct + '% مستخدم اليوم';
+    if (badgeEl) badgeEl.textContent = '🔑 المفتاح ' + (data.active_key_index || 1) + '/' + (data.total_keys || 8);
+}
+
+function appendAiMessage(role, text, isHtml, generatedFile) {
     var msgs = document.getElementById('aiMessages');
     var div = document.createElement('div');
     div.className = 'ai-msg ai-msg-' + (role === 'user' ? 'user' : 'bot');
+
     if (isHtml) {
         div.innerHTML = text;
     } else {
-        div.textContent = text;
+        // تنسيق بسيط للماركداون
+        var formatted = (text || '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/^#+\s*(.*$)/gm, '<strong style="color:#38bdf8;font-size:1.1em;display:block;margin:6px 0 2px;">$1</strong>')
+            .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>');
+        div.innerHTML = formatted;
     }
+
+    // إذا كان هناك ملف تم توليده حقيقياً للجوال
+    if (generatedFile) {
+        var card = document.createElement('div');
+        card.className = 'ai-download-card';
+
+        var iconMap = {
+            'docx': '<i class="fas fa-file-word" style="color:#38bdf8;"></i>',
+            'xlsx': '<i class="fas fa-file-excel" style="color:#4ade80;"></i>',
+            'pptx': '<i class="fas fa-file-powerpoint" style="color:#fb923c;"></i>',
+            'pdf': '<i class="fas fa-file-pdf" style="color:#f87171;"></i>'
+        };
+        var fIcon = iconMap[generatedFile.type] || '<i class="fas fa-file-download" style="color:#38bdf8;"></i>';
+        var fSizeKb = (generatedFile.size_bytes / 1024).toFixed(1);
+
+        card.innerHTML = 
+            '<div class="ai-file-icon-box">' + fIcon + '</div>' +
+            '<div class="ai-file-info">' +
+                '<div class="ai-file-title">' + (generatedFile.name_display || generatedFile.filename) + '</div>' +
+                '<div class="ai-file-subtext">ملف جاهز ومطابق للهاتف • ' + fSizeKb + ' KB</div>' +
+            '</div>' +
+            '<a href="' + generatedFile.download_url + '" class="ai-download-action-btn" download>' +
+                '<i class="fas fa-download"></i> تحميل للجوال' +
+            '</a>';
+        div.appendChild(card);
+    }
+
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
     return div;
@@ -7863,105 +8221,73 @@ function removeAiTyping() {
     if (el) el.remove();
 }
 
-// ===== قائمة الوظائف الكاملة =====
-var _systemFunctions = [
-    { keys: ['مراقبة','كلمات','تنبيه','رسائل واردة'],
-      text: 'مراقبة المحادثات الفورية: تراقب كل الرسائل الواردة في جميع المحادثات وتنبّهك عند ظهور كلمات مفتاحية محددة.' },
-    { keys: ['إرسال ذكي','حظر','salam','مجموعات محمية','إرسال'],
-      text: 'الإرسال الذكي إلى المجموعات: يرسل رسائلك مع تجنب الحظر، خاصة في المجموعات المحمية، باستخدام وضع Salam الذكي.' },
-    { keys: ['ردود','تلقائية','auto-reply','رد تلقائي'],
-      text: 'الردود التلقائية: يرد تلقائياً على الرسائل بناءً على كلمات مفتاحية محددة.' },
-    { keys: ['انضمام','auto-join','join','مجموعة'],
-      text: 'الانضمام التلقائي المتقدم: ينضم إلى مجموعات تيليجرام تلقائياً من روابط أو أسماء تم استخراجها.' },
-    { keys: ['روابط','link finder','محادثاتي','استخراج روابط'],
-      text: 'البحث عن الروابط في محادثاتي: يبحث في جميع محادثاتك عن روابط تيليجرام ويصنفها حسب الفئة والدولة.' },
-    { keys: ['بحث عام','global search','قنوات','بوتات'],
-      text: 'البحث العام في تيليجرام: يبحث في خوادم تيليجرام عن مجموعات وقنوات وبوتات.' },
-    { keys: ['متسلسل','rotating','دوري','تناوب'],
-      text: 'الإرسال المتسلسل: يرسل مجموعة من الرسائل بشكل دوري إلى مجموعات محددة.' },
-    { keys: ['رسائلي','دفعات','سجل مرسل'],
-      text: 'إدارة الدفعات المرسلة (رسائلي): يحتفظ بسجل للدفعات المرسلة ويتيح تعديل أو حذف كل رسائل الدفعة دفعة واحدة.' },
-    { keys: ['تحليل','أكاديمي','pdf','docx','إحصاء'],
-      text: 'تحليل الملفات الأكاديمية: يستخرج النصوص والجداول والصور من ملفات PDF و DOCX ويحللها إحصائياً.' },
-    { keys: ['html','word','excel','تحويل'],
-      text: 'تحويل HTML إلى Word / Excel: يحول كود HTML إلى مستندات مع الحفاظ على التنسيقات.' },
-    { keys: ['عروض','powerpoint','pptx','باوربوينت'],
-      text: 'إنشاء عروض PowerPoint الذكية: ينشئ عروضاً تقديمية احترافية من نصوص أو HTML مع رسوم بيانية وجداول.' },
-    { keys: ['بطاقات','شحن','فوتشر','اشتراك','voucher'],
-      text: 'نظام بطاقات الشحن: يوفر نظام اشتراك عبر أكواد (فوتشر) تتيح الوصول إلى المنصة لفترات محددة.' },
-    { keys: ['إشعارات','push','web push','صوتية','نطق'],
-      text: 'الإشعارات الفورية (Web Push + Speech): يرسل إشعارات للمتصفح مع خيار النطق الصوتي.' },
-    { keys: ['استمرارية','تلقائياً','auto-resume','إعادة تشغيل'],
-      text: 'استمرارية المهام تلقائياً: يستأنف النظام تلقائياً جميع المهام الدائمة بعد إعادة التشغيل.' }
-];
-
-function _findFunctionExplanation(query) {
-    var q = query.toLowerCase();
-    var best = null, bestScore = 0;
-    for (var i = 0; i < _systemFunctions.length; i++) {
-        var fn = _systemFunctions[i];
-        var score = 0;
-        for (var j = 0; j < fn.keys.length; j++) {
-            if (q.includes(fn.keys[j].toLowerCase())) score += 2;
-        }
-        if (score > bestScore) { bestScore = score; best = fn; }
-    }
-    return (best && bestScore > 0) ? best.text : null;
-}
-
 async function sendAiMessage() {
     if (_aiTyping) return;
     var input = document.getElementById('aiInput');
     var text = (input.value || '').trim();
-    if (!text) return;
+
+    if (!text && !_aiSelectedFile) return;
+
+    var userDisplayMsg = text;
+    if (_aiSelectedFile) {
+        userDisplayMsg = (text ? text + '\n' : '') + '📎 [مرفق: ' + _aiSelectedFile.name + ']';
+    }
 
     input.value = '';
     input.style.height = 'auto';
-    appendAiMessage('user', text);
-    _aiMessages.push({ role: 'user', content: text });
+    appendAiMessage('user', userDisplayMsg);
+    _aiMessages.push({ role: 'user', content: text || 'تحليل الملف المرفق' });
 
     _aiTyping = true;
-    document.getElementById('aiSendBtn').disabled = true;
+    var sendBtn = document.getElementById('aiSendBtn');
+    if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    }
     showAiTyping();
 
-    await new Promise(function(r){ setTimeout(r, 600 + Math.random() * 400); });
-
-    var query = text.toLowerCase();
-    var programmingKeywords = ['كود','برمجة','أكواد','برمجي','algorithm','code','script',
-                               'وظيفة برمجية','آلية برمجية','كيف يعمل الكود'];
-    var isProgramming = programmingKeywords.some(function(kw){ return query.includes(kw); });
-
-    var reply = '';
-    var isHtml = false;
-
-    if (isProgramming) {
-        reply = '⛔ أنا هنا لشرح كيفية استخدام الوظائف، وليس لتقديم حلول برمجية أو أكواد.\nإذا كنت بحاجة إلى مساعدة تقنية أو برمجية، يرجى التواصل مع المطور مباشرة:'
-              + '<div class="contact-text">'
-              + '<a href="https://wa.me/+966510349663" target="_blank" class="whatsapp-btn-inline">📱 تواصل مع المطور</a>'
-              + '<span style="display:block;font-size:12px;color:#8b949e;margin-top:4px;">+966510349663</span>'
-              + '</div>';
-        isHtml = true;
-    } else {
-        var explanation = _findFunctionExplanation(text);
-        if (explanation) {
-            reply = '📌 ' + explanation + '\n\nهل تريد معرفة تفاصيل أكثر عن هذه الوظيفة؟';
-        } else {
-            reply = '🔍 لم أجد وظيفة تطابق سؤالك بالضبط. يمكنك سؤالي عن:\n\n'
-                  + '• مراقبة المحادثات\n• الإرسال الذكي\n• الردود التلقائية\n'
-                  + '• الانضمام التلقائي\n• البحث عن الروابط\n• البحث العام\n'
-                  + '• الإرسال المتسلسل\n• رسائلي\n• التحليل الأكاديمي\n'
-                  + '• تحويل HTML إلى Word/Excel\n• إنشاء عروض PowerPoint\n'
-                  + '• بطاقات الشحن\n• الإشعارات الفورية\n• استمرارية المهام';
-        }
+    var formData = new FormData();
+    formData.append('prompt', text);
+    formData.append('history', JSON.stringify(_aiMessages.slice(-6)));
+    if (_aiRequestedFileType) {
+        formData.append('file_type', _aiRequestedFileType);
+        _aiRequestedFileType = null;
+    }
+    if (_aiSelectedFile) {
+        formData.append('file', _aiSelectedFile);
+        clearAiAttachedFile();
     }
 
-    removeAiTyping();
-    appendAiMessage('bot', reply, isHtml);
-    _aiMessages.push({ role: 'assistant', content: reply });
+    try {
+        var response = await fetch('/api/speed_assistant/chat', {
+            method: 'POST',
+            body: formData
+        });
 
-    _aiTyping = false;
-    document.getElementById('aiSendBtn').disabled = false;
-    document.getElementById('aiInput').focus();
+        var result = await response.json();
+        removeAiTyping();
+
+        if (result && result.success) {
+            appendAiMessage('bot', result.reply, false, result.generated_file);
+            _aiMessages.push({ role: 'assistant', content: result.reply });
+            updateUsageUI(result);
+        } else {
+            var errMsg = (result && result.error) ? result.error : 'عذراً، حدث خطأ في الاتصال بالذكاء الاصطناعي.';
+            appendAiMessage('bot', '⚠️ ' + errMsg, false);
+        }
+    } catch (err) {
+        removeAiTyping();
+        console.error('Chat error:', err);
+        appendAiMessage('bot', '⚠️ تعذر الاتصال بالخادم، يرجى المحاولة مرة أخرى.', false);
+    } finally {
+        _aiTyping = false;
+        if (sendBtn) {
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = '➤';
+        }
+        var inp = document.getElementById('aiInput');
+        if (inp) inp.focus();
+    }
 }
 
 // إظهار بادج الإشعار عند فتح الصفحة لأول مرة
@@ -7970,7 +8296,7 @@ setTimeout(function() {
         var badge = document.getElementById('aiUnreadBadge');
         if (badge) badge.style.display = 'flex';
     }
-}, 3000);
+}, 2500);
 </script>
 
 <!-- ══ نافذة تثبيت iOS ══ -->

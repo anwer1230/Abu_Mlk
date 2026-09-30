@@ -62,3 +62,4 @@ sessions/
 build/
 *.keystore
 *.keystore.base64
+static/generated_files/*

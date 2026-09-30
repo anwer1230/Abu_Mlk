@@ -18936,6 +18936,14 @@ try:
 except Exception as _e_ai_doc:
     logger.error(f"❌ خطأ في تسجيل مسارات المحلل الذكي للمستندات: {_e_ai_doc}")
 
+# ── تسجيل مسارات مساعد مركز سرعة إنجاز الذكي الشامل (Speed Enjaz Assistant) ──
+try:
+    from speed_enjaz_assistant import speed_assistant_bp
+    app.register_blueprint(speed_assistant_bp)
+    logger.info("✅ تم تسجيل مسارات مساعد مركز سرعة إنجاز الذكي الشامل (Speed Enjaz Assistant) بنجاح")
+except Exception as _e_speed:
+    logger.error(f"❌ خطأ في تسجيل مسارات مساعد سرعة إنجاز: {_e_speed}")
+
 if __name__ == '__main__':
     env_port = os.environ.get("PORT")
     if env_port and env_port != "8080":
