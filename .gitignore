@@ -47,11 +47,17 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Python & logs
 __pycache__/
 *.pyc
+*.log
 telegram_monitoring.log
+bun.lock
+package-lock.json
+sessions/
 *.session
 *.session-journal
-sessions/
-
-
+.gradle/
+build/
+*.keystore

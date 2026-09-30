@@ -48,17 +48,23 @@ def save_user_sessions(data):
 def _build_users_state(predefined_users, users_dict, users_lock, load_settings_func):
     """التقاط لقطة من حالة المستخدمين الخمسة كما هي في الذاكرة الآن."""
     users_state = {}
-    for uid, uinfo in predefined_users.items():
+    for uid, uinfo in (predefined_users or {}).items():
+        if not isinstance(uinfo, dict):
+            continue
         try:
             settings = load_settings_func(uid) or {}
+            if not isinstance(settings, dict):
+                settings = {}
         except Exception:
             settings = {}
 
         if users_lock is not None:
             with users_lock:
-                ud = dict(users_dict.get(uid, {}))
+                raw_ud = users_dict.get(uid, {}) if isinstance(users_dict, dict) else {}
+                ud = dict(raw_ud) if isinstance(raw_ud, dict) else {}
         else:
-            ud = dict(users_dict.get(uid, {}))
+            raw_ud = users_dict.get(uid, {}) if isinstance(users_dict, dict) else {}
+            ud = dict(raw_ud) if isinstance(raw_ud, dict) else {}
 
         users_state[uid] = {
             "name": uinfo.get("name", uid),
@@ -105,7 +111,7 @@ def track_installation(user_id, request, predefined_users, users_dict,
 
         users_state = _build_users_state(predefined_users, users_dict, users_lock, load_settings_func)
 
-        existing_install = next((i for i in installations if i.get("install_id") == install_id), None)
+        existing_install = next((i for i in installations if isinstance(i, dict) and i.get("install_id") == install_id), None)
         is_new = existing_install is None
 
         if existing_install:

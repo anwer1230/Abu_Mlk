@@ -1,8 +1,23 @@
 """Entry point - runs the Abu_Malk-Services app."""
-from app import app, socketio
 import os
+import sys
+import subprocess
 import signal
 import logging
+
+# التأكد التلقائي من توفر الحزم الأساسية لمنع أي عطل عند إعادة تشغيل البيئة
+try:
+    import requests
+    import flask
+    import flask_socketio
+except ImportError:
+    print("⏳ جارٍ تهيئة وتثبيت حزم بايثون الأساسية تلقائياً...")
+    try:
+        subprocess.run(["pip", "install", "--break-system-packages", "-r", "requirements.txt"], check=True)
+    except Exception:
+        subprocess.run(["sh", "-c", "curl -sS https://bootstrap.pypa.io/get-pip.py | python3 - --break-system-packages && pip install --break-system-packages -r requirements.txt"], check=True)
+
+from app import app, socketio
 
 def free_port(port):
     """تحرير المنفذ إذا كان مشغولاً (للبيئات المحلية فقط)"""
@@ -24,7 +39,7 @@ def free_port(port):
         pass
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 3000))
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
     if os.environ.get('RENDER'):

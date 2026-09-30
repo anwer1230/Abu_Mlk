@@ -4,11 +4,15 @@ services:
     env: python
     region: frankfurt
     plan: free
-    buildCommand: pip install -r requirements.txt
+    branch: replit-project-import
+    autoDeploy: true
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: python main.py
     envVars:
       - key: RENDER
         value: "true"
+      - key: PYTHON_VERSION
+        value: "3.11.9"
       - key: SESSION_SECRET
         generateValue: true
       - key: GROQ_API_KEY
@@ -16,8 +20,10 @@ services:
       - key: GITHUB_TOKEN
         sync: false
       - key: GITHUB_REPO
-        sync: false
+        value: "anwer1230/Anwer_Telegram-"
       - key: GITHUB_BRANCH
-        value: main
+        value: replit-project-import
+      - key: RENDER_DEPLOY_HOOK
+        value: "https://api.render.com/deploy/srv-daps4mm7bikc738kaflg?key=BSGAfvSu9d4"
       - key: PORT
         value: "10000"

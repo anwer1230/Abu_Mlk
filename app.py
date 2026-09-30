@@ -119,14 +119,28 @@ import db as _app_db
 from install_tracker import track_installation, register_admin_routes
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from telethon import TelegramClient, events, functions, types
-from telethon.errors import SessionPasswordNeededError, PhoneCodeExpiredError, PhoneCodeInvalidError, PasswordHashInvalidError, FloodWaitError, UserAlreadyParticipantError, InviteHashExpiredError, InviteHashInvalidError
-from telethon.sessions import StringSession
-import socket
-from ai_group_analyzer import (
-    extract_last_50_messages,
-    analyze_group_with_ai,
-    send_ai_group_report_to_saved
+from telethon.tl.functions.channels import JoinChannelRequest
+from telethon.tl.functions.messages import ImportChatInviteRequest
+from telethon.tl.types import ChannelParticipantLeft, ChannelParticipantBanned
+from telethon.errors import (
+    SessionPasswordNeededError, PhoneCodeExpiredError, PhoneCodeInvalidError,
+    PasswordHashInvalidError, FloodWaitError, UserAlreadyParticipantError,
+    InviteHashExpiredError, InviteHashInvalidError, InviteRequestSentError,
+    ChannelPrivateError, UsernameInvalidError, UsernameNotOccupiedError,
+    ChannelsTooMuchError
 )
+from telethon.sessions import StringSession
+from rate_limiter import join_limiter
+import socket
+
+# قاموس لتتبع أحداث الإلغاء الفوري لدفعات الإرسال للمستخدمين
+BATCH_CANCEL_EVENTS = {}
+
+try:
+    from link_radar import radar_manager
+except Exception as _e_radar:
+    radar_manager = None
+    logger.error(f"Error importing link_radar: {_e_radar}")
 
 # ══════════════════════════════════════════════════════════
 #  استيراد نظام المصادقة المستقل — auth.py
@@ -378,7 +392,109 @@ def _get_user_logs(user_id: str, level_filter=None) -> list:
 
 # إنشاء التطبيق
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", os.urandom(24))
+
+class SafeRequest(app.request_class):
+    @property
+    def cookies(self):
+        try:
+            return super().cookies
+        except Exception:
+            return {}
+
+app.request_class = SafeRequest
+
+from flask.sessions import SecureCookieSessionInterface
+class SafeSessionInterface(SecureCookieSessionInterface):
+    def open_session(self, app, request):
+        try:
+            return super().open_session(app, request)
+        except Exception:
+            return self.session_class()
+
+app.session_interface = SafeSessionInterface()
+app.secret_key = os.environ.get("SESSION_SECRET", "abu_malk_stable_secret_session_key_2026")
+app.config['MAX_CONTENT_LENGTH'] = 150 * 1024 * 1024  # حد أقصى 150 ميغابايت للرفع فائق السرعة للملفات الكبيرة
+app.config.update(
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=False,
+    SESSION_COOKIE_HTTPONLY=False,
+    PERMANENT_SESSION_LIFETIME=timedelta(days=30),
+)
+
+def resolve_request_user_id(data=None):
+    """استرجاع معرف المستخدم بدقة ومرونة لمنع أخطاء 'الجلسة غير صالحة' تماماً"""
+    # 1. من جسم الطلب
+    if data and isinstance(data, dict):
+        uid = data.get('user_id')
+        if uid and uid in PREDEFINED_USERS:
+            session['user_id'] = uid
+            return uid
+    if request and hasattr(request, 'is_json') and request.is_json:
+        try:
+            req_data = request.get_json(silent=True) or {}
+            uid = req_data.get('user_id')
+            if uid and uid in PREDEFINED_USERS:
+                session['user_id'] = uid
+                return uid
+        except Exception:
+            pass
+
+    # 2. من Headers
+    if request:
+        header_uid = request.headers.get('X-User-Id')
+        if header_uid and header_uid in PREDEFINED_USERS:
+            session['user_id'] = header_uid
+            return header_uid
+
+        # 3. من Query params
+        arg_uid = request.args.get('user_id')
+        if arg_uid and arg_uid in PREDEFINED_USERS:
+            session['user_id'] = arg_uid
+            return arg_uid
+
+    # 4. من الجلسة الحالية
+    sess_uid = session.get('user_id')
+    if sess_uid and sess_uid in PREDEFINED_USERS:
+        return sess_uid
+
+    # 5. من Cookie مخصص
+    if request:
+        cookie_uid = request.cookies.get('app_user_id')
+        if cookie_uid and cookie_uid in PREDEFINED_USERS:
+            session['user_id'] = cookie_uid
+            return cookie_uid
+
+    # 6. هل هناك حساب ينتظر كود أو كلمة مرور حالياً في telegram_manager؟
+    try:
+        if 'telegram_manager' in globals() and hasattr(telegram_manager, 'login_managers'):
+            for waiting_uid, lm in telegram_manager.login_managers.items():
+                if getattr(lm, 'awaiting_code', False) or getattr(lm, 'awaiting_password', False):
+                    session['user_id'] = waiting_uid
+                    return waiting_uid
+    except Exception:
+        pass
+
+    # 7. افتراضي
+    default_uid = "user_1" if "user_1" in PREDEFINED_USERS else (next(iter(PREDEFINED_USERS.keys())) if PREDEFINED_USERS else "user_1")
+    session['user_id'] = default_uid
+    return default_uid
+
+@app.before_request
+def ensure_session_user():
+    # ضمان وجود user_id دائماً في الجلسة لكل طلب دون أي انقطاع
+    if 'user_id' not in session or session['user_id'] not in PREDEFINED_USERS:
+        session['user_id'] = resolve_request_user_id()
+        session.permanent = True
+
+@app.after_request
+def set_user_cookie(response):
+    try:
+        uid = session.get('user_id')
+        if uid:
+            response.set_cookie('app_user_id', uid, max_age=30*86400, path='/', samesite='Lax')
+    except Exception:
+        pass
+    return response
 
 # إعداد SocketIO — threading mode لتجنب تعارض asyncio/gevent
 socketio = SocketIO(
@@ -653,40 +769,62 @@ def get_user_session_dir(user_id):
         os.makedirs(user_dir)
     return user_dir
 
-# نظام إدارة الحسابات الديناميكي وحفظها
-ACCOUNTS_CONFIG_FILE = os.path.join("data", "accounts.json")
-
-def load_accounts_config():
-    if os.path.exists(ACCOUNTS_CONFIG_FILE):
-        try:
-            with open(ACCOUNTS_CONFIG_FILE, "r", encoding="utf-8") as f:
-                d = json.load(f)
-                if isinstance(d, dict) and d:
-                    return d
-        except Exception as e:
-            logger.error(f"Error loading {ACCOUNTS_CONFIG_FILE}: {e}")
-    # الحساب الأساسي الافتراضي
-    return {
-        "user_1": {
-            "id": "user_1",
-            "name": "الحساب الأول",
-            "icon": "fas fa-user",
-            "color": "#0088cc"
-        }
+# نظام الحسابات (يبدأ بحساب واحد فقط، ويتم إضافة حسابات جديدة عند الطلب مثل تيليجرام الرسمي)
+PREDEFINED_USERS = {
+    "user_1": {
+        "id": "user_1",
+        "name": "حساب 1",
+        "icon": "fas fa-user",
+        "color": "#0088cc"
     }
+}
 
-def save_accounts_config(accounts):
+def _get_custom_accounts_file():
+    return os.path.join(DATA_DIR, 'accounts.json')
+
+def _load_custom_accounts():
     try:
-        os.makedirs(os.path.dirname(ACCOUNTS_CONFIG_FILE), exist_ok=True)
-        with open(ACCOUNTS_CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(accounts, f, ensure_ascii=False, indent=2)
+        fpath = _get_custom_accounts_file()
+        if os.path.exists(fpath):
+            with open(fpath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, dict) and data:
+                    PREDEFINED_USERS.clear()
+                    for uid, udata in data.items():
+                        if isinstance(udata, dict) and ('id' in udata or 'name' in udata):
+                            PREDEFINED_USERS[uid] = udata
+        if not PREDEFINED_USERS:
+            PREDEFINED_USERS["user_1"] = {
+                "id": "user_1",
+                "name": "حساب 1",
+                "icon": "fas fa-user",
+                "color": "#0088cc"
+            }
+            _save_custom_accounts()
     except Exception as e:
-        logger.error(f"Error saving {ACCOUNTS_CONFIG_FILE}: {e}")
+        logger.error(f"Error loading custom accounts: {e}")
 
-PREDEFINED_USERS = load_accounts_config()
-save_accounts_config(PREDEFINED_USERS)
+def _save_custom_accounts():
+    try:
+        fpath = _get_custom_accounts_file()
+        os.makedirs(os.path.dirname(fpath), exist_ok=True)
+        with open(fpath, 'w', encoding='utf-8') as f:
+            json.dump(PREDEFINED_USERS, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Error saving custom accounts: {e}")
+
+_load_custom_accounts()
 
 # معالجات الأخطاء الشاملة
+@app.errorhandler(400)
+def bad_request_error(error):
+    logger.warning(f"Bad request handled: {str(error)}")
+    if request.path.startswith('/api/') or request.is_json:
+        return jsonify({"error": "Bad request"}), 400
+    resp = redirect("/")
+    resp.set_cookie('session', '', expires=0)
+    return resp
+
 @app.errorhandler(404)
 def not_found_error(error):
     try:
@@ -699,9 +837,31 @@ def not_found_error(error):
 def internal_error(error):
     logger.error(f"Internal server error: {str(error)}")
     try:
+        user_id = 'user_1'
+        try:
+            if 'session' in globals() and session:
+                user_id = session.get('user_id', 'user_1')
+        except Exception:
+            pass
+        current_user = PREDEFINED_USERS.get(user_id, PREDEFINED_USERS.get('user_1', {'id': 'user_1', 'name': 'المستخدم الأول'}))
+        users_info = {
+            uid: {
+                "logged_in": False,
+                "account_name": udata.get("name", uid) if isinstance(udata, dict) else str(uid),
+                "account_username": "",
+                "account_phone": "",
+                "account_avatar": None
+            }
+            for uid, udata in PREDEFINED_USERS.items()
+            if isinstance(udata, dict)
+        }
         return render_template('index.html', 
                               settings={}, 
                               connection_status='disconnected',
+                              current_user=current_user,
+                              predefined_users=PREDEFINED_USERS,
+                              users_account_info=users_info,
+                              admin_ui_visible=False,
                               app_title="مركز سرعة انجاز 📚 للخدمات الطلابية والأكاديمية"), 500
     except Exception as e:
         logger.error(f"Error in 500 handler: {str(e)}")
@@ -709,11 +869,43 @@ def internal_error(error):
 
 @app.errorhandler(Exception)
 def handle_exception(e):
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        if e.code == 400 and not request.path.startswith('/api/'):
+            resp = redirect("/")
+            resp.set_cookie('session', '', expires=0)
+            return resp
+        if request.path.startswith('/api/') or request.is_json:
+            return jsonify({"error": e.description}), e.code
+        return e
+
     logger.error(f"Unhandled exception: {str(e)}")
     try:
+        user_id = 'user_1'
+        try:
+            if 'session' in globals() and session:
+                user_id = session.get('user_id', 'user_1')
+        except Exception:
+            pass
+        current_user = PREDEFINED_USERS.get(user_id, PREDEFINED_USERS.get('user_1', {'id': 'user_1', 'name': 'المستخدم الأول'}))
+        users_info = {
+            uid: {
+                "logged_in": False,
+                "account_name": udata.get("name", uid) if isinstance(udata, dict) else str(uid),
+                "account_username": "",
+                "account_phone": "",
+                "account_avatar": None
+            }
+            for uid, udata in PREDEFINED_USERS.items()
+            if isinstance(udata, dict)
+        }
         return render_template('index.html', 
                               settings={}, 
                               connection_status='disconnected',
+                              current_user=current_user,
+                              predefined_users=PREDEFINED_USERS,
+                              users_account_info=users_info,
+                              admin_ui_visible=False,
                               app_title="مركز سرعة انجاز 📚 للخدمات الطلابية والأكاديمية"), 500
     except Exception as template_error:
         logger.error(f"Error in exception handler: {str(template_error)}")
@@ -837,6 +1029,49 @@ TELEGRAM_API_HASH = '56f64582b363d367280db96586b97801'
 API_ID       = int(os.environ.get('TELEGRAM_API_ID', TELEGRAM_API_ID) or TELEGRAM_API_ID)
 API_HASH     = os.environ.get('TELEGRAM_API_HASH', TELEGRAM_API_HASH) or TELEGRAM_API_HASH
 
+# ── دوال التطبيع العربي الدقيق لمطابقة كلمات المراقبة (بدون حساسية للهمزات والتشكيل والنقاط) ──
+def normalize_arabic_text(text: str) -> str:
+    """
+    تطبيع النصوص العربية بشكل كامل لمطابقة الكلمات والعبارات المراقبة:
+    - إزالة التشكيل والحركات (فتحة، ضمة، كسرة، سكون، تنوين، شدة)
+    - إزالة التطويل (الكشيدة ـ)
+    - توحيد الألف بكافة أشكالها (أ، إ، آ، ٱ، ا -> ا)
+    - توحيد الياء والألف المقصورة (ى، ي -> ي)
+    - توحيد التاء المربوطة والهاء (ة، ه -> ه)
+    - توحيد الهمزات (ؤ -> و، ئ -> ي، ء -> إزالة)
+    - استبدال علامات الترقيم والرموز بمسافات لضمان عدم التصاق الكلمات
+    - توحيد المسافات المتعددة وتقليصها
+    """
+    if not text:
+        return ""
+    import unicodedata, re
+    text = unicodedata.normalize('NFKD', str(text))
+    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+    text = re.sub(r'[\u0640]', '', text)
+    text = re.sub(r'[أإآٱ]', 'ا', text)
+    text = re.sub(r'[ىي]', 'ي', text)
+    text = re.sub(r'[ةه]', 'ه', text)
+    text = re.sub(r'ؤ', 'و', text)
+    text = re.sub(r'ئ', 'ي', text)
+    text = re.sub(r'ء', '', text)
+    text = re.sub(r'[^\w\s\u0621-\u064A]', ' ', text)
+    text = text.lower()
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+def is_arabic_keyword_in_text(keyword: str, text: str) -> bool:
+    """
+    فحص تطابق كلمة أو عبارة مراقبة كاملة كسطر كامل في الرسالة:
+    مطابقة الكلمة أو العبارة كاملة دون حساسية للهمزات أو النقاط أو الحركات.
+    """
+    norm_kw = normalize_arabic_text(keyword)
+    norm_text = normalize_arabic_text(text)
+    if not norm_kw or not norm_text:
+        return False
+    padded_kw = f" {norm_kw} "
+    padded_text = f" {norm_text} "
+    return padded_kw in padded_text
+
 # ── الكلمات المراقبة الافتراضية والدائمة (المستخرجة نصاً من الصور) ──────
 DEFAULT_MONITORING_KEYWORDS_TEXT = """اريد مساعدة
 ابي مساعدة
@@ -895,8 +1130,24 @@ GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 os.environ.setdefault('GROQ_API_KEY', GROQ_API_KEY)
 
 GITHUB_TOKEN  = os.environ.get('GITHUB_TOKEN', '')
-GITHUB_REPO   = os.environ.get('GITHUB_REPO',   'anwer1230/-Anwer_program')
+GITHUB_REPO   = os.environ.get('GITHUB_REPO',   'anwer1230/Anwer_Telegram-')
 GITHUB_BRANCH = os.environ.get('GITHUB_BRANCH', 'main')
+
+# ── رابط النشر التلقائي الثابت Render Deploy Hook ─────────────────────
+RENDER_DEPLOY_HOOK_URL = "https://api.render.com/deploy/srv-daps4mm7bikc738kaflg?key=BSGAfvSu9d4"
+RENDER_DEPLOY_HOOK = os.environ.get('RENDER_DEPLOY_HOOK', RENDER_DEPLOY_HOOK_URL)
+
+def trigger_render_deploy(hook_url=None):
+    """إرسال طلب إلى Render Deploy Hook لإعادة بناء ونشر التطبيق فورياً على منصة Render"""
+    target = hook_url or RENDER_DEPLOY_HOOK or RENDER_DEPLOY_HOOK_URL
+    try:
+        import requests as _requests
+        resp = _requests.post(target, timeout=15)
+        logger.info(f"🚀 Render Deploy Hook triggered: status={resp.status_code}")
+        return True, resp.status_code
+    except Exception as e:
+        logger.error(f"❌ فشل إطلاق Render Deploy Hook: {e}")
+        return False, str(e)
 
 # ─── ملف إعدادات التحديث ──────────────────────────────────────────────
 UPDATE_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), 'data', 'update_settings.json')
@@ -983,6 +1234,13 @@ def perform_update():
         settings['last_update'] = datetime.now().isoformat()
         save_update_settings(settings)
         logs.append(f"✅ تم التحديث إلى الإصدار: {new_commit[:7] if new_commit else 'غير معروف'}")
+        # إطلاق الـ Deploy Hook لإعادة البناء في Render تلقائياً
+        try:
+            dep_ok, dep_stat = trigger_render_deploy()
+            if dep_ok:
+                logs.append(f"🚀 تم إطلاق Render Deploy Hook تلقائياً بنجاح (كود {dep_stat})")
+        except Exception as _dep_e:
+            logs.append(f"⚠️ تعذر إطلاق Render Hook: {_dep_e}")
         return True, logs
     except Exception as e:
         logs.append(f"❌ خطأ في التحديث: {str(e)}")
@@ -1093,7 +1351,7 @@ class AlertQueue:
         try:
             socketio.emit('new_alert', alert_data, to=user_id)
             socketio.emit('log_update', {
-                "message": f"🚨 تنبيه فوري: '{alert_data['keyword']}' في {alert_data['group']}"
+                "message": f"🚨 تنبيه فوري: '{alert_data.get('keyword', '')}' في {alert_data.get('group', '')}"
             }, to=user_id)
 
             try:
@@ -1106,7 +1364,24 @@ class AlertQueue:
             except Exception:
                 pass
 
-            self._send_to_saved_messages(user_id, alert_data)
+            # تسجيل التنبيه في سجل المستخدم للحفاظ على سجل التنبيهات
+            try:
+                ud = get_or_create_user(user_id)
+                alerts_list = ud.setdefault('alerts', [])
+                alerts_list.insert(0, alert_data)
+                if len(alerts_list) > 100:
+                    del alerts_list[100:]
+                s = load_settings(user_id)
+                s_alerts = s.setdefault('alerts', [])
+                s_alerts.insert(0, alert_data)
+                if len(s_alerts) > 100:
+                    del s_alerts[100:]
+                save_settings(user_id, s)
+            except Exception as store_err:
+                logger.debug(f"Failed to record alert in history: {store_err}")
+
+            if not alert_data.get('already_sent_tg'):
+                self._send_to_saved_messages(user_id, alert_data)
 
         except Exception as e:
             logger.error(f"Failed to send alert for user {user_id}: {str(e)}")
@@ -1140,17 +1415,28 @@ class AlertQueue:
                 f"... الرسالة:\n{full_text}"
             )
 
+            s = load_settings(user_id) or {}
+            custom_target = (s.get('alert_target_user') or s.get('alert_target') or '').strip()
+            target_list = ['me']
+            if custom_target and custom_target.lower() != 'me' and custom_target not in target_list:
+                target_list.append(custom_target)
+
             loop = getattr(client_manager, 'loop', None)
             if not loop or not loop.is_running():
                 logger.warning(f"⚠️ Event loop not running for user {user_id} — cannot send alert")
                 return
 
             async def _do_send():
-                try:
-                    await client_manager.client.send_message('me', notification_msg, link_preview=False)
-                    logger.info(f"✅ Alert sent to Telegram saved messages for user {user_id}: '{keyword}'")
-                except Exception as e:
-                    logger.error(f"❌ Failed to send Telegram alert for user {user_id}: {e}")
+                for dest in target_list:
+                    dest_ent = dest
+                    if dest != 'me':
+                        dc = dest.lstrip('@')
+                        dest_ent = int(dc) if dc.isdigit() else dest
+                    try:
+                        await client_manager.client.send_message(dest_ent, notification_msg, link_preview=False)
+                        logger.info(f"✅ Alert sent to {dest} for user {user_id}: '{keyword}'")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to send Telegram alert to {dest} for user {user_id}: {e}")
 
             asyncio.run_coroutine_threadsafe(_do_send(), loop)
 
@@ -1290,6 +1576,10 @@ PROTECTION_BOT_SUBSTRINGS = (
 PROTECTED_GROUPS_CACHE = {}
 PROTECTED_GROUPS_LOCK = Lock()
 
+# كاش التحليل الذكي لمحادثات المجموعات وحماية الحساب
+AI_GROUP_SAFETY_CACHE = {}
+AI_GROUP_SAFETY_LOCK = Lock()
+
 # ── نظام التعلم التلقائي للبوتات ────────────────────────────────────────────
 BOTS_DISCOVERED_FILE = os.path.join(DATA_DIR, "discovered_bots.json")
 _BOTS_FILE_LOCK = threading.Lock()
@@ -1356,6 +1646,12 @@ def save_settings(user_id, settings, force=False):
             settings.setdefault('my_alerts_actions', True)
             settings.setdefault('my_alerts_reply_sound_enabled', True)
             settings.setdefault('my_alerts_reply_sound_tone', 'chime')
+            settings.setdefault('keyword_auto_reply_enabled', True)
+            settings.setdefault('keyword_auto_reply_text', 'ابشر')
+            settings.setdefault('keyword_auto_reply_forward', True)
+            settings.setdefault('keyword_auto_reply_in_group', True)
+            settings.setdefault('keyword_auto_reply_in_dm', True)
+            settings.setdefault('alert_target_user', 'me')
             settings.setdefault('user_auto_replies', [])
 
         if not force:
@@ -1390,6 +1686,12 @@ def load_settings(user_id):
                 database_settings.setdefault('my_alerts_actions', True)
                 database_settings.setdefault('my_alerts_reply_sound_enabled', True)
                 database_settings.setdefault('my_alerts_reply_sound_tone', 'chime')
+                database_settings.setdefault('keyword_auto_reply_enabled', True)
+                database_settings.setdefault('keyword_auto_reply_text', 'ابشر')
+                database_settings.setdefault('keyword_auto_reply_forward', True)
+                database_settings.setdefault('keyword_auto_reply_in_group', True)
+                database_settings.setdefault('keyword_auto_reply_in_dm', True)
+                database_settings.setdefault('alert_target_user', 'me')
                 database_settings.setdefault('user_auto_replies', [])
                 return database_settings
         except Exception as _db_load_error:
@@ -1408,6 +1710,12 @@ def load_settings(user_id):
             data.setdefault('my_alerts_actions', True)
             data.setdefault('my_alerts_reply_sound_enabled', True)
             data.setdefault('my_alerts_reply_sound_tone', 'chime')
+            data.setdefault('keyword_auto_reply_enabled', True)
+            data.setdefault('keyword_auto_reply_text', 'ابشر')
+            data.setdefault('keyword_auto_reply_forward', True)
+            data.setdefault('keyword_auto_reply_in_group', True)
+            data.setdefault('keyword_auto_reply_in_dm', True)
+            data.setdefault('alert_target_user', 'me')
             data.setdefault('user_auto_replies', [])
             if _DB_READY:
                 _app_db.save_settings(user_id, data)
@@ -1424,6 +1732,12 @@ def load_settings(user_id):
             data.setdefault('my_alerts_actions', True)
             data.setdefault('my_alerts_reply_sound_enabled', True)
             data.setdefault('my_alerts_reply_sound_tone', 'chime')
+            data.setdefault('keyword_auto_reply_enabled', True)
+            data.setdefault('keyword_auto_reply_text', 'ابشر')
+            data.setdefault('keyword_auto_reply_forward', True)
+            data.setdefault('keyword_auto_reply_in_group', True)
+            data.setdefault('keyword_auto_reply_in_dm', True)
+            data.setdefault('alert_target_user', 'me')
             data.setdefault('user_auto_replies', [])
             # نقل البيانات للمجلد الجديد والقاعدة عند توفرها
             save_settings(user_id, data, force=True)
@@ -1436,6 +1750,12 @@ def load_settings(user_id):
             'my_alerts_actions': True,
             'my_alerts_reply_sound_enabled': True,
             'my_alerts_reply_sound_tone': 'chime',
+            'keyword_auto_reply_enabled': True,
+            'keyword_auto_reply_text': 'ابشر',
+            'keyword_auto_reply_forward': True,
+            'keyword_auto_reply_in_group': True,
+            'keyword_auto_reply_in_dm': True,
+            'alert_target_user': 'me',
             'user_auto_replies': []
         }
     except Exception as e:
@@ -1448,6 +1768,12 @@ def load_settings(user_id):
             'my_alerts_actions': True,
             'my_alerts_reply_sound_enabled': True,
             'my_alerts_reply_sound_tone': 'chime',
+            'keyword_auto_reply_enabled': True,
+            'keyword_auto_reply_text': 'ابشر',
+            'keyword_auto_reply_forward': True,
+            'keyword_auto_reply_in_group': True,
+            'keyword_auto_reply_in_dm': True,
+            'alert_target_user': 'me',
             'user_auto_replies': []
         }
 
@@ -1510,11 +1836,13 @@ def load_string_session(user_id):
 
 def _clean_group_entry(raw: str) -> str:
     import re
-    cleaned = raw.strip()
+    cleaned = str(raw).strip()
     if not cleaned:
         return ''
+    cleaned = cleaned.strip('"\'`()[]{}<>')
     # حماية الروابط والمعرفات الرقمية من التجريد غير المقصود
     if (cleaned.startswith('https://') or cleaned.startswith('http://')
+            or cleaned.startswith('t.me/') or cleaned.startswith('telegram.me/')
             or cleaned.startswith('@') or re.match(r'^-?\d+$', cleaned)):
         return cleaned
     # تجريد البوليتات والأرقام والرموز من بداية السطر فقط
@@ -1525,11 +1853,13 @@ def dedupe_groups(groups):
     seen = set()
     result = []
     if isinstance(groups, str):
-        groups = [g for g in groups.replace('\n', ',').split(',')]
+        import re as _re
+        raw_items = _re.split(r'[\r\n,;\t]+|\s+(?=(?:https?://|t\.me/|telegram\.me/|@|-?\d+))', groups.strip())
+        groups = [g.strip() for g in raw_items if g and g.strip()]
     for g in groups or []:
         if not g:
             continue
-        original = _clean_group_entry(g)
+        original = _clean_group_entry(str(g))
         if not original:
             continue
         norm = original.lower()
@@ -1593,7 +1923,12 @@ class TelegramClientManager:
         self.stop_flag = threading.Event()
         self.is_ready = threading.Event()
         self.event_handlers_registered = False
-        self.monitored_keywords = list(DEFAULT_MONITORING_KEYWORDS)
+        try:
+            _s_init = load_settings(user_id) or {}
+            _w_init = _s_init.get('watch_words', [])
+            self.monitored_keywords = get_effective_watch_words(_w_init) if _w_init else list(DEFAULT_MONITORING_KEYWORDS)
+        except Exception:
+            self.monitored_keywords = list(DEFAULT_MONITORING_KEYWORDS)
         self.monitored_groups = []
         self._processed_msg_ids = set()
         self.my_id = None
@@ -1617,11 +1952,18 @@ class TelegramClientManager:
                 logger.debug(f"Failed to get_me for {self.user_id}: {e}")
         return self.my_id
 
-    async def send_to_saved_messages(self, text):
-        """إرسال إشعار مباشرة إلى الرسائل المحفوظة (Saved Messages)"""
+    async def send_to_saved_messages(self, text, parse_mode=None):
+        """إرسال إشعار مباشرة إلى الرسائل المحفوظة (Saved Messages) مع حماية ضد أخطاء التنسيق"""
         try:
             if self.client and self.client.is_connected():
-                await self.client.send_message('me', text, link_preview=False)
+                try:
+                    await self.client.send_message('me', text, parse_mode=parse_mode, link_preview=False)
+                except Exception as pm_err:
+                    if parse_mode is not None:
+                        logger.warning(f"send_to_saved_messages fallback to plain text: {pm_err}")
+                        await self.client.send_message('me', text, parse_mode=None, link_preview=False)
+                    else:
+                        raise pm_err
                 logger.info(f"✅ Sent alert to saved messages for user {self.user_id}")
                 return True
             else:
@@ -1877,6 +2219,7 @@ class TelegramClientManager:
             async def new_message_handler(event):
                 await self._handle_new_message(event)
                 await self._handle_my_alerts(event)
+                await self._handle_link_radar(event)
                 if not getattr(event.message, 'out', False):
                     # التحقق من private أو group (وليس private فقط)
                     if (learning_manager.is_active(self.user_id, 'private') or
@@ -2048,6 +2391,24 @@ class TelegramClientManager:
 
         except Exception as e:
             logger.error(f"Error in _handle_my_alerts: {e}", exc_info=True)
+
+    async def _handle_link_radar(self, event):
+        """
+        رادار الروابط والإنضمام التلقائي الذكي:
+        مراقبة كامل الحساب ودردشاته افتراضياً لرصد روابط الواتساب والتيليجرام العامة والخاصة
+        """
+        try:
+            if radar_manager and radar_manager.state.get("enabled", True):
+                await radar_manager.handle_new_message_event(
+                    client=self.client,
+                    event=event,
+                    user_id=self.user_id,
+                    send_to_saved_func=self.send_to_saved_messages,
+                    save_to_db_func=add_saved_link,
+                    socketio_emit_func=lambda ev_name, ev_data: socketio.emit(ev_name, ev_data)
+                )
+        except Exception as e:
+            logger.error(f"Error in _handle_link_radar: {e}")
 
     async def _handle_channel_participant_update(self, update):
         """
@@ -2279,49 +2640,63 @@ class TelegramClientManager:
                 self._processed_msg_ids.clear()
             self._processed_msg_ids.add(msg_uid)
 
-            import unicodedata
-            def _normalize(s):
-                return ''.join(c for c in unicodedata.normalize('NFKD', s)
-                               if unicodedata.category(c) != 'Mn')
-
-            text_clean = _normalize(text).lower()
             matched = []
             for keyword in kw_list:
-                kw = keyword.strip()
-                if kw and _normalize(kw).lower() in text_clean:
+                kw = (keyword or '').strip()
+                if kw and is_arabic_keyword_in_text(kw, text):
                     matched.append(kw)
 
             if matched:
                 combined_kw = ' | '.join(matched)
                 logger.info(f"🔑 [{self.user_id}] {len(matched)} كلمة مطابقة: '{combined_kw}' في {group_identifier}")
                 await self._trigger_keyword_alert(message, combined_kw, group_identifier, group_link, event)
+                try:
+                    await self._handle_keyword_auto_reply(event, message, matched, group_identifier)
+                except Exception as _kar_err:
+                    logger.warning(f"Keyword auto-reply error (isolated): {_kar_err}")
 
         except Exception as e:
             logger.error(f"Error handling new message: {str(e)}", exc_info=True)
 
     async def _handle_auto_reply(self, event, message, group_identifier):
         try:
-            settings = load_settings(self.user_id)
-            if not settings.get('auto_reply_enabled', True):
-                return
+            settings = load_settings(self.user_id) or {}
+            user_rules = settings.get('user_auto_replies', []) or []
+            global_enabled = settings.get('auto_reply_enabled', True)
 
             # ──────────────────────────────────────────────────────────
             # 1) الرد التلقائي حسب معرف المستخدم (Target User Auto-Reply)
             # الرد على رسالته من حيث أرسلها + إرسالها له بالخاص أيضاً
             # ──────────────────────────────────────────────────────────
-            user_rules = settings.get('user_auto_replies', []) or []
             if user_rules:
+                sender = None
                 try:
                     sender = await event.get_sender()
                 except Exception:
-                    sender = None
+                    pass
 
                 sender_id = getattr(event, 'sender_id', None)
                 if not sender_id and sender:
                     sender_id = getattr(sender, 'id', None)
 
+                # إذا لم يكن المعرف النصي متاحاً في كاش الحدث، استخرجه من الكيان الكامل
                 sender_username = (getattr(sender, 'username', '') or '').strip().lstrip('@').lower()
+                if not sender_username and sender_id:
+                    try:
+                        sender_ent = await self.client.get_entity(sender_id)
+                        if sender_ent:
+                            if not sender:
+                                sender = sender_ent
+                            sender_username = (getattr(sender_ent, 'username', '') or '').strip().lstrip('@').lower()
+                    except Exception:
+                        pass
+
                 sender_id_str = str(sender_id) if sender_id else ''
+
+                # عدم الرد على الحساب الشخصي نفسه
+                await self._ensure_my_info()
+                if sender_id and self.my_id and sender_id == self.my_id:
+                    return
 
                 for u_rule in user_rules:
                     if not isinstance(u_rule, dict):
@@ -2330,11 +2705,25 @@ class TelegramClientManager:
                         continue
 
                     target_raw = (u_rule.get('username') or u_rule.get('target_user') or '').strip()
-                    target_clean = target_raw.lstrip('@').lower()
+                    target_clean = target_raw.replace('https://t.me/', '').replace('http://t.me/', '').replace('t.me/', '').strip().lstrip('@').lower()
                     reply_text = (u_rule.get('reply') or '').strip()
 
                     if not target_clean or not reply_text:
                         continue
+
+                    target_uid = u_rule.get('target_user_id')
+                    if not target_uid and target_clean and not target_clean.isdigit():
+                        try:
+                            t_ent = await self.client.get_entity(target_clean)
+                            if t_ent and hasattr(t_ent, 'id'):
+                                target_uid = t_ent.id
+                                u_rule['target_user_id'] = target_uid
+                                settings['user_auto_replies'] = user_rules
+                                save_settings(self.user_id, settings)
+                        except Exception:
+                            pass
+                    elif not target_uid and target_clean.isdigit():
+                        target_uid = int(target_clean)
 
                     # فحص المطابقة: بالمعرف @username أو برقم الـ ID
                     is_match = False
@@ -2342,8 +2731,18 @@ class TelegramClientManager:
                         is_match = True
                     elif sender_id_str and (target_clean == sender_id_str):
                         is_match = True
+                    elif target_uid and sender_id and (target_uid == sender_id):
+                        is_match = True
 
                     if is_match:
+                        msg_uid = f"user_reply_{sender_id}_{message.id}"
+                        if msg_uid in self._processed_msg_ids:
+                            return
+                        self._processed_msg_ids.add(msg_uid)
+
+                        sent_any = False
+                        logger.info(f"🎯 تطابق رد المستخدم: @{target_clean} (ID={sender_id}) في {group_identifier}")
+
                         # 1) الرد على رسالته من حيث أرسلها (المجموعة أو القناة أو المحادثة)
                         try:
                             await self.client.send_message(
@@ -2351,46 +2750,87 @@ class TelegramClientManager:
                                 message=reply_text,
                                 reply_to=message.id
                             )
-                            logger.info(f"✅ User auto-reply sent to @{target_clean} in {group_identifier}")
+                            sent_any = True
+                            logger.info(f"✅ User auto-reply sent to @{target_clean} in chat {group_identifier}")
+                        except FloodWaitError as fwe:
+                            wait_s = int(getattr(fwe, 'seconds', 10) or 10)
+                            logger.warning(f"⚠️ FloodWait ({wait_s}s) عند الرد على @{target_clean} في {group_identifier}")
+                            async def _delayed_chat_reply(chat_e, rep_t, rep_id, w_secs, u_name):
+                                await asyncio.sleep(w_secs + 2)
+                                try:
+                                    await self.client.send_message(chat_e, rep_t, reply_to=rep_id)
+                                    logger.info(f"✅ تم إرسال الرد المؤجل بنجاح لـ @{u_name} في المحادثة")
+                                except Exception as err:
+                                    logger.warning(f"تعذر الرد المؤجل في المحادثة لـ @{u_name}: {err}")
+                            asyncio.create_task(_delayed_chat_reply(event.chat_id, reply_text, message.id, wait_s, target_clean))
+                            sent_any = True
                         except Exception as reply_err:
-                            logger.error(f"❌ Failed to reply in chat to @{target_clean}: {reply_err}")
+                            logger.warning(f"تعذر الرد في المحادثة لـ @{target_clean}: {reply_err}")
 
                         # 2) وبالخاص أيضاً (إذا لم تكن المحادثة خاصة بالفعل)
                         send_dm = u_rule.get('send_dm', True)
                         if send_dm and not event.is_private:
+                            dm_target = sender
+                            if not dm_target and sender_id:
+                                try:
+                                    dm_target = await self.client.get_entity(sender_id)
+                                except Exception:
+                                    dm_target = sender_id
+                            if not dm_target:
+                                try:
+                                    dm_target = await self.client.get_entity(target_clean)
+                                except Exception:
+                                    dm_target = target_clean
+
                             try:
-                                dm_target = sender or sender_id or (int(target_clean) if target_clean.isdigit() else target_clean)
                                 await self.client.send_message(
                                     entity=dm_target,
                                     message=reply_text
                                 )
+                                sent_any = True
                                 logger.info(f"✅ User auto-reply DM sent to @{target_clean}")
+                            except FloodWaitError as dm_fwe:
+                                dm_wait = int(getattr(dm_fwe, 'seconds', 10) or 10)
+                                logger.warning(f"⚠️ FloodWait ({dm_wait}s) عند إرسال DM لـ @{target_clean}")
+                                async def _delayed_dm_reply(tgt, rep_t, w_secs, u_name):
+                                    await asyncio.sleep(w_secs + 2)
+                                    try:
+                                        await self.client.send_message(tgt, rep_t)
+                                        logger.info(f"✅ تم إرسال DM المؤجل لـ @{u_name}")
+                                    except Exception as err:
+                                        logger.warning(f"تعذر إرسال DM المؤجل لـ @{u_name}: {err}")
+                                asyncio.create_task(_delayed_dm_reply(dm_target, reply_text, dm_wait, target_clean))
+                                sent_any = True
                             except Exception as dm_err:
                                 logger.warning(f"⚠️ Could not send DM to @{target_clean}: {dm_err}")
 
-                        # إشعار لواجهة المستخدم وتسجيل الإحصائيات
-                        try:
-                            _emit_log_update('INFO',
-                                f"👤 رد تلقائي للمستخدم @{target_clean} في {group_identifier} وبالخاص",
-                                self.user_id)
-                            socketio.emit('auto_reply_triggered', {
-                                "keyword": f"المستخدم: @{target_clean}",
-                                "reply": reply_text,
-                                "chat": f"{group_identifier} + خاص",
-                                "timestamp": time.strftime('%H:%M:%S')
-                            }, to=self.user_id)
-                        except Exception:
-                            pass
+                        if sent_any:
+                            # إشعار لواجهة المستخدم وتسجيل الإحصائيات
+                            try:
+                                _emit_log_update('INFO',
+                                    f"👤 رد تلقائي للمستخدم @{target_clean} في {group_identifier} وبالخاص: «{reply_text}»",
+                                    self.user_id)
+                                socketio.emit('auto_reply_triggered', {
+                                    "keyword": f"المستخدم: @{target_clean}",
+                                    "reply": reply_text,
+                                    "chat": f"{group_identifier} + خاص",
+                                    "timestamp": time.strftime('%H:%M:%S')
+                                }, to=self.user_id)
+                            except Exception:
+                                pass
 
-                        try:
-                            u_rule['used_count'] = int(u_rule.get('used_count') or 0) + 1
-                            u_rule['last_used'] = time.strftime('%Y-%m-%d %H:%M:%S')
-                            settings['user_auto_replies'] = user_rules
-                            save_settings(self.user_id, settings)
-                        except Exception:
-                            pass
+                            try:
+                                u_rule['used_count'] = int(u_rule.get('used_count') or 0) + 1
+                                u_rule['last_used'] = time.strftime('%Y-%m-%d %H:%M:%S')
+                                settings['user_auto_replies'] = user_rules
+                                save_settings(self.user_id, settings)
+                            except Exception:
+                                pass
 
                         return
+
+            if not global_enabled:
+                return
 
             rules = settings.get('auto_replies', []) or []
             if not rules:
@@ -2505,17 +2945,91 @@ class TelegramClientManager:
             else:
                 sender_link = None
 
-            group_part  = f"[{group_identifier}]({msg_link})" if msg_link else group_identifier
-            sender_part = f"[{sender_name}]({sender_link})"  if sender_link else sender_name
-
-            notification_msg = (
-                f"🚨 **تنبيه مراقبة**\n\n"
-                f"🔑 الكلمة: `{keyword}`\n"
-                f"👥 المجموعة: {group_part}\n"
-                f"👤 المرسل: {sender_part}\n"
-                f"🕐 الوقت: {msg_time}\n\n"
-                f"💬 الرسالة:\n{full_text}"
+            # نص التنبيه البسيط (آمن وموثوق 100% ولا يفشل بسبب التنسيق)
+            plain_notification_msg = (
+                f"🚨 تنبيه مراقبة كلمات 🚨\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"🔑 الكلمة المرصودة: {keyword}\n"
+                f"👥 المجموعة: {group_identifier}\n"
+                f"👤 المرسل: {sender_name}" + (f" (@{sender_username})" if sender_username else "") + "\n"
+                f"⏰ الوقت: {msg_time}\n"
+                + (f"🔗 رابط الرسالة: {msg_link}\n" if msg_link else "")
+                + f"━━━━━━━━━━━━━━━━━━\n"
+                f"💬 نص الرسالة:\n{full_text}"
             )
+
+            # نص التنبيه المنسق بـ HTML الآمن
+            import html
+            safe_kw = html.escape(str(keyword))
+            safe_group = html.escape(str(group_identifier))
+            safe_sender = html.escape(str(sender_name))
+            safe_text = html.escape(str(full_text))
+
+            group_html = f'<a href="{msg_link}">{safe_group}</a>' if msg_link else safe_group
+            sender_html = f'<a href="{sender_link}">{safe_sender}</a>' if sender_link else safe_sender
+
+            html_notification_msg = (
+                f"🚨 <b>تنبيه مراقبة كلمات</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"🔑 <b>الكلمة المرصودة:</b> <code>{safe_kw}</code>\n"
+                f"👥 <b>المجموعة:</b> {group_html}\n"
+                f"👤 <b>المرسل:</b> {sender_html}\n"
+                f"⏰ <b>الوقت:</b> {msg_time}\n"
+                + (f"🔗 <b>الرابط:</b> <a href=\"{msg_link}\">اضغط لفتح الرسالة في المجموعة</a>\n" if msg_link else "")
+                + f"━━━━━━━━━━━━━━━━━━\n"
+                f"💬 <b>نص الرسالة:</b>\n{safe_text}"
+            )
+
+            settings = load_settings(self.user_id) or {}
+            target_destinations = ['me']
+            custom_target = (settings.get('alert_target_user') or settings.get('alert_target') or '').strip()
+            if custom_target and custom_target.lower() != 'me' and custom_target not in target_destinations:
+                target_destinations.append(custom_target)
+
+            tg_sent_success = False
+            for dest in target_destinations:
+                dest_entity = dest
+                try:
+                    if dest != 'me':
+                        dest_clean = dest.lstrip('@')
+                        dest_entity = int(dest_clean) if dest_clean.isdigit() else dest
+                except Exception:
+                    dest_entity = dest
+
+                # أ) تحويل الرسالة الأصلية أولاً إلى الرسائل المحفوظة/الحساب الخاص لتوثيقها
+                try:
+                    await self.client.forward_messages(
+                        entity=dest_entity,
+                        messages=message.id,
+                        from_peer=event.chat_id
+                    )
+                    logger.info(f"✅ تم تحويل الرسالة الأصلية لرصد الكلمة إلى {dest}")
+                except Exception as fwd_err:
+                    logger.debug(f"تعذر تحويل الرسالة الأصلية للتنبيه إلى {dest}: {fwd_err}")
+
+                # ب) إرسال كرت التنبيه التوضيحي (HTML أولاً مع بديل النص النقي الفوري)
+                try:
+                    await self.client.send_message(
+                        dest_entity,
+                        html_notification_msg,
+                        parse_mode='html',
+                        link_preview=False
+                    )
+                    tg_sent_success = True
+                    logger.info(f"✅ Alert sent via HTML to {dest}: '{keyword}' in {group_identifier}")
+                except Exception as html_err:
+                    logger.warning(f"تعذر إرسال التنبيه بـ HTML لـ {dest} ({html_err})، جارٍ الإرسال كنص نقي...")
+                    try:
+                        await self.client.send_message(
+                            dest_entity,
+                            plain_notification_msg,
+                            parse_mode=None,
+                            link_preview=False
+                        )
+                        tg_sent_success = True
+                        logger.info(f"✅ Alert sent via plain text to {dest}: '{keyword}' in {group_identifier}")
+                    except Exception as plain_err:
+                        logger.error(f"❌ Failed to send Telegram alert to {dest}: {plain_err}")
 
             alert_data = {
                 "keyword":      keyword,
@@ -2528,19 +3042,174 @@ class TelegramClientManager:
                 "sender_link":  sender_link,
                 "message_time": msg_time,
                 "message_id":   msg_id,
+                "already_sent_tg": tg_sent_success,
             }
-
-            try:
-                await self.client.send_message('me', notification_msg,
-                                               parse_mode='md', link_preview=False)
-                logger.info(f"✅ Alert sent: '{keyword}' in {group_identifier} | msg {msg_link}")
-            except Exception as tg_err:
-                logger.error(f"❌ Failed to send Telegram alert: {tg_err}")
 
             alert_queue.add_alert(self.user_id, alert_data)
 
+            # ── إرسال تنبيه بالبريد الإلكتروني إن كانت الخدمة مهيأة ──
+            try:
+                import email_notifier
+                _en = email_notifier.EmailNotifier()
+                if _en.is_configured() and getattr(_en, 'enabled', True):
+                    asyncio.create_task(
+                        asyncio.to_thread(
+                            _en.send_keyword_alert,
+                            keyword=keyword,
+                            matched_word=keyword,
+                            message_text=full_text,
+                            sender_title=sender_name,
+                            chat_title=group_identifier,
+                            chat_link=msg_link
+                        )
+                    )
+            except Exception as _em_err:
+                logger.debug(f"فشل إرسال تنبيه البريد الإلكتروني: {_em_err}")
+
         except Exception as e:
-            logger.error(f"❌ Error triggering keyword alert: {str(e)}")
+            logger.error(f"❌ Error triggering keyword alert: {str(e)}", exc_info=True)
+
+    async def _handle_keyword_auto_reply(self, event, message, matched_keywords, group_identifier):
+        """الرد التلقائي على الكلمات المراقبة (في الخاص مع توجيه الرسالة والرد عليها + وفي المجموعة مباشرة)"""
+        try:
+            settings = load_settings(self.user_id) or {}
+            # التحقق من تفعيل الميزة
+            if not settings.get('keyword_auto_reply_enabled', True):
+                return
+
+            reply_text = str(settings.get('keyword_auto_reply_text', 'ابشر') or 'ابشر').strip() or 'ابشر'
+            forward_original = bool(settings.get('keyword_auto_reply_forward', True))
+            reply_in_group = bool(settings.get('keyword_auto_reply_in_group', True))
+            reply_in_dm = bool(settings.get('keyword_auto_reply_in_dm', True))
+
+            sender = None
+            try:
+                sender = await event.get_sender()
+            except Exception:
+                pass
+
+            sender_id = getattr(event, 'sender_id', None)
+            if not sender_id and sender:
+                sender_id = getattr(sender, 'id', None)
+
+            # عدم الرد على الحساب الشخصي نفسه
+            await self._ensure_my_info()
+            if sender_id and self.my_id and sender_id == self.my_id:
+                return
+
+            if not sender_id and not sender:
+                logger.debug(f"Could not identify sender for keyword auto-reply in {group_identifier}")
+                return
+
+            # تفادي تكرار الرد لنفس الشخص في غضون 60 ثانية
+            now = time.time()
+            if not hasattr(self, '_last_keyword_reply_times'):
+                self._last_keyword_reply_times = {}
+            if sender_id and (now - self._last_keyword_reply_times.get(sender_id, 0) < 60):
+                logger.info(f"⏳ تم تخطي الرد التلقائي لـ {sender_id} منعاً للتكرار (فترة انتظار 60 ثانية)")
+                return
+
+            sent_reply = False
+
+            # ──────────────────────────────────────────────────────────
+            # 1) الرد التلقائي المباشر في المجموعة على رسالة العميل
+            # ──────────────────────────────────────────────────────────
+            if reply_in_group and not event.is_private:
+                try:
+                    await self.client.send_message(
+                        entity=event.chat_id,
+                        message=reply_text,
+                        reply_to=message.id
+                    )
+                    sent_reply = True
+                    logger.info(f"✅ تم الرد التلقائي في المجموعة '{group_identifier}' على رسالة {message.id}")
+                except Exception as grp_err:
+                    logger.warning(f"تعذر الرد التلقائي داخل المجموعة {group_identifier}: {grp_err}")
+
+            # ──────────────────────────────────────────────────────────
+            # 2) الرد التلقائي بالخاص على مرسل الكلمة المراقبة
+            # ──────────────────────────────────────────────────────────
+            if reply_in_dm:
+                target_entity = sender
+                if not target_entity and sender_id:
+                    try:
+                        target_entity = await self.client.get_entity(sender_id)
+                    except Exception:
+                        target_entity = sender_id
+
+                fwd_msg_id = None
+                if forward_original:
+                    try:
+                        fwd_res = await self.client.forward_messages(
+                            entity=target_entity,
+                            messages=message.id,
+                            from_peer=event.chat_id
+                        )
+                        if isinstance(fwd_res, list) and fwd_res:
+                            fwd_msg_id = fwd_res[0].id
+                        elif hasattr(fwd_res, 'id'):
+                            fwd_msg_id = fwd_res.id
+                        logger.info(f"✅ تم تحويل الرسالة الأصلية لخاص {sender_id} (fwd_id={fwd_msg_id})")
+                    except Exception as fwd_err:
+                        logger.warning(f"تعذر التوجيه المباشر ({fwd_err})، سيتم إرسال اقتباس")
+
+                    # مهلة بسيطة لضمان معالجة خادم تيليجرام للرسالة المحولة
+                    await asyncio.sleep(0.6)
+
+                # إرسال نص الرد كـ رد حقيقي مرتبط بالرسالة المحولة (reply_to)
+                try:
+                    if fwd_msg_id:
+                        try:
+                            await self.client.send_message(
+                                entity=target_entity,
+                                message=reply_text,
+                                reply_to=fwd_msg_id
+                            )
+                            sent_reply = True
+                            logger.info(f"✅ تم إرسال الرد '{reply_text}' كرد مرتبط على الرسالة المحولة بالخاص لـ {sender_id}")
+                        except Exception as dm_reply_err:
+                            logger.warning(f"فشل ربط reply_to، الإرسال كنص مباشر بالخاص: {dm_reply_err}")
+                            await self.client.send_message(
+                                entity=target_entity,
+                                message=reply_text
+                            )
+                            sent_reply = True
+                    elif forward_original:
+                        # في حال تعذر التوجيه المباشر، أرسل اقتباساً واضحاً مع الرد
+                        orig_snippet = (message.text or '')[:300]
+                        quote_text = f"📨 بخصوص رسالتك:\n«{orig_snippet}»\n\n{reply_text}"
+                        await self.client.send_message(
+                            entity=target_entity,
+                            message=quote_text
+                        )
+                        sent_reply = True
+                    else:
+                        await self.client.send_message(
+                            entity=target_entity,
+                            message=reply_text
+                        )
+                        sent_reply = True
+                except Exception as dm_err:
+                    logger.warning(f"تعذر إرسال الرد بالخاص لـ {sender_id}: {dm_err}")
+
+            if sent_reply:
+                if sender_id:
+                    self._last_keyword_reply_times[sender_id] = now
+                    if len(self._last_keyword_reply_times) > 500:
+                        self._last_keyword_reply_times.clear()
+
+                kw_str = ' | '.join(matched_keywords[:2])
+                sname = getattr(sender, 'first_name', '') or str(sender_id)
+                _emit_log_update('INFO', f"⚡ رد تلقائي على '{kw_str}': «{reply_text}» لـ ({sname})", self.user_id)
+                socketio.emit('auto_reply_triggered', {
+                    "keyword": kw_str,
+                    "reply": reply_text,
+                    "chat": f"{group_identifier} + خاص",
+                    "timestamp": time.strftime('%H:%M:%S')
+                }, to=self.user_id)
+        except Exception as e:
+            # حماية مطلقة: أي خطأ هنا معزول تماماً ولا يؤثر إطلاقاً على عمل مراقب الكلمات
+            logger.warning(f"Keyword auto-reply non-blocking exception: {e}")
 
     def update_monitoring_settings(self, keywords, groups):
         self.monitored_keywords = get_effective_watch_words(keywords)
@@ -2865,6 +3534,20 @@ class TelegramLogin:
                 logger.error(f"Could not save session string: {_se}")
             me_future = asyncio.run_coroutine_threadsafe(self.client.get_me(), self.loop)
             me = me_future.result(timeout=30)
+            avatar_url = None
+            try:
+                avatars_dir = os.path.join(SESSIONS_DIR, 'avatars')
+                os.makedirs(avatars_dir, exist_ok=True)
+                target_path = os.path.join(avatars_dir, f"{self.user_id}.jpg")
+                photo_future = asyncio.run_coroutine_threadsafe(
+                    self.client.download_profile_photo(me, file=target_path),
+                    self.loop
+                )
+                photo_res = photo_future.result(timeout=15)
+                if photo_res and os.path.exists(target_path) and os.path.getsize(target_path) > 0:
+                    avatar_url = f"/api/account_avatar/{self.user_id}?t={int(time.time())}"
+            except Exception as _pe:
+                logger.debug(f"Profile photo download error: {_pe}")
             return {
                 "success": True,
                 "message": "✅ تم تسجيل الدخول بنجاح",
@@ -2874,7 +3557,8 @@ class TelegramLogin:
                     "last_name": me.last_name,
                     "username": me.username,
                     "phone": me.phone,
-                    "full_name": f"{me.first_name or ''} {me.last_name or ''}".strip()
+                    "full_name": f"{me.first_name or ''} {me.last_name or ''}".strip(),
+                    "avatar": avatar_url
                 }
             }
         except Exception as e:
@@ -2929,6 +3613,20 @@ class TelegramLogin:
                 logger.error(f"Could not save session string (2FA): {_se}")
             me_future = asyncio.run_coroutine_threadsafe(self.client.get_me(), self.loop)
             me = me_future.result(timeout=30)
+            avatar_url = None
+            try:
+                avatars_dir = os.path.join(SESSIONS_DIR, 'avatars')
+                os.makedirs(avatars_dir, exist_ok=True)
+                target_path = os.path.join(avatars_dir, f"{self.user_id}.jpg")
+                photo_future = asyncio.run_coroutine_threadsafe(
+                    self.client.download_profile_photo(me, file=target_path),
+                    self.loop
+                )
+                photo_res = photo_future.result(timeout=15)
+                if photo_res and os.path.exists(target_path) and os.path.getsize(target_path) > 0:
+                    avatar_url = f"/api/account_avatar/{self.user_id}?t={int(time.time())}"
+            except Exception as _pe:
+                logger.debug(f"Profile photo download error: {_pe}")
             return {
                 "success": True,
                 "message": "✅ تم تسجيل الدخول بنجاح",
@@ -2938,7 +3636,8 @@ class TelegramLogin:
                     "last_name": me.last_name,
                     "username": me.username,
                     "phone": me.phone,
-                    "full_name": f"{me.first_name or ''} {me.last_name or ''}".strip()
+                    "full_name": f"{me.first_name or ''} {me.last_name or ''}".strip(),
+                    "avatar": avatar_url
                 }
             }
         except Exception as e:
@@ -3057,6 +3756,24 @@ class TelegramManager:
         except Exception as e:
             logger.error(f"ensure_client_active error for {user_id}: {e}")
             return False
+
+    async def _is_member_of(self, cm, entity) -> bool:
+        """
+        فحص هل الحساب عضو فعال في المجموعة أو القناة قبل الإرسال
+        """
+        try:
+            if not cm or not cm.client:
+                return True
+            perms = await cm.client.get_permissions(entity, 'me')
+            if isinstance(perms, (ChannelParticipantLeft, ChannelParticipantBanned)):
+                return False
+            return True
+        except Exception as e:
+            err_str = str(e).lower()
+            if "not a member" in err_str or "participant" in err_str or "channel_private" in err_str:
+                return False
+            logger.warning(f"⚠️ تعذّر فحص العضوية لـ {getattr(entity, 'id', entity)}: {e}")
+            return True  # افتراضي آمن لتجنب الفشل الكاذب
 
     def setup_client(self, user_id, phone_number):
         try:
@@ -3221,7 +3938,16 @@ class TelegramManager:
                 if user_id in USERS:
                     USERS[user_id]['account_name'] = name
                     USERS[user_id]['account_username'] = getattr(me, 'username', None)
-                    USERS[user_id]['account_phone'] = getattr(me, 'phone', None)
+                    p_num = getattr(me, 'phone', None)
+                    if p_num and not str(p_num).startswith('+'):
+                        p_num = '+' + str(p_num)
+                    USERS[user_id]['account_phone'] = p_num
+            try:
+                if user_id in PREDEFINED_USERS and name:
+                    PREDEFINED_USERS[user_id]['name'] = name
+                    _save_custom_accounts()
+            except Exception:
+                pass
             try:
                 self._fetch_account_photo(user_id, me)
             except Exception as photo_err:
@@ -3270,7 +3996,14 @@ class TelegramManager:
         try:
             login = self.login_managers.get(user_id)
             if not login:
-                return {"status": "error", "message": "❌ لم يتم بدء جلسة تسجيل الدخول"}
+                # البحث الذكي عن أي حساب آخر لديه جلسة إرسال كود نشطة
+                for alt_uid, alt_login in list(self.login_managers.items()):
+                    if getattr(alt_login, 'awaiting_code', False):
+                        login = alt_login
+                        user_id = alt_uid
+                        break
+            if not login:
+                return {"status": "error", "message": "❌ لم يتم العثور على جلسة طلب كود نشطة، يرجى الضغط على تسجيل الدخول مرة أخرى لإرسال كود جديد"}
 
             result = login.verify_code(code)
 
@@ -3301,8 +4034,19 @@ class TelegramManager:
 
             user_info = result.get("user", {})
             account_name = user_info.get("full_name") or user_info.get("username") or "حساب تليجرام"
-            account_phone = user_info.get("phone")
-            account_avatar = user_info.get("avatar_url") or f"/api/account_avatar/{user_id}?t={int(time.time())}"
+            account_username = user_info.get("username") or ""
+            account_phone = user_info.get("phone") or ""
+            if account_phone and not str(account_phone).startswith('+'):
+                account_phone = '+' + str(account_phone)
+            if not account_phone:
+                st_ph = (load_settings(user_id) or {}).get('phone')
+                if st_ph:
+                    account_phone = st_ph
+            account_avatar = user_info.get("avatar")
+            if not account_avatar:
+                avatar_file = os.path.join(SESSIONS_DIR, 'avatars', f"{user_id}.jpg")
+                if os.path.exists(avatar_file) and os.path.getsize(avatar_file) > 0:
+                    account_avatar = f"/api/account_avatar/{user_id}?t={int(time.time())}"
 
             client_manager = self.get_client_manager(user_id)
 
@@ -3314,40 +4058,72 @@ class TelegramManager:
                     USERS[user_id]['awaiting_code'] = False
                     USERS[user_id]['awaiting_password'] = False
                     USERS[user_id]['account_name'] = account_name
+                    USERS[user_id]['account_username'] = account_username
                     USERS[user_id]['account_phone'] = account_phone
                     USERS[user_id]['account_avatar'] = account_avatar
 
-            socketio.emit('login_status', {
+            try:
+                st = load_settings(user_id) or {}
+                st['account_name'] = account_name
+                st['account_username'] = account_username
+                st['account_phone'] = account_phone
+                st['account_avatar'] = account_avatar
+                save_settings(user_id, st)
+            except Exception as _se:
+                logger.warning(f"Could not persist account name in settings: {_se}")
+
+            try:
+                if user_id in PREDEFINED_USERS and account_name:
+                    PREDEFINED_USERS[user_id]['name'] = account_name
+                    _save_custom_accounts()
+            except Exception as _e_pname:
+                logger.warning(f"Could not update PREDEFINED_USERS name: {_e_pname}")
+
+            login_payload = {
                 "logged_in": True,
                 "connected": True,
                 "awaiting_code": False,
                 "awaiting_password": False,
                 "is_running": False,
+                "user_id": user_id,
                 "account_name": account_name,
+                "account_username": account_username,
                 "account_phone": account_phone,
-                "account_avatar": account_avatar,
-                "user_id": user_id
-            }, to=user_id)
+                "account_avatar": account_avatar
+            }
+            socketio.emit('login_status', login_payload, to=user_id)
+            socketio.emit('account_updated', login_payload)
             socketio.emit('connection_status', {"status": "connected"}, to=user_id)
 
-            # تشغيل عميل التليجرام الرئيسي في الخلفية — بدون تعطيل استجابة HTTP
+            # تشغيل عميل التليجرام الرئيسي في الخلفية — ومزامنة الصورة والاسم
             def _start_client_bg_code(cm=client_manager, uid=user_id):
                 try:
                     cm.start_client_thread()
                     logger.info(f"✅ تم تشغيل عميل التليجرام في الخلفية لـ {uid}")
+                    time.sleep(2)
+                    self._fetch_account_name(uid)
+                    self._fetch_account_photo(uid)
+                    with USERS_LOCK:
+                        ud = USERS.get(uid, {})
+                        aname = ud.get('account_name')
+                        auser = ud.get('account_username')
+                        aphone = ud.get('account_phone')
+                        aavatar = ud.get('account_avatar')
+                    socketio.emit('account_updated', {
+                        "logged_in": True,
+                        "connected": True,
+                        "user_id": uid,
+                        "account_name": aname,
+                        "account_username": auser,
+                        "account_phone": aphone,
+                        "account_avatar": aavatar
+                    })
                 except Exception as bg_err:
                     logger.warning(f"تحذير تشغيل العميل في الخلفية لـ {uid}: {bg_err}")
 
             _OSThread(target=_start_client_bg_code, daemon=True).start()
 
-            return {
-                "status": "success", 
-                "message": "✅ تم التحقق بنجاح", 
-                "account_name": account_name,
-                "account_phone": account_phone,
-                "account_avatar": account_avatar,
-                "user_id": user_id
-            }
+            return {"status": "success", "message": "✅ تم التحقق بنجاح", "account_name": account_name, "account_avatar": account_avatar}
 
         except Exception as e:
             logger.error(f"Code verification error: {str(e)}")
@@ -3357,7 +4133,14 @@ class TelegramManager:
         try:
             login = self.login_managers.get(user_id)
             if not login:
-                return {"status": "error", "message": "❌ لم يتم بدء جلسة تسجيل الدخول"}
+                # البحث الذكي عن أي حساب آخر لديه جلسة تحقق نشطة
+                for alt_uid, alt_login in list(self.login_managers.items()):
+                    if getattr(alt_login, 'awaiting_password', False):
+                        login = alt_login
+                        user_id = alt_uid
+                        break
+            if not login:
+                return {"status": "error", "message": "❌ لم يتم العثور على جلسة طلب تحقق نشطة، يرجى الضغط على تسجيل الدخول مرة أخرى"}
 
             result = login.verify_password(password)
 
@@ -3374,8 +4157,19 @@ class TelegramManager:
 
             user_info = result.get("user", {})
             account_name = user_info.get("full_name") or user_info.get("username") or "حساب تليجرام"
-            account_phone = user_info.get("phone")
-            account_avatar = user_info.get("avatar_url") or f"/api/account_avatar/{user_id}?t={int(time.time())}"
+            account_username = user_info.get("username") or ""
+            account_phone = user_info.get("phone") or ""
+            if account_phone and not str(account_phone).startswith('+'):
+                account_phone = '+' + str(account_phone)
+            if not account_phone:
+                st_ph = (load_settings(user_id) or {}).get('phone')
+                if st_ph:
+                    account_phone = st_ph
+            account_avatar = user_info.get("avatar")
+            if not account_avatar:
+                avatar_file = os.path.join(SESSIONS_DIR, 'avatars', f"{user_id}.jpg")
+                if os.path.exists(avatar_file) and os.path.getsize(avatar_file) > 0:
+                    account_avatar = f"/api/account_avatar/{user_id}?t={int(time.time())}"
 
             client_manager = self.get_client_manager(user_id)
 
@@ -3387,39 +4181,71 @@ class TelegramManager:
                     USERS[user_id]['awaiting_code'] = False
                     USERS[user_id]['awaiting_password'] = False
                     USERS[user_id]['account_name'] = account_name
+                    USERS[user_id]['account_username'] = account_username
                     USERS[user_id]['account_phone'] = account_phone
                     USERS[user_id]['account_avatar'] = account_avatar
 
-            socketio.emit('login_status', {
+            try:
+                st = load_settings(user_id) or {}
+                st['account_name'] = account_name
+                st['account_username'] = account_username
+                st['account_phone'] = account_phone
+                st['account_avatar'] = account_avatar
+                save_settings(user_id, st)
+            except Exception as _se:
+                logger.warning(f"Could not persist account name in settings: {_se}")
+
+            try:
+                if user_id in PREDEFINED_USERS and account_name:
+                    PREDEFINED_USERS[user_id]['name'] = account_name
+                    _save_custom_accounts()
+            except Exception as _e_pname:
+                logger.warning(f"Could not update PREDEFINED_USERS name: {_e_pname}")
+
+            login_payload = {
                 'logged_in': True,
                 'connected': True,
                 'awaiting_code': False,
                 'awaiting_password': False,
+                'user_id': user_id,
                 'account_name': account_name,
+                'account_username': account_username,
                 'account_phone': account_phone,
-                'account_avatar': account_avatar,
-                'user_id': user_id
-            }, to=user_id)
+                'account_avatar': account_avatar
+            }
+            socketio.emit('login_status', login_payload, to=user_id)
+            socketio.emit('account_updated', login_payload)
             socketio.emit('connection_status', {"status": "connected"}, to=user_id)
 
-            # تشغيل عميل التليجرام الرئيسي في الخلفية — بدون تعطيل استجابة HTTP
+            # تشغيل عميل التليجرام الرئيسي في الخلفية — ومزامنة الصورة والاسم
             def _start_client_bg_2fa(cm=client_manager, uid=user_id):
                 try:
                     cm.start_client_thread()
                     logger.info(f"✅ تم تشغيل عميل التليجرام (2FA) في الخلفية لـ {uid}")
+                    time.sleep(2)
+                    self._fetch_account_name(uid)
+                    self._fetch_account_photo(uid)
+                    with USERS_LOCK:
+                        ud = USERS.get(uid, {})
+                        aname = ud.get('account_name')
+                        auser = ud.get('account_username')
+                        aphone = ud.get('account_phone')
+                        aavatar = ud.get('account_avatar')
+                    socketio.emit('account_updated', {
+                        "logged_in": True,
+                        "connected": True,
+                        "user_id": uid,
+                        "account_name": aname,
+                        "account_username": auser,
+                        "account_phone": aphone,
+                        "account_avatar": aavatar
+                    })
                 except Exception as bg_err:
                     logger.warning(f"تحذير تشغيل العميل (2FA) في الخلفية لـ {uid}: {bg_err}")
 
             _OSThread(target=_start_client_bg_2fa, daemon=True).start()
 
-            return {
-                "status": "success", 
-                "message": "✅ تم التحقق بنجاح", 
-                "account_name": account_name,
-                "account_phone": account_phone,
-                "account_avatar": account_avatar,
-                "user_id": user_id
-            }
+            return {"status": "success", "message": "✅ تم التحقق بنجاح", "account_name": account_name, "account_avatar": account_avatar}
 
         except Exception as e:
             logger.error(f"Password verification error: {str(e)}")
@@ -3431,56 +4257,100 @@ class TelegramManager:
         if not entity:
             raise Exception("اسم المجموعة فارغ بعد التنظيف")
 
-        # ── معرّف رقمي (chat ID مثل -1001234567890) ──
-        if _re.match(r'^-?\d+$', entity):
+        # ── روابط المنشورات في المجموعات والقنوات الخاصة t.me/c/1234567890/... ──
+        m_c = _re.search(r't\.me/c/(\d+)', entity)
+        if m_c:
+            channel_id = int(f"-100{m_c.group(1)}")
             try:
                 return client_manager.run_coroutine(
-                    client_manager.client.get_entity(int(entity))
+                    client_manager.client.get_entity(channel_id)
+                )
+            except Exception as e_c:
+                logger.warning(f"Failed to get entity for c/{m_c.group(1)}: {e_c}")
+
+        # ── معرّف رقمي (chat ID مثل -1001234567890 أو رقم موجب) ──
+        if _re.match(r'^-?\d+$', entity):
+            int_id = int(entity)
+            try:
+                return client_manager.run_coroutine(
+                    client_manager.client.get_entity(int_id)
                 )
             except Exception as e:
+                # إذا كان رقماً موجباً بدون -100، قد يكون معرّف سوبرجروب أو قناة
+                if int_id > 0 and not str(entity).startswith('-100'):
+                    try:
+                        return client_manager.run_coroutine(
+                            client_manager.client.get_entity(int(f"-100{entity}"))
+                        )
+                    except Exception:
+                        pass
                 raise Exception(f"لا يمكن الوصول إلى المعرّف الرقمي {entity}: {e}")
 
-        # ── رابط دعوة خاص (invite link يحتوي على +) ──
-        m_invite = _re.search(r't\.me/\+([A-Za-z0-9_\-]+)', entity)
+        # ── رابط دعوة خاص (invite link يحتوي على + أو joinchat) ──
+        m_invite = _re.search(r't\.me/(?:\+|joinchat/)([A-Za-z0-9_\-]+)', entity)
         if m_invite:
             invite_hash = m_invite.group(1)
             # جرّب ImportChatInviteRequest (ينضم إن لم يكن عضواً)
             try:
-                from telethon.tl.functions.messages import ImportChatInviteRequest
-                result = client_manager.run_coroutine(
-                    client_manager.client(ImportChatInviteRequest(invite_hash))
-                )
-                if result and hasattr(result, 'chats') and result.chats:
-                    return result.chats[0]
-            except Exception as invite_err:
-                inv_msg = str(invite_err).lower()
-                # إذا كان مصادقاً عليه مسبقاً، جرّب get_entity بالرابط كاملاً
-                if 'already' in inv_msg or 'joined' in inv_msg or 'user_already' in inv_msg:
-                    try:
-                        return client_manager.run_coroutine(
-                            client_manager.client.get_entity(entity)
+                from telethon.tl.functions.messages import ImportChatInviteRequest, CheckChatInviteRequest
+                from telethon.errors import UserAlreadyParticipantError, InviteHashExpiredError, InviteHashInvalidError, ChannelsTooMuchError
+                try:
+                    result = client_manager.run_coroutine(
+                        client_manager.client(ImportChatInviteRequest(invite_hash))
+                    )
+                    if result and hasattr(result, 'chats') and result.chats:
+                        return result.chats[0]
+                except UserAlreadyParticipantError:
+                    chk = client_manager.run_coroutine(
+                        client_manager.client(CheckChatInviteRequest(invite_hash))
+                    )
+                    if hasattr(chk, 'chat') and chk.chat:
+                        return chk.chat
+                except Exception as _inv_err:
+                    err_s = str(_inv_err).lower()
+                    if 'already' in err_s or 'participant' in err_s:
+                        chk = client_manager.run_coroutine(
+                            client_manager.client(CheckChatInviteRequest(invite_hash))
                         )
-                    except Exception:
-                        pass
-                # جرّب get_entity بالرابط كاملاً على كل حال
+                        if hasattr(chk, 'chat') and chk.chat:
+                            return chk.chat
+                    elif 'expired' in err_s:
+                        raise Exception("رابط الدعوة منتهي الصلاحية")
+                    elif 'invalid' in err_s:
+                        raise Exception("رابط الدعوة غير صالح")
+                    elif 'request' in err_s or 'approval' in err_s:
+                        raise Exception("تم إرسال طلب انضمام وبانتظار موافقة المشرفين")
+                    elif 'too much' in err_s or 'channels_too_much' in err_s:
+                        raise Exception("وصل الحساب للحد الأقصى المسموح من القنوات/المجموعات (500)")
+                    else:
+                        raise _inv_err
+            except Exception as invite_err:
+                inv_msg = str(invite_err)
+                if any(x in inv_msg for x in ["منتهي", "غير صالح", "موافقة", "الحد الأقصى"]):
+                    raise Exception(inv_msg)
+                # إذا كان مصادقاً عليه مسبقاً، جرّب get_entity بالرابط كاملاً
                 try:
                     return client_manager.run_coroutine(
                         client_manager.client.get_entity(entity)
                     )
                 except Exception:
                     pass
-            raise Exception(f"لا يمكن الوصول إلى رابط الدعوة: {entity}")
+                raise Exception(f"لا يمكن الوصول إلى رابط الدعوة {entity}: {inv_msg}")
 
-        # ── روابط t.me العامة (@username) ──
-        # استخراج اسم المستخدم من الروابط مثل https://t.me/username
-        username_clean = entity.lstrip('@')
-        m = _re.search(r't\.me/([^/\s\?#+]+)', entity)  # استثناء + من الأسماء
-        if m:
-            username_clean = m.group(1)
+        # ── روابط t.me العامة (@username أو https://t.me/username) ──
+        m_uname = _re.search(r'(?:https?://)?(?:t\.me|telegram\.me)/([^/\s\?#+]+)', entity)
+        if m_uname:
+            username_clean = m_uname.group(1).lstrip('@')
+        else:
+            username_clean = entity.strip().lstrip('@')
+            if '/' in username_clean:
+                username_clean = username_clean.split('/')[-1]
+            if '?' in username_clean:
+                username_clean = username_clean.split('?')[0]
 
         last_exc = None
 
-        # ── المحاولة 1: get_entity مع الرابط كما هو (نجح لو كان في الـ cache) ──
+        # ── المحاولة 1: get_entity مع الرابط أو الاسم كما هو ──
         try:
             return client_manager.run_coroutine(
                 client_manager.client.get_entity(entity)
@@ -3498,7 +4368,6 @@ class TelegramManager:
                 last_exc = e
 
         # ── المحاولة 3: ResolveUsernameRequest — يستعلم مباشرة من سيرفرات تيليجرام ──
-        # يعمل لأي مجموعة/قناة عامة حتى لو لم يسبق التفاعل معها
         if username_clean and not username_clean.startswith('+'):
             try:
                 result = client_manager.run_coroutine(
@@ -3515,7 +4384,7 @@ class TelegramManager:
 
         raise Exception(str(last_exc) if last_exc else f"لا يمكن الوصول إلى: {entity}")
 
-    def send_message_async(self, user_id, entity, message, forced_action=None):
+    def send_message_async(self, user_id, entity, message, forced_action=None, wait_for_completion=False, cancel_event=None):
         """
         إرسال رسالة مع دعم الإجراء المختار مسبقاً من نافذة الفحص الاستباقي.
         forced_action: 'skip' | 'sanitize' | 'salam' | 'send' | None
@@ -3542,9 +4411,28 @@ class TelegramManager:
 
             entity_obj = self._resolve_entity(client_manager, entity)
 
-            # ── تحديد الإجراء: من الفحص الاستباقي أو من الإعدادات ──────────
+            # ── 1. جلب التقرير من قاعدة البيانات الخارجية (Firestore) أو فحصه وحفظه إن كانت جديدة ──
+            report, is_new = self.get_or_create_group_safety_report(
+                user_id, client_manager, entity_obj, entity, sample_message=message
+            )
+
+            # ── 2. تكييف الرسالة وتغيير أو حذف الكلمات والعبارات التي تستدعي الحظر ──
+            final_message, _, safety_actions = self.adapt_message_to_group_report(
+                message, report, has_media=False
+            )
+            if safety_actions:
+                socketio.emit('log_update', {
+                    "message": f"🛡️ [{entity}] تطبيق إجراءات الأمان للرسالة: {', '.join(safety_actions[:2])}"
+                }, to=user_id)
+
+            # ── 3. فحص هل المجموعة تمنع الإعلانات بشكل كلي وتحتوي على بوتات حماية -> إرسال ذكي ──
+            needs_smart = bool(
+                report.get('requires_smart_send') or 
+                (report.get('is_protected') and report.get('blocks_ads'))
+            )
+
+            # ── تحديد الإجراء: من الفحص المسبق أو الإعدادات أو تقرير المجموعة ──────────
             if forced_action is not None:
-                # forced_action قادم من /api/pre_send_scan — يُطبَّق مباشرة
                 action = forced_action
                 if action == 'skip':
                     socketio.emit('log_update', {
@@ -3552,38 +4440,67 @@ class TelegramManager:
                     }, to=user_id)
                     return {"success": False, "skipped": True,
                             "message": f"تم تخطي المجموعة: {entity}"}
+            elif needs_smart:
+                action = 'salam'
             else:
                 action, _ = self._check_group_protection(user_id, client_manager, entity_obj, entity)
 
-            # ── الإرسال الذكي المتقدم للمجموعات المحمية (وضع salam) ──
-            if action == 'salam':
+            # ── الإرسال الذكي للمجموعات التي بها بوتات حماية وتمنع الإعلانات كلياً (وضع salam) ──
+            # نتحقق من عدم إجبار التنقية المباشرة (sanitize) في وضع الإرسال الجماعي
+            if action == 'salam' or (needs_smart and forced_action not in ('sanitize', 'send')):
                 group_id = getattr(entity_obj, 'id', None) or hash(str(entity))
                 key = f"{user_id}_{group_id}"
                 if key in self._smart_running:
                     return {"success": True, "skipped": False, "smart": True,
                             "message": "⚠️ دورة ذكية قيد التشغيل لهذه المجموعة، ستُكمل عند انتهائها"}
                 self._smart_running.add(key)
-                _OSThread(
+                t = _OSThread(
                     target=self._run_smart_protected_send,
-                    args=(user_id, client_manager, entity_obj, entity, message, key),
+                    args=(user_id, client_manager, entity_obj, entity, final_message, key, cancel_event),
                     daemon=True,
                     name=f"SmartSend-{key}"
-                ).start()
-                return {"success": True, "smart": True,
-                        "message": f"🧠 بدأ الإرسال الذكي المتقدم لـ {entity}"}
+                )
+                t.start()
+                if wait_for_completion:
+                    # في وضع الإرسال الجماعي (Batch)، ننتظر حتى ينتهي الإرسال الذكي بحد أقصى آمن
+                    t.join(timeout=90)
+                    return {"success": True, "smart": True,
+                            "message": f"🧠 اكتملت معالجة الإرسال الذكي لـ {entity}"}
+                else:
+                    return {"success": True, "smart": True,
+                            "message": f"🧠 بدأ الإرسال الذكي لـ {entity} (أُرسلت 'السلام عليكم' وجارٍ استيفاء الشروط للتعديل تلقائياً)"}
 
             # نمرر action مباشرة لتجنب استدعاء _check_group_protection مرة ثانية
-            final_message = self._maybe_sanitize(
-                user_id, client_manager, entity_obj, entity, message,
+            cleaned_message = self._maybe_sanitize(
+                user_id, client_manager, entity_obj, entity, final_message,
                 forced_action=action
             )
-            if final_message is None:
+            if cleaned_message is None:
                 return {"success": False, "skipped": True,
                         "message": "تم تخطي الإرسال: المجموعة محمية أو الرسالة فارغة بعد التنقية"}
 
-            result = client_manager.run_coroutine(
-                client_manager.client.send_message(entity_obj, final_message)
-            )
+            try:
+                result = client_manager.run_coroutine(
+                    client_manager.client.send_message(entity_obj, cleaned_message, parse_mode='md')
+                )
+            except Exception as _send_err:
+                _err_str = str(_send_err).lower()
+                # إذا تطلب الإرسال الانضمام للمجموعة أولاً
+                if "write" in _err_str or "forbidden" in _err_str or "not a member" in _err_str or "participant" in _err_str:
+                    try:
+                        logger.info(f"Auto-joining {entity} before sending message...")
+                        from telethon.tl.functions.channels import JoinChannelRequest
+                        client_manager.run_coroutine(
+                            client_manager.client(JoinChannelRequest(entity_obj))
+                        )
+                        time.sleep(1)
+                        result = client_manager.run_coroutine(
+                            client_manager.client.send_message(entity_obj, cleaned_message, parse_mode='md')
+                        )
+                    except Exception as _join_err:
+                        raise Exception(f"لا يمكن الإرسال في {entity}: تتطلب الانضمام للمجموعة ({_join_err})")
+                else:
+                    raise _send_err
 
             return {"success": True, "message_id": result.id}
 
@@ -3591,68 +4508,206 @@ class TelegramManager:
             logger.error(f"Send message error: {str(e)}")
             raise Exception(str(e))
 
+    def get_or_create_group_safety_report(self, user_id, client_manager, entity_obj, entity_label, sample_message=None):
+        """
+        التحقق من نتائج فحص المجموعة في قاعدة البيانات الخارجية (Firestore):
+        1. إذا كانت المجموعة مفحوصة ومسجلة مسبقاً في قاعدة البيانات:
+           - يتم الرجوع إليها واستخدام نتائجها فورياً والالتزام بها دون إعادة الفحص.
+        2. إذا كانت مجموعة جديدة غير متوفرة في قاعدة البيانات:
+           - تقوم الوظيفة بتحليلها وفحصها بالذكاء الاصطناعي لكشف بوتات الحماية والقيود وأخطاء الآخرين.
+           - حفظ تقريرها ونتائجها بشكل ثابت ودائم في قاعدة البيانات الخارجية.
+        """
+        import firestore_sync
+        chat_id = getattr(entity_obj, 'id', None)
+        username = getattr(entity_obj, 'username', None)
+        title = getattr(entity_obj, 'title', None) or getattr(entity_obj, 'name', None) or str(entity_label)
+
+        # 1. الاستعلام من قاعدة البيانات الخارجية Firestore
+        saved_report = firestore_sync.get_group_safety_report_from_db(
+            group_key=str(entity_label),
+            alt_key=str(chat_id) if chat_id else (username or None)
+        )
+
+        if saved_report and not saved_report.get('error'):
+            logger.info(f"📋 Found existing group report in external DB for {entity_label}")
+            socketio.emit('log_update', {
+                "message": f"📋 [قاعدة البيانات] تم استرجاع نتائج فحص {entity_label} المحفوظة مسبقاً (مستوى الأمان: {saved_report.get('risk_assessment', 'عادي')})"
+            }, to=user_id)
+            return saved_report, False
+
+        # 2. مجموعة جديدة غير متوفرة في قاعدة البيانات -> فحص وتحليل كامل بالذكاء
+        logger.info(f"🆕 Group {entity_label} is new. Scanning and persisting to external DB...")
+        socketio.emit('log_update', {
+            "message": f"🆕 [مجموعة جديدة] {entity_label} غير مسجلة في قاعدة البيانات — جارٍ الفحص والتحليل بالذكاء وحفظ النتائج في قاعدة البيانات..."
+        }, to=user_id)
+
+        # أ) فحص بوتات الحماية
+        is_prot = False
+        prot_reason = None
+        bots = []
+        try:
+            is_prot, prot_reason, bots = client_manager.run_coroutine(
+                client_manager.get_group_protection_details(entity_obj)
+            )
+        except Exception as _pe:
+            logger.debug(f"Protection details error for {entity_label}: {_pe}")
+
+        # ب) فحص الذكاء الاصطناعي لآخر 50 محادثة
+        ai_res = self.scan_and_analyze_group_with_ai(
+            user_id, client_manager, entity_obj, entity_label,
+            sample_message=sample_message, send_report_to_me=True
+        )
+
+        # ج) تحديد إذا كانت المجموعة تمنع الإعلانات بشكل كلي
+        prohibited = set(ai_res.get('prohibited_actions', []))
+        causes_str = " ".join(ai_res.get('causes', []) + ai_res.get('mistakes_by_others', [])).lower()
+
+        blocks_ads = False
+        requires_smart_send = False
+
+        if is_prot or ai_res.get('protected') or len(bots) > 0:
+            if ('no_links' in prohibited or 'no_phones' in prohibited or 'skip_group' in prohibited 
+                or any(kw in causes_str for kw in ['إعلان', 'نشر', 'رابط', 'روابط', 'ترويج', 'تسويق', 'spam', 'ads', 'link'])):
+                blocks_ads = True
+                requires_smart_send = True
+
+        if ai_res.get('risk_assessment') in ('high', 'critical') and (is_prot or len(bots) > 0):
+            blocks_ads = True
+            requires_smart_send = True
+
+        new_report = {
+            "group_key": str(entity_label),
+            "group_id": str(chat_id) if chat_id else "",
+            "group_title": str(title),
+            "username": str(username) if username else "",
+            "is_protected": bool(is_prot or ai_res.get('protected')),
+            "blocks_ads": bool(blocks_ads),
+            "requires_smart_send": bool(requires_smart_send),
+            "protection_bots": bots or [],
+            "risk_assessment": ai_res.get('risk_assessment', 'low'),
+            "punished_count": ai_res.get('punished_count', 0),
+            "causes": ai_res.get('causes', []),
+            "mistakes_by_others": ai_res.get('mistakes_by_others', []),
+            "prohibited_actions": list(prohibited),
+            "keywords_to_avoid": ai_res.get('keywords_to_avoid', []),
+            "actions_taken": ai_res.get('actions_taken', []),
+            "summary_ar": ai_res.get('summary_ar', ''),
+            "recommended_action": 'salam' if requires_smart_send else ('sanitize' if is_prot else 'send'),
+            "can_send_media": bool(ai_res.get('can_send_media', True) and 'no_media' not in prohibited),
+            "analyzed_at": time.strftime('%Y-%m-%d %H:%M:%S')
+        }
+
+        # د) حفظ دائم وثابت في قاعدة البيانات الخارجية
+        try:
+            firestore_sync.save_group_safety_report_to_db(new_report)
+            socketio.emit('log_update', {
+                "message": f"💾 [حفظ دائم] تم حفظ نتائج فحص {entity_label} في قاعدة البيانات الخارجية (Firestore) بنجاح"
+            }, to=user_id)
+        except Exception as _se:
+            logger.error(f"Failed to save group safety report to DB for {entity_label}: {_se}")
+
+        return new_report, True
+
+    def adapt_message_to_group_report(self, message, report, has_media=False):
+        """
+        تكييف الرسالة وتغيير أو حذف الكلمات والعبارات التي تستدعي الحظر
+        بناءً على نتائج تقرير المجموعة المخزن في قاعدة البيانات.
+        """
+        if not message:
+            return message, has_media, []
+
+        import re as _re
+        adapted = str(message)
+        actions = []
+        prohibited = set(report.get('prohibited_actions', []))
+        keywords_avoid = report.get('keywords_to_avoid', [])
+        causes = report.get('causes', [])
+        mistakes = report.get('mistakes_by_others', [])
+        all_reasons = " ".join(causes + mistakes).lower()
+
+        # 1. تغيير أو حذف الكلمات والعبارات التي تستدعي الحظر
+        for kw in keywords_avoid:
+            if kw and kw in adapted:
+                safe_kw = f"{kw[0]}..{kw[-1]}" if len(kw) > 2 else f"[{kw}]"
+                adapted = adapted.replace(kw, safe_kw)
+                actions.append(f"🔤 تمويه الكلمة الحساسة '{kw}'")
+
+        if "إعلان" in all_reasons or "ترويج" in all_reasons or "spam" in all_reasons or "no_ads" in prohibited:
+            replacements = [
+                ("إعلان", "تنويه"),
+                ("اعلان", "تنويه"),
+                ("للتواصل", "للاستفسار"),
+                ("خصم", "ميزة"),
+                ("سارع", "متاح"),
+                ("ربح", "فائدة"),
+                ("استثمار", "مشروع"),
+                ("تداول", "أعمال")
+            ]
+            for bad_w, good_w in replacements:
+                if bad_w in adapted:
+                    adapted = adapted.replace(bad_w, good_w)
+                    actions.append(f"استبدال عبارة '{bad_w}' بـ '{good_w}'")
+
+        # 2. تنقية أو تعديل الروابط
+        if 'no_links' in prohibited or 'رابط' in all_reasons or 'link' in all_reasons:
+            wa_match = _re.search(r'(?:https?://)?(?:wa\.me|api\.whatsapp\.com/send\?phone=)/?(\+?\d+)', adapted)
+            if wa_match:
+                phone_num = wa_match.group(1)
+                adapted = _re.sub(r'https?://(?:wa\.me|api\.whatsapp\.com/send\?phone=)[^\s]+', f'واتساب: {phone_num}', adapted)
+                actions.append("تحويل رابط واتساب إلى نص مباشر تجنباً للحظر")
+
+            if _re.search(r'https?://[^\s]+', adapted):
+                adapted = _re.sub(r'https?://[^\s]+', '', adapted).strip()
+                actions.append("إزالة الروابط الخارجية لتفادي البوتات")
+
+            if _re.search(r't\.me/[^\s]+', adapted):
+                adapted = _re.sub(r't\.me/[^\s]+', '', adapted).strip()
+                actions.append("إزالة روابط تليجرام")
+
+        # 3. تمويه أرقام الهواتف إذا سببت حظراً في نتائج المجموعة
+        if 'no_phones' in prohibited or 'رقم' in all_reasons or 'phone' in all_reasons:
+            def _mask_num(m):
+                n = m.group(0)
+                return " ".join(list(n.replace(" ", "")))
+            adapted = _re.sub(r'\+?\d{8,15}', _mask_num, adapted)
+            actions.append("تمويه أرقام الهواتف")
+
+        # 4. صلاحية الوسائط
+        can_media = has_media and report.get('can_send_media', True)
+        if has_media and not can_media:
+            actions.append("إلغاء الصور/الوسائط لأن المجموعة تحظرها")
+
+        return adapted, can_media, actions
+
     def _check_group_protection(self, user_id, client_manager, entity_obj, entity_label):
         """
-        التحقق من حماية المجموعة وإرجاع الإجراء المناسب.
-        الوضع الافتراضي الآن هو 'salam' (الإرسال الذكي المتقدم).
+        التحقق من حماية المجموعة وإرجاع الإجراء المناسب بناءً على فحص قاعدة البيانات.
         """
         try:
             settings = load_settings(user_id)
-            # تغيير الافتراضي من 'smart' إلى 'salam'
             mode = (settings.get('sanitize_mode') or 'salam').lower()
 
-            # إذا كان الوضع معطلاً، أرسل بدون فحص
             if mode == 'off':
                 return 'send', None
 
-            # التحقق من وجود بوتات حماية
-            try:
-                is_prot, reason = client_manager.run_coroutine(
-                    client_manager.is_group_protected(entity_obj)
-                )
-            except Exception as e:
-                logger.warning(f"Group protection check error: {e}")
-                is_prot, reason = False, None
+            report, _ = self.get_or_create_group_safety_report(user_id, client_manager, entity_obj, entity_label)
 
-            # إذا كانت المجموعة محمية
+            is_prot = bool(report.get('is_protected', False))
+            blocks_ads = bool(report.get('blocks_ads', False))
+            requires_smart = bool(report.get('requires_smart_send', False))
+
+            if requires_smart or (is_prot and blocks_ads):
+                return 'salam', report.get('summary_ar') or 'بوتات حماية تمنع الإعلانات'
+
             if is_prot:
-                # وضع التخطي
                 if mode == 'skip':
-                    msg = f"⏭️ تم تخطي المجموعة المحمية: {entity_label}"
-                    if reason:
-                        msg += f" ({reason})"
-                    socketio.emit('log_update', {"message": msg}, to=user_id)
-                    self._send_protection_warning(user_id, entity_label, reason)
-                    return 'skip', reason
-
-                # وضع الإرسال الذكي المتقدم (الافتراضي الآن)
+                    return 'skip', report.get('summary_ar')
                 if mode == 'salam':
-                    socketio.emit('log_update', {
-                        "message": f"🤖 مجموعة محمية: {entity_label} — الإرسال الذكي المتقدم (دوري)"
-                    }, to=user_id)
-                    return 'salam', reason
+                    return 'salam', report.get('summary_ar')
+                if mode in ('smart', 'always'):
+                    return 'sanitize', report.get('summary_ar')
 
-                # وضع التنقية الذكية
-                if mode == 'smart':
-                    socketio.emit('log_update', {
-                        "message": f"🧠 مجموعة محمية: {entity_label} ({reason or 'بوت حماية'}) — سيتم تنقية الرسالة"
-                    }, to=user_id)
-                    return 'sanitize', reason
-
-                # وضع التنقية الدائمة
-                if mode == 'always':
-                    socketio.emit('log_update', {
-                        "message": f"🛡️ مجموعة محمية: {entity_label} — تنقية دائمة مفعّلة"
-                    }, to=user_id)
-                    return 'sanitize', reason
-
-            # إذا كانت المجموعة غير محمية
-            if mode == 'always':
-                return 'sanitize', None
-            if mode == 'salam':
-                return 'send', None  # مجموعات غير محمية: أرسل عادي
             return 'send', None
-
         except Exception as e:
             logger.warning(f"_check_group_protection error: {e}")
             return 'send', None
@@ -3685,6 +4740,92 @@ class TelegramManager:
                 "bots": [],
                 "reason": f"خطأ في الفحص: {str(e)[:80]}",
                 "error": True
+            }
+
+    def scan_and_analyze_group_with_ai(self, user_id, client_manager, entity_obj, entity_label, sample_message=None, send_report_to_me=True):
+        """
+        فحص المجموعة بالذكاء الاصطناعي:
+        1. استخراج آخر 50 محادثة داخل المجموعة
+        2. تحليلها بالذكاء الاصطناعي لكشف حالات الكتم، الطرد، الحظر وأسبابها
+        3. استخراج أخطاء الآخرين وتوليد خطة التلافي التلقائية
+        4. تكييف الرسالة آلياً وتلافي المشاكل
+        5. إرسال تقرير مفصل إلى 'Saved Messages' (الرسائل المحفوظة)
+        """
+        try:
+            import group_ai_analyzer
+            chat_id = getattr(entity_obj, 'id', entity_label)
+            cache_key = f"{user_id}_{chat_id}"
+            
+            with AI_GROUP_SAFETY_LOCK:
+                cached = AI_GROUP_SAFETY_CACHE.get(cache_key)
+                if cached and (time.time() - cached.get('timestamp', 0) < 1800):
+                    return cached['result']
+
+            group_data = client_manager.run_coroutine(
+                group_ai_analyzer.fetch_group_recent_messages(client_manager.client, entity_obj, limit=50)
+            )
+            analysis = group_ai_analyzer.analyze_group_conversations_with_ai(group_data)
+            adaptation = group_ai_analyzer.adapt_message_safely(
+                sample_message or "", analysis, has_media=False
+            )
+
+            # إرسال تقرير مفصل إلى الرسائل المحفوظة
+            if send_report_to_me:
+                try:
+                    report_text = group_ai_analyzer.format_saved_messages_report(
+                        group_data, analysis, adaptation, sent_status="تم الفحص والتحليل الذكي بنجاح"
+                    )
+                    client_manager.run_coroutine(
+                        group_ai_analyzer.send_report_to_saved_messages(client_manager.client, report_text)
+                    )
+                except Exception as _rep_err:
+                    logger.warning(f"Could not send AI report to saved messages for {user_id}: {_rep_err}")
+
+            res = {
+                "entity_label": entity_label,
+                "group_title": group_data.get("group_title", entity_label),
+                "messages_analyzed": group_data.get("messages_count", 0),
+                "protected": analysis.get("has_recent_punishments", False) or analysis.get("risk_assessment") in ("high", "critical"),
+                "risk_assessment": analysis.get("risk_assessment", "low"),
+                "punished_count": analysis.get("punished_count", 0),
+                "details_of_punishments": analysis.get("details_of_punishments", []),
+                "causes": analysis.get("causes", []),
+                "mistakes_by_others": analysis.get("mistakes_by_others", []),
+                "actions_taken": adaptation.get("actions_taken", []),
+                "should_skip": adaptation.get("should_skip", False),
+                "skip_reason": adaptation.get("skip_reason", ""),
+                "adapted_message": adaptation.get("adapted_message", ""),
+                "delay_seconds": adaptation.get("delay_seconds", 3),
+                "summary_ar": analysis.get("summary_ar", ""),
+                "recommended_action": analysis.get("recommended_action", ""),
+                "error": False
+            }
+
+            with AI_GROUP_SAFETY_LOCK:
+                AI_GROUP_SAFETY_CACHE[cache_key] = {
+                    "result": res,
+                    "adaptation": adaptation,
+                    "analysis": analysis,
+                    "timestamp": time.time()
+                }
+
+            return res
+        except Exception as e:
+            logger.error(f"Error in scan_and_analyze_group_with_ai for {entity_label}: {e}")
+            return {
+                "entity_label": entity_label,
+                "group_title": entity_label,
+                "messages_analyzed": 0,
+                "protected": False,
+                "risk_assessment": "unknown",
+                "punished_count": 0,
+                "details_of_punishments": [],
+                "causes": [],
+                "mistakes_by_others": [],
+                "actions_taken": [],
+                "should_skip": False,
+                "error": True,
+                "reason": str(e)
             }
 
     def _send_protection_warning(self, user_id, group_name, reason):
@@ -3723,7 +4864,7 @@ class TelegramManager:
         except Exception as e:
             logger.error(f"Failed to send protection warning: {e}")
 
-    def _run_smart_protected_send(self, user_id, client_manager, entity_obj, entity_label, final_message, key):
+    def _run_smart_protected_send(self, user_id, client_manager, entity_obj, entity_label, final_message, key, cancel_event=None):
         """
         تُنفذ في خيط منفصل (لا تحجب حلقة الإرسال الرئيسية):
         1. ترسل "السلام عليكم" كرسالة أولية ثابتة.
@@ -3770,12 +4911,17 @@ class TelegramManager:
                     time.sleep(10)
                     continue
 
-                # ── 2. انتظار المدة المحددة مع مراقبة الرسائل ──
+                # ── 2. انتظار المدة المحددة مع مراقبة الرسائل وبوتات الحماية (P0) ──
                 start_time = time.time()
                 last_id = msg.id
                 messages_after = 0
+                salam_env_wait = int(os.getenv('SMART_SALAM_WAIT_SECONDS', 60))
+                max_cycle_wait = min(cycle_duration, salam_env_wait)
 
-                while (time.time() - start_time) < cycle_duration:
+                while (time.time() - start_time) < max_cycle_wait:
+                    if cancel_event and cancel_event.is_set():
+                        logger.info(f"[Smart] إلغاء الإرسال الذكي لـ {entity_label} بطلب من المستخدم")
+                        break
                     if not self._smart_running or key not in self._smart_running:
                         break
                     time.sleep(2)
@@ -3791,26 +4937,77 @@ class TelegramManager:
                             socketio.emit('log_update', {
                                 "message": f"🧠 [Smart] {entity_label}: استقبل {messages_after}/{required_messages} رسالة"
                             }, to=user_id)
+                            # استيفاء الشرط مبكراً فور وصول الرسائل المطلوبة
+                            if messages_after >= required_messages:
+                                logger.info(f"[Smart] استوفت الشروط مبكراً ({messages_after}/{required_messages}) لـ {entity_label}")
+                                break
                     except Exception as poll_err:
                         logger.error(f"[Smart] خطأ في جلب الرسائل من {entity_label}: {poll_err}")
                         break
 
-                # ── 3. اتخاذ القرار بناءً على عدد الرسائل ──
-                if messages_after >= required_messages:
-                    # ✅ تعديل الرسالة إلى النص النهائي
+                    # فحص هل تم حذف رسالة السلام من قبل بوت حماية
+                    try:
+                        chk_msg = client_manager.run_coroutine(
+                            client_manager.client.get_messages(entity_obj, ids=msg.id)
+                        )
+                        if not chk_msg or getattr(chk_msg, 'action', None) or not getattr(chk_msg, 'message', None):
+                            logger.warning(f"[Smart] تم حذف رسالة السلام في {entity_label} بواسطة بوت حماية")
+                            socketio.emit('log_update', {
+                                "message": f"⚠️ [Smart] تم حذف رسالة 'السلام عليكم' في {entity_label} بواسطة بوت حماية"
+                            }, to=user_id)
+                            break
+                    except Exception:
+                        pass
+
+                    # في المجموعات الهادئة، إذا مر 35 ثانية مع رسالة واحدة أخرى على الأقل وبقيت رسالة السلام سالمة
+                    if (time.time() - start_time) >= 35 and messages_after >= 1:
+                        logger.info(f"[Smart] استوفت الشروط الزمنية الآمنة لـ {entity_label}")
+                        break
+
+                # ── 3. اتخاذ القرار وتعديل الرسالة إلى النص الأصلي ──
+                # التحقق هل الرسالة لا تزال موجودة
+                is_alive = True
+                try:
+                    chk2 = client_manager.run_coroutine(
+                        client_manager.client.get_messages(entity_obj, ids=msg.id)
+                    )
+                    if not chk2 or getattr(chk2, 'action', None) or not getattr(chk2, 'message', None):
+                        is_alive = False
+                except Exception:
+                    pass
+
+                if not is_alive:
+                    fail_msg = f"❌ [Smart] تعذر التعديل في {entity_label}: بوت حماية قام بحذف الرسالة فورياً"
+                    socketio.emit('log_update', {"message": fail_msg}, to=user_id)
+                    socketio.emit('send_progress', {
+                        "group": entity_label,
+                        "status": "error",
+                        "error_type": "حُذفت الرسالة بواسطة بوت حماية",
+                        "message": fail_msg
+                    }, to=user_id)
+                    break
+
+                if messages_after >= required_messages or (time.time() - start_time >= 35 and is_alive):
+                    # ✅ تعديل الرسالة إلى النص النهائي (الأصلي)
                     try:
                         client_manager.run_coroutine(
-                            client_manager.client.edit_message(entity_obj, msg.id, final_message)
+                            client_manager.client.edit_message(entity_obj, msg.id, final_message, parse_mode='md')
                         )
-                        logger.info(f"[Smart] تم تعديل الرسالة في {entity_label} (عدد الرسائل: {messages_after})")
+                        logger.info(f"[Smart] تم تعديل الرسالة في {entity_label} بنجاح إلى النص الأصلي")
+                        success_edit_msg = f"✅ [Smart] تم تعديل الرسالة في {entity_label} بنجاح إلى النص الأصلي بعد استيفاء الشروط"
                         socketio.emit('log_update', {
-                            "message": f"✅ [Smart] تم تعديل الرسالة في {entity_label} بعد {messages_after} رسائل"
+                            "message": success_edit_msg
+                        }, to=user_id)
+                        socketio.emit('send_progress', {
+                            "group": entity_label,
+                            "status": "success",
+                            "message": success_edit_msg
                         }, to=user_id)
                         socketio.emit('smart_send_done', {
                             "success": True,
                             "entity": entity_label,
                             "waited": messages_after,
-                            "message": f"✅ تم تعديل الرسالة في {entity_label} بعد {messages_after} رسائل"
+                            "message": success_edit_msg
                         }, to=user_id)
                         # ── إيقاف الدورة بعد نجاح الإرسال — منع إرسال "السلام عليكم" مجدداً
                         break
@@ -3819,6 +5016,7 @@ class TelegramManager:
                         socketio.emit('log_update', {
                             "message": f"❌ [Smart] فشل تعديل الرسالة في {entity_label}: {str(edit_err)[:80]}"
                         }, to=user_id)
+                        break
                 else:
                     # ❌ لم نصل إلى العدد المطلوب — احذف رسالة السلام
                     logger.info(f"[Smart] لم يتم تعديل الرسالة في {entity_label} (عدد الرسائل: {messages_after} < {required_messages})")
@@ -3986,7 +5184,8 @@ class TelegramManager:
                                 client_manager.client.send_file(
                                     entity_obj, 
                                     image_paths[0],
-                                    caption=message if message else "📷"
+                                    caption=message if message else "📷",
+                                    parse_mode='md'
                                 )
                             )
                             results.append(media_result.id)
@@ -3997,7 +5196,8 @@ class TelegramManager:
                                     client_manager.client.send_file(
                                         entity_obj,
                                         image_paths,
-                                        caption=message if message and message.strip() else None
+                                        caption=message if message and message.strip() else None,
+                                        parse_mode='md'
                                     )
                                 )
                                 if hasattr(media_result, '__iter__'):
@@ -4015,7 +5215,8 @@ class TelegramManager:
                                             client_manager.client.send_file(
                                                 entity_obj,
                                                 img_path,
-                                                caption=cap
+                                                caption=cap,
+                                                parse_mode='md'
                                             )
                                         )
                                         results.append(media_result.id)
@@ -4084,7 +5285,7 @@ def monitoring_worker(user_id):
             if user_id in USERS:
                 USERS[user_id]['last_scheduled_send'] = _saved_last_send
 
-        # ── دورة التشغيل/التوقف التلقائية للإرسال المجدول ───────────────
+        # ── دورة التشغيل/التوقف التلقائية للإرسال المجدول (الدورة الدائرية المستمرة) ───
         _sched_dur = max(0, int(settings.get('schedule_duration', 0) or 0))
         _pause_dur = max(0, int(settings.get('schedule_pause_duration', 0) or 0))
         if _pause_dur == 0:
@@ -4095,33 +5296,47 @@ def monitoring_worker(user_id):
         _sched_start = time.time()
         _pause_start = None
         _cycle_phase = 'running'
+        _cycle_round = 1
         _stopped_by_duration = False
+
+        with USERS_LOCK:
+            if user_id in USERS:
+                USERS[user_id]['cycle_phase'] = 'running'
+                USERS[user_id]['cycle_round'] = _cycle_round
+                USERS[user_id]['sched_dur'] = _sched_dur
+                USERS[user_id]['pause_dur'] = _pause_dur
+                USERS[user_id]['sched_start'] = _sched_start
+                USERS[user_id]['pause_start'] = None
+                USERS[user_id]['skip_pause_requested'] = False
 
         if _sched_dur > 0:
             _h = _sched_dur // 3600
             _m = (_sched_dur % 3600) // 60
-            _cycle_message = f"⏱️ سيعمل الإرسال {_h}س {_m}د"
+            _cycle_message = f"⏱️ سيعمل الإرسال {_h}س {_m}د (الدورة #{_cycle_round})"
             if _pause_dur > 0:
                 _ph = _pause_dur // 3600
                 _pm = (_pause_dur % 3600) // 60
-                _cycle_message += f" ثم يتوقف {_ph}س {_pm}د ويُستأنف تلقائياً"
+                _cycle_message += f" ثم يتوقف {_ph}س {_pm}د ويُستأنف تلقائياً بشكل دائري"
             else:
                 _cycle_message += " ثم يتوقف تلقائياً"
             socketio.emit('log_update', {"message": _cycle_message}, to=user_id)
         socketio.emit('schedule_status', {
             "running": True,
             "cycle_phase": "running",
+            "cycle_round": _cycle_round,
             "duration_hours": _sched_dur / 3600,
             "pause_duration_hours": _pause_dur / 3600,
             "remaining_seconds": _sched_dur if _sched_dur > 0 else None,
             "pause_remaining_seconds": None,
-            "auto_resume": _pause_dur > 0
+            "auto_resume": _pause_dur > 0,
+            "target_timestamp": (_sched_start + _sched_dur) if _sched_dur > 0 else None
         }, to=user_id)
 
         if _DB_READY:
             _app_db.record_schedule_event(user_id, "running", {
                 "duration_hours": _sched_dur / 3600,
                 "pause_duration_hours": _pause_dur / 3600,
+                "cycle_round": _cycle_round
             })
 
         consecutive_errors = 0
@@ -4139,42 +5354,63 @@ def monitoring_worker(user_id):
 
             # ── إدارة دورة التشغيل والتوقف التلقائية ───────────────────────
             _now = time.time()
+            skip_pause = False
+            with USERS_LOCK:
+                if user_id in USERS and USERS[user_id].get('skip_pause_requested'):
+                    skip_pause = True
+                    USERS[user_id]['skip_pause_requested'] = False
+
             if _cycle_phase == 'paused':
                 _pause_remaining = _pause_dur - (_now - (_pause_start or _now))
-                if _pause_remaining <= 0:
+                if _pause_remaining <= 0 or skip_pause:
                     _cycle_phase = 'running'
+                    _cycle_round += 1
                     _sched_start = _now
                     _pause_start = None
                     with USERS_LOCK:
                         if user_id in USERS:
+                            USERS[user_id]['cycle_phase'] = 'running'
+                            USERS[user_id]['cycle_round'] = _cycle_round
+                            USERS[user_id]['sched_start'] = _sched_start
+                            USERS[user_id]['pause_start'] = None
                             _interval_after_pause = max(60, int(USERS[user_id].get('settings', {}).get('interval_seconds', 3600)))
                             USERS[user_id]['last_scheduled_send'] = _now - _interval_after_pause
-                    socketio.emit('log_update', {
-                        "message": "▶️ انتهت مدة التوقف — استؤنف الإرسال المجدول تلقائياً"
-                    }, to=user_id)
+                    if skip_pause:
+                        _resume_msg = f"⏩ تم استئناف الإرسال فوراً بطلب المستخدم (الدورة #{_cycle_round})"
+                    else:
+                        _resume_msg = f"▶️ انتهت مدة التوقف — استؤنف الإرسال المجدول تلقائياً (الدورة #{_cycle_round})"
+                    socketio.emit('log_update', {"message": _resume_msg}, to=user_id)
                     if _DB_READY:
                         _app_db.record_schedule_event(user_id, "resumed", {
                             "run_duration_seconds": _sched_dur,
+                            "cycle_round": _cycle_round
                         })
                     socketio.emit('schedule_status', {
                         "running": True,
                         "cycle_phase": "running",
+                        "cycle_round": _cycle_round,
                         "duration_hours": _sched_dur / 3600,
                         "pause_duration_hours": _pause_dur / 3600,
                         "remaining_seconds": _sched_dur if _sched_dur > 0 else None,
                         "pause_remaining_seconds": None,
-                        "auto_resume": True
+                        "auto_resume": True,
+                        "target_timestamp": (_sched_start + _sched_dur) if _sched_dur > 0 else None
                     }, to=user_id)
                 else:
-                    if time.time() - _last_remain_emit >= 30:
+                    if time.time() - _last_remain_emit >= 5:
                         _last_remain_emit = time.time()
                         socketio.emit('schedule_remaining', {
                             "phase": "paused",
+                            "cycle_round": _cycle_round,
                             "remaining_seconds": int(_pause_remaining),
                             "remaining_minutes": int(_pause_remaining // 60),
-                            "remaining_hours": _pause_remaining / 3600
+                            "remaining_hours": _pause_remaining / 3600,
+                            "target_timestamp": (_pause_start or _now) + _pause_dur
                         }, to=user_id)
-                    time.sleep(10)
+                    for _ in range(5):
+                        if not USERS.get(user_id, {}).get('is_running', False) or USERS.get(user_id, {}).get('skip_pause_requested', False):
+                            break
+                        time.sleep(1)
                     continue
 
             if _cycle_phase == 'running' and _sched_dur > 0:
@@ -4185,29 +5421,36 @@ def monitoring_worker(user_id):
                         _cycle_phase = 'paused'
                         _pause_start = _now
                         _last_remain_emit = 0
+                        with USERS_LOCK:
+                            if user_id in USERS:
+                                USERS[user_id]['cycle_phase'] = 'paused'
+                                USERS[user_id]['pause_start'] = _now
                         _pause_h = _pause_dur // 3600
                         _pause_m = (_pause_dur % 3600) // 60
                         socketio.emit('log_update', {
-                            "message": f"⏸️ انتهت مدة التشغيل — توقف الإرسال لمدة {_pause_h}س {_pause_m}د ثم يستأنف تلقائياً"
+                            "message": f"⏸️ انتهت مدة التشغيل لدورة #{_cycle_round} — توقف الإرسال لمدة {_pause_h}س {_pause_m}د ثم يستأنف تلقائياً"
                         }, to=user_id)
                         if _DB_READY:
                             _app_db.record_schedule_event(user_id, "paused", {
                                 "pause_duration_seconds": _pause_dur,
                                 "run_duration_seconds": _sched_dur,
+                                "cycle_round": _cycle_round
                             })
                         socketio.emit('schedule_status', {
-                            "running": False,
+                            "running": True,
                             "cycle_phase": "paused",
+                            "cycle_round": _cycle_round,
                             "stopped_by_duration": False,
                             "duration_hours": _sched_dur / 3600,
                             "pause_duration_hours": _pause_dur / 3600,
                             "pause_remaining_seconds": _pause_dur,
-                            "auto_resume": True
+                            "auto_resume": True,
+                            "target_timestamp": _now + _pause_dur
                         }, to=user_id)
                         send_push_notification(
                             user_id,
-                            "⏸️ توقف مؤقت للإرسال المجدول",
-                            f"انتهت مدة التشغيل. سيُستأنف الإرسال تلقائياً بعد {_pause_h}س {_pause_m}د.",
+                            f"⏸️ توقف مؤقت للإرسال (الدورة #{_cycle_round})",
+                            f"انتهت مدة التشغيل ({_sched_dur//3600}س). سيُستأنف الإرسال تلقائياً بعد {_pause_h}س {_pause_m}د.",
                             data={"type": "schedule_paused", "pause_remaining_seconds": _pause_dur}
                         )
                         time.sleep(1)
@@ -4220,9 +5463,11 @@ def monitoring_worker(user_id):
                     with USERS_LOCK:
                         if user_id in USERS:
                             USERS[user_id]['is_running'] = False
+                            USERS[user_id]['cycle_phase'] = 'stopped'
                     socketio.emit('schedule_status', {
                         "running": False,
                         "cycle_phase": "stopped",
+                        "cycle_round": _cycle_round,
                         "stopped_by_duration": True,
                         "duration_hours": _sched_dur / 3600,
                         "pause_duration_hours": 0,
@@ -4237,13 +5482,15 @@ def monitoring_worker(user_id):
                         data={"type": "schedule_expired", "duration_hours": _sched_dur / 3600}
                     )
                     break
-                elif time.time() - _last_remain_emit >= 30:
+                elif time.time() - _last_remain_emit >= 5:
                     _last_remain_emit = time.time()
                     socketio.emit('schedule_remaining', {
                         "phase": "running",
+                        "cycle_round": _cycle_round,
                         "remaining_seconds": int(_remain),
                         "remaining_minutes": int(_remain // 60),
-                        "remaining_hours": _remain / 3600
+                        "remaining_hours": _remain / 3600,
+                        "target_timestamp": _sched_start + _sched_dur
                     }, to=user_id)
 
             try:
@@ -4359,7 +5606,7 @@ def monitoring_worker(user_id):
 
 @app.route("/api/resume_scheduled", methods=["POST"])
 def api_resume_scheduled():
-    """استئناف الإرسال المجدول بعد توقفه بسبب انتهاء المدة"""
+    """استئناف الإرسال المجدول بعد توقفه بسبب انتهاء المدة أو تخطي فترة التوقف المؤقت"""
     user_id = session.get('user_id')
     if not user_id:
         return jsonify({"success": False, "message": "❌ غير مسجل"}), 401
@@ -4369,6 +5616,9 @@ def api_resume_scheduled():
             return jsonify({"success": False, "message": "❌ المستخدم غير موجود"}), 404
 
         if USERS[user_id].get('is_running', False):
+            if USERS[user_id].get('cycle_phase') == 'paused':
+                USERS[user_id]['skip_pause_requested'] = True
+                return jsonify({"success": True, "message": "⏩ تم تخطي فترة التوقف واستئناف الإرسال فوراً"})
             return jsonify({"success": False, "message": "⚠️ الإرسال المجدول يعمل بالفعل"})
 
         settings = USERS[user_id].get('settings', {})
@@ -4379,6 +5629,7 @@ def api_resume_scheduled():
         _h = _sched_dur // 3600
         _m = (_sched_dur % 3600) // 60
         USERS[user_id]['is_running'] = True
+        USERS[user_id]['cycle_phase'] = 'running'
 
     import threading as _thr
     t = _thr.Thread(target=monitoring_worker, args=(user_id,), daemon=True)
@@ -4444,7 +5695,30 @@ def execute_scheduled_messages(user_id, settings):
 
         for i, group in enumerate(groups, 1):
             try:
-                result = telegram_manager.send_message_async(user_id, group, message)
+                curr_message = message
+                try:
+                    with USERS_LOCK:
+                        cm = USERS.get(user_id, {}).get('client_manager')
+                    if cm and cm.client:
+                        ent_obj = telegram_manager._resolve_entity(cm, group)
+                        ai_check = telegram_manager.scan_and_analyze_group_with_ai(
+                            user_id, cm, ent_obj, group, sample_message=message, send_report_to_me=True
+                        )
+                        if ai_check.get('should_skip'):
+                            socketio.emit('log_update', {
+                                "message": f"⏭️ [{i}/{len(groups)}] تخطي آلي لـ {group}: {ai_check.get('skip_reason', 'رُصد حظر قطعي للأعضاء')}"
+                            }, to=user_id)
+                            continue
+                        if ai_check.get('adapted_message'):
+                            curr_message = ai_check.get('adapted_message')
+                        if ai_check.get('actions_taken'):
+                            socketio.emit('log_update', {
+                                "message": f"🛡️ [{i}/{len(groups)}] تلافي أخطاء الآخرين في {group}: {', '.join(ai_check['actions_taken'][:2])}"
+                            }, to=user_id)
+                except Exception as _ai_ex:
+                    logger.debug(f"AI inspection fallback in scheduled send: {_ai_ex}")
+
+                result = telegram_manager.send_message_async(user_id, group, curr_message)
 
                 if isinstance(result, dict) and result.get('skipped'):
                     socketio.emit('log_update', {
@@ -4521,6 +5795,44 @@ def handle_connect():
 
         all_status = get_all_users_operations_status()
         emit('all_users_status', all_status)
+
+        # بث الحالة اللحظية لجدولة الإرسال والدورة الدائرية فور الاتصال
+        with USERS_LOCK:
+            u_mem = USERS.get(user_id, {})
+            is_run = u_mem.get('is_running', False)
+            cycle_phase = u_mem.get('cycle_phase', 'running' if is_run else 'stopped')
+            cycle_round = u_mem.get('cycle_round', 1)
+            sched_dur = u_mem.get('sched_dur', 0)
+            pause_dur = u_mem.get('pause_dur', 0)
+            sched_start = u_mem.get('sched_start')
+            pause_start = u_mem.get('pause_start')
+
+        emit('monitoring_status', {
+            'is_running': is_run,
+            'monitoring_active': u_mem.get('monitoring_active', False)
+        })
+
+        if is_run and (sched_dur > 0 or pause_dur > 0):
+            _now = time.time()
+            rem = max(0, int(sched_dur - (_now - sched_start))) if (sched_start and sched_dur > 0) else None
+            p_rem = max(0, int(pause_dur - (_now - pause_start))) if (pause_start and pause_dur > 0) else None
+            target_ts = None
+            if cycle_phase == 'running' and sched_start and sched_dur > 0:
+                target_ts = sched_start + sched_dur
+            elif cycle_phase == 'paused' and pause_start and pause_dur > 0:
+                target_ts = pause_start + pause_dur
+
+            emit('schedule_status', {
+                "running": True,
+                "cycle_phase": cycle_phase,
+                "cycle_round": cycle_round,
+                "duration_hours": sched_dur / 3600,
+                "pause_duration_hours": pause_dur / 3600,
+                "remaining_seconds": rem,
+                "pause_remaining_seconds": p_rem,
+                "auto_resume": pause_dur > 0,
+                "target_timestamp": target_ts
+            })
 
     except Exception as e:
         logger.error(f"Connection error: {str(e)}")
@@ -4712,6 +6024,28 @@ def index():
 
     current_user = PREDEFINED_USERS[user_id]
 
+    users_account_info = {}
+    for uid, udata in PREDEFINED_USERS.items():
+        st = load_settings(uid) or {}
+        with USERS_LOCK:
+            u_mem = USERS.get(uid, {})
+            auth = u_mem.get('authenticated', False) or os.path.exists(os.path.join(SESSIONS_DIR, f"{uid}_session.session"))
+            aname = u_mem.get('account_name') or st.get('account_name')
+            auser = u_mem.get('account_username') or st.get('account_username')
+            aphone = u_mem.get('account_phone') or st.get('account_phone')
+            aavatar = u_mem.get('account_avatar')
+        if not aavatar:
+            av_file = os.path.join(SESSIONS_DIR, 'avatars', f"{uid}.jpg")
+            if os.path.exists(av_file) and os.path.getsize(av_file) > 0:
+                aavatar = f"/api/account_avatar/{uid}?t={int(os.path.getmtime(av_file))}"
+        users_account_info[uid] = {
+            "logged_in": auth,
+            "account_name": aname,
+            "account_username": auser,
+            "account_phone": aphone,
+            "account_avatar": aavatar
+        }
+
     admin_ui_visible = session.get('admin_ui_visible', False)
     response = render_template('index.html',
                           settings=settings,
@@ -4720,6 +6054,7 @@ def index():
                           whatsapp_link=whatsapp_link,
                           current_user=current_user,
                           predefined_users=PREDEFINED_USERS,
+                          users_account_info=users_account_info,
                           admin_ui_visible=admin_ui_visible)
 
     resp = make_response(response)
@@ -4947,46 +6282,131 @@ def api_save_login():
             "message": "❌ يرجى إدخال رقم الهاتف"
         })
 
-    new_phone = data.get('phone')
+    new_phone = str(data.get('phone')).strip()
+    clean_new_phone = re.sub(r'[^0-9]', '', new_phone)
 
-    # ─── تحديد user_id ───────────────────────────────────────────────────────
-    # الأولوية: (1) user_id في body الطلب، (2) الجلسة، (3) الافتراضي user_1
-    requested_uid = (data.get('user_id') or '').strip()
-    if requested_uid and requested_uid in PREDEFINED_USERS:
-        session['user_id'] = requested_uid
-        session.permanent = True
-    elif 'user_id' not in session or session['user_id'] not in PREDEFINED_USERS:
+    # حفظ الرقم في Firestore بشكل دائم
+    try:
+        import firestore_sync
+        firestore_sync.save_phone_number(new_phone)
+    except Exception as _fe:
+        logger.error(f"Error persisting phone {new_phone} to Firestore: {_fe}")
+
+    # ─── تحديد user_id والتعامل مع تعدد الحسابات الذكي ──────────────────────────
+    # الحساب الحالي في الجلسة
+    current_uid = session.get('user_id')
+    if not current_uid or current_uid not in PREDEFINED_USERS:
+        current_uid = "user_1"
         session['user_id'] = "user_1"
         session.permanent = True
-    session.modified = True
 
-    user_id = session['user_id']
-    logger.info(f"api_save_login: user_id={user_id}, phone={new_phone}")
-    log_user_event(user_id, 'INFO', f"📱 طلب تسجيل دخول للرقم: {new_phone}")
+    # 1. هل هذا الرقم مسجل بالفعل في أي حساب من الحسابات المعرفة؟
+    existing_uid_for_phone = None
+    for uid in list(PREDEFINED_USERS.keys()):
+        st = load_settings(uid) or {}
+        p = st.get('phone') or st.get('account_phone') or (USERS.get(uid, {}).get('settings', {}).get('phone') if uid in USERS else None)
+        if p and re.sub(r'[^0-9]', '', str(p)) == clean_new_phone:
+            existing_uid_for_phone = uid
+            break
 
-    # تنظيف الجلسة القديمة لنفس الخانة إذا تغيّر الرقم
-    current_settings = load_settings(user_id)
-    if current_settings.get('phone') and current_settings.get('phone') != new_phone:
-        logger.info(f"Phone changed: {current_settings['phone']} → {new_phone} for {user_id}")
+    target_uid = current_uid
+
+    if existing_uid_for_phone:
+        # الرقم موجود مسبقاً في حساب آخر أو نفس الحساب
+        target_uid = existing_uid_for_phone
+        session['user_id'] = target_uid
+        session.permanent = True
+        session.modified = True
+
+        # التحقق مما إذا كان هذا الحساب متصلاً ويعمل بالفعل
+        is_already_auth = False
         with USERS_LOCK:
-            if user_id in USERS:
-                if USERS[user_id].get('is_running'):
-                    USERS[user_id]['is_running'] = False
-                cm = USERS[user_id].get('client_manager')
-                if cm:
-                    try: cm.stop()
-                    except Exception: pass
-                del USERS[user_id]
-        # حذف ملف الجلسة القديم
-        old_session_file = os.path.join(SESSIONS_DIR, f"{user_id}_session.session")
-        if os.path.exists(old_session_file):
+            if target_uid in USERS and (USERS[target_uid].get('authenticated') or USERS[target_uid].get('connected')):
+                is_already_auth = True
+        session_file = os.path.join(SESSIONS_DIR, f"{target_uid}_session.session")
+        if os.path.exists(session_file):
+            is_already_auth = True
+
+        if is_already_auth:
             try:
-                os.remove(old_session_file)
-            except Exception as e:
-                logger.warning(f"Could not remove old session file: {e}")
-        socketio.emit('log_update', {
-            "message": f"🔄 تم مسح الجلسة القديمة لـ {PREDEFINED_USERS[user_id]['name']}"
-        }, to=user_id)
+                telegram_manager.ensure_client_active(target_uid)
+            except Exception:
+                pass
+            logger.info(f"Account {target_uid} already active for phone {new_phone} - switched to it")
+            return jsonify({
+                "success": True,
+                "message": f"✅ تم التبديل إلى {PREDEFINED_USERS[target_uid]['name']} وهو متصل ويعمل بالفعل",
+                "switched_account": True,
+                "already_connected": True,
+                "user_id": target_uid,
+                "account_name": PREDEFINED_USERS[target_uid].get('name')
+            })
+    else:
+        # الرقم جديد وغير مخصص لأي حساب بعد:
+        # فحص هل الحساب الحالي مستخدم أو متصل أو يعمل برقم آخر
+        current_st = load_settings(current_uid) or {}
+        cur_phone = current_st.get('phone')
+        cur_session_file = os.path.join(SESSIONS_DIR, f"{current_uid}_session.session")
+        cur_has_session = os.path.exists(cur_session_file)
+        cur_is_conn = (
+            current_uid in USERS and (
+                USERS[current_uid].get('connected') or
+                USERS[current_uid].get('authenticated') or
+                USERS[current_uid].get('is_running')
+            )
+        )
+
+        if (cur_phone and re.sub(r'[^0-9]', '', str(cur_phone)) != clean_new_phone) or cur_has_session or cur_is_conn:
+            # الحساب الحالي نشط ومتصل برقم آخر!
+            # لا نلغيه ولا نوقف عملياته، بل نرفعه في قائمة الحسابات ونخصص للحساب الجديد خانة خاصة
+            free_uid = None
+            for uid in list(PREDEFINED_USERS.keys()):
+                if uid == current_uid:
+                    continue
+                st = load_settings(uid) or {}
+                has_p = bool(st.get('phone'))
+                has_s = os.path.exists(os.path.join(SESSIONS_DIR, f"{uid}_session.session"))
+                is_c = uid in USERS and (USERS[uid].get('connected') or USERS[uid].get('authenticated') or USERS[uid].get('is_running'))
+                if not has_p and not has_s and not is_c:
+                    free_uid = uid
+                    break
+
+            if not free_uid:
+                # إنشاء خانة حساب جديدة تماماً
+                idx = 1
+                while f"user_{idx}" in PREDEFINED_USERS:
+                    idx += 1
+                free_uid = f"user_{idx}"
+                palette = [
+                    ("#0088cc", "fas fa-user"),
+                    ("#28a745", "fas fa-user-check"),
+                    ("#e91e63", "fas fa-user-shield"),
+                    ("#9c27b0", "fas fa-user-astronaut"),
+                    ("#ff9800", "fas fa-user-graduate"),
+                    ("#00bcd4", "fas fa-user-tie"),
+                    ("#673ab7", "fas fa-user-ninja"),
+                    ("#20c997", "fas fa-user-clock"),
+                ]
+                color, icon = palette[(idx - 1) % len(palette)]
+                display_name = f"الحساب {idx} ({new_phone})"
+                PREDEFINED_USERS[free_uid] = {
+                    "id": free_uid,
+                    "name": display_name,
+                    "icon": icon,
+                    "color": color
+                }
+                _save_custom_accounts()
+                get_user_session_dir(free_uid)
+
+            target_uid = free_uid
+            session['user_id'] = target_uid
+            session.permanent = True
+            session.modified = True
+            logger.info(f"✅ تم الإبقاء على {current_uid} قيد التشغيل وفتح حساب جديد {target_uid} للرقم {new_phone}")
+
+    user_id = target_uid
+    logger.info(f"api_save_login: user_id={user_id}, phone={new_phone}")
+    log_user_event(user_id, 'INFO', f"📱 طلب تسجيل دخول للرقم: {new_phone} (الحساب: {PREDEFINED_USERS[user_id]['name']})")
 
     settings = {
         'phone': new_phone,
@@ -5006,37 +6426,23 @@ def api_save_login():
         }, to=user_id)
 
         with USERS_LOCK:
-            # إزالة أي خانة أخرى تستخدم نفس الرقم
-            users_to_remove = [
-                uid for uid, ud in USERS.items()
-                if uid != user_id and ud['settings'].get('phone') == new_phone
-            ]
-            for old_uid in users_to_remove:
-                logger.info(f"Removing duplicate phone session: {old_uid}")
-                if USERS[old_uid].get('is_running'):
-                    USERS[old_uid]['is_running'] = False
-                cm = USERS[old_uid].get('client_manager')
-                if cm:
-                    try: cm.stop()
-                    except Exception: pass
-                del USERS[old_uid]
-
-            # إنشاء/تحديث إدخال المستخدم الحالي
+            # تهيئة إدخال المستخدم دون المساس بأي حسابات أخرى
+            prev_data = USERS.get(user_id, {})
             USERS[user_id] = {
-                'client_manager': None,
+                'client_manager': prev_data.get('client_manager'),
                 'settings': settings,
-                'thread': None,
-                'is_running': False,
-                'stats': {"sent": 0, "errors": 0},
-                'connected': False,
-                'authenticated': False,
+                'thread': prev_data.get('thread'),
+                'is_running': prev_data.get('is_running', False),
+                'stats': prev_data.get('stats', {"sent": 0, "errors": 0}),
+                'connected': prev_data.get('connected', False),
+                'authenticated': prev_data.get('authenticated', False),
                 'awaiting_code': False,
                 'awaiting_password': False,
                 'phone_code_hash': None,
                 'login_pending': True,
                 'login_error': None,
-                'monitoring_active': False,
-                'event_handlers_registered': False,
+                'monitoring_active': prev_data.get('monitoring_active', False),
+                'event_handlers_registered': prev_data.get('event_handlers_registered', False),
                 'sent_batches': settings.get('sent_batches', []) or []
             }
 
@@ -5047,7 +6453,10 @@ def api_save_login():
             return jsonify({
                 "success": True,
                 "message": "🔄 جارِ الاتصال بتيليجرام...",
-                "pending": True
+                "pending": True,
+                "user_id": user_id,
+                "switched_account": (user_id != current_uid),
+                "account_name": PREDEFINED_USERS[user_id].get('name')
             })
 
         elif result["status"] == "success":
@@ -5057,11 +6466,24 @@ def api_save_login():
                 "logged_in": True, "connected": True,
                 "awaiting_code": False, "awaiting_password": False, "is_running": False
             }, to=user_id)
-            return jsonify({"success": True, "message": "✅ تم تسجيل الدخول"})
+            return jsonify({
+                "success": True,
+                "message": "✅ تم تسجيل الدخول",
+                "user_id": user_id,
+                "switched_account": (user_id != current_uid),
+                "account_name": PREDEFINED_USERS[user_id].get('name')
+            })
 
         elif result["status"] == "code_required":
             socketio.emit('log_update', {"message": "📱 تم إرسال كود التحقق"}, to=user_id)
-            return jsonify({"success": True, "message": "📱 تم إرسال كود التحقق", "code_required": True})
+            return jsonify({
+                "success": True,
+                "message": "📱 تم إرسال كود التحقق",
+                "code_required": True,
+                "user_id": user_id,
+                "switched_account": (user_id != current_uid),
+                "account_name": PREDEFINED_USERS[user_id].get('name')
+            })
 
         else:
             error_message = result.get('message', 'خطأ غير معروف')
@@ -5083,16 +6505,36 @@ def api_save_login():
             "message": f"❌ خطأ: {str(e)}"
         })
 
+@app.route("/api/saved_phone_numbers", methods=["GET"])
+def api_get_saved_phone_numbers():
+    try:
+        import firestore_sync
+        phones = firestore_sync.get_saved_phone_numbers()
+        return jsonify({"success": True, "phones": phones})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e), "phones": []})
+
+@app.route("/api/saved_phone_numbers/add", methods=["POST"])
+def api_add_saved_phone_number():
+    data = request.json or {}
+    phone = data.get('phone')
+    label = data.get('label', 'رقم محفوظ')
+    if not phone:
+        return jsonify({"success": False, "message": "رقم الهاتف مطلوب"})
+    try:
+        import firestore_sync
+        res = firestore_sync.save_phone_number(phone, label)
+        return jsonify({"success": True, "phone": res})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
 @app.route("/api/verify_code", methods=["POST"])
 def api_verify_code():
-    if 'user_id' not in session:
-        return jsonify({
-            "success": False, 
-            "message": "❌ الجلسة غير صالحة، يرجى إعادة تحميل الصفحة"
-        })
-
-    user_id = session['user_id']
-    data = request.json
+    data = request.json or {}
+    user_id = resolve_request_user_id(data)
+    session['user_id'] = user_id
+    session.permanent = True
+    session.modified = True
 
     if not data:
         return jsonify({
@@ -5117,8 +6559,6 @@ def api_verify_code():
 
         if result["status"] == "success":
             account_name = result.get("account_name")
-            account_phone = result.get("account_phone")
-            account_avatar = result.get("account_avatar") or f"/api/account_avatar/{user_id}?t={int(time.time())}"
             socketio.emit('log_update', {
                 "message": f"✅ تم التحقق بنجاح — أهلاً {account_name}" if account_name else "✅ تم التحقق بنجاح"
             }, to=user_id)
@@ -5127,13 +6567,20 @@ def api_verify_code():
                 "status": "connected"
             }, to=user_id)
 
+            account_phone = USERS.get(user_id, {}).get('account_phone') or (load_settings(user_id) or {}).get('phone') or ''
+            account_username = USERS.get(user_id, {}).get('account_username') or ''
+            account_avatar = result.get("account_avatar") or USERS.get(user_id, {}).get('account_avatar')
+
             return jsonify({
                 "success": True,
+                "user_id": user_id,
                 "message": f"✅ تم التحقق بنجاح — أهلاً {account_name}" if account_name else "✅ تم التحقق بنجاح",
                 "account_name": account_name,
                 "account_phone": account_phone,
+                "account_username": account_username,
                 "account_avatar": account_avatar,
-                "user_id": user_id
+                "logged_in": True,
+                "connected": True
             })
 
         elif result["status"] == "password_required":
@@ -5166,14 +6613,10 @@ def api_verify_code():
 
 @app.route("/api/save_settings", methods=["POST"])
 def api_save_settings():
-    if 'user_id' not in session:
-        return jsonify({
-            "success": False, 
-            "message": "❌ الجلسة غير صالحة، يرجى إعادة تحميل الصفحة"
-        })
-
-    user_id = session['user_id']
-    data = request.json
+    data = request.json or {}
+    user_id = resolve_request_user_id(data)
+    session['user_id'] = user_id
+    session.permanent = True
 
     if not data:
         return jsonify({
@@ -5222,6 +6665,12 @@ def api_save_settings():
         'auto_reconnect': data.get('auto_reconnect', False),
         'sanitize_mode': new_mode,
         'smart_required_messages': int(data.get('smart_required_messages', 3)),
+        'keyword_auto_reply_enabled': bool(data.get('keyword_auto_reply_enabled', True)),
+        'keyword_auto_reply_text': str(data.get('keyword_auto_reply_text', 'ابشر') or 'ابشر').strip(),
+        'keyword_auto_reply_forward': bool(data.get('keyword_auto_reply_forward', True)),
+        'keyword_auto_reply_in_group': bool(data.get('keyword_auto_reply_in_group', True)),
+        'keyword_auto_reply_in_dm': bool(data.get('keyword_auto_reply_in_dm', True)),
+        'alert_target_user': str(data.get('alert_target_user', 'me') or 'me').strip(),
     })
 
     if save_settings(user_id, current_settings):
@@ -5299,13 +6748,11 @@ def api_my_alerts_settings():
 
 @app.route("/api/my_alerts/test", methods=["POST"])
 def api_my_alerts_test():
-    if 'user_id' not in session:
-        return jsonify({"success": False, "message": "❌ الجلسة غير صالحة"}), 401
-    user_id = session['user_id']
+    user_id = session.get('user_id')
+    if not user_id:
+        user_id = request.cookies.get('app_user_id') or 'user_1'
     settings = load_settings(user_id)
     cm = telegram_manager.get_client_manager(user_id)
-    if not cm:
-        return jsonify({"success": False, "message": "❌ تعذر العثور على عميل تيليجرام للحساب"})
 
     test_msg = (
         "🔔 **تنبيهاتي | تجربة نظام الإشعارات**\n"
@@ -5314,24 +6761,210 @@ def api_my_alerts_test():
         f"⏰ **الوقت:** {time.strftime('%Y-%m-%d %I:%M:%S %p')}\n"
         "📌 **النوع:** إشعار تجريبي لاختبار التوصيل إلى الرسائل المحفوظة والصوت في المتصفح."
     )
-    sent = cm.run_coroutine(cm.send_to_saved_messages(test_msg))
-    if sent:
-        socketio.emit('log_update', {"message": "🔔 تم إرسال تنبيه تجريبي إلى رسائلك المحفوظة بنجاح"}, to=user_id)
-        # إرسال حدث اختباري للواجهة لتشغيل الصوت المختار مباشرة
-        socketio.emit('my_alert_event', {
-            "type": "reply",
-            "group": "مجموعة تجريبية (اختبار)",
-            "sender": "تجربة التنبيه الصوتي",
-            "time": time.strftime('%I:%M:%S %p'),
-            "link": "#",
-            "text": "هذا رد تجريبي لاختبار الصوت ونغمة التنبيه في المتصفح 🔔",
-            "sound_enabled": bool(settings.get('my_alerts_reply_sound_enabled', True)),
-            "sound_tone": str(settings.get('my_alerts_reply_sound_tone', 'chime')),
-            "is_test": True
-        }, to=user_id)
+    
+    tg_sent = False
+    if cm and getattr(cm, 'client', None) and cm.client.is_connected():
+        try:
+            tg_sent = cm.run_coroutine(cm.send_to_saved_messages(test_msg))
+        except Exception as e:
+            logger.debug(f"Failed to send test to saved messages: {e}")
+            tg_sent = False
+
+    # إرسال تحديث بالسجل
+    socketio.emit('log_update', {"message": "🔔 تجربة نظام التنبيهات: تم إرسال الإشعار الصوتي والشريط للمتصفح"}, to=user_id)
+    
+    # إرسال حدث اختباري للواجهة لتشغيل الصوت المختار والتوست فوراً
+    socketio.emit('my_alert_event', {
+        "type": "reply",
+        "group": "مجموعة تجريبية (اختبار)",
+        "sender": "تجربة التنبيه الصوتي",
+        "time": time.strftime('%I:%M:%S %p'),
+        "link": "#",
+        "text": "هذا رد تجريبي لاختبار الصوت ونغمة التنبيه في المتصفح 🔔",
+        "sound_enabled": bool(settings.get('my_alerts_reply_sound_enabled', True)),
+        "sound_tone": str(settings.get('my_alerts_reply_sound_tone', 'chime')),
+        "is_test": True
+    }, to=user_id)
+
+    # أيضاً إرسال تنبيه مراقبة للشريط العلوي وTTS
+    socketio.emit('new_alert', {
+        "keyword": "تجربة التنبيه",
+        "group": "مجموعة تجريبية",
+        "message": "تنبيه تجريبي: تم التحقق من فاعلية التنبيهات بنجاح!",
+        "sender": "نظام الفحص",
+        "timestamp": time.strftime('%H:%M:%S')
+    }, to=user_id)
+
+    if tg_sent:
         return jsonify({"success": True, "message": "✅ تم إرسال تنبيه تجريبي إلى «الرسائل المحفوظة» وتشغيل الصوت بنجاح!"})
     else:
-        return jsonify({"success": False, "message": "⚠️ فشل إرسال التنبيه التجريبي. تأكد من أن الحساب متصل حالياً بتيليجرام."})
+        return jsonify({"success": True, "message": "✅ تم تشغيل التنبيه الصوتي والشريط المنبثق في المتصفح بنجاح (ملاحظة: حساب تيليجرام غير متصل حالياً للرسائل المحفوظة)"})
+
+
+@app.route("/api/alerts", methods=["GET", "DELETE"])
+@app.route("/api/alerts/clear", methods=["POST"])
+def api_user_alerts():
+    """عرض أو مسح سجل التنبيهات الخاصة بالمستخدم الحالي"""
+    user_id = session.get('user_id')
+    if not user_id:
+        user_id = request.cookies.get('app_user_id') or 'user_1'
+    
+    if request.method in ("DELETE", "POST") and (request.endpoint == 'api_user_alerts' or request.path.endswith('/clear') or request.method == "DELETE"):
+        ud = get_or_create_user(user_id)
+        ud['alerts'] = []
+        s = load_settings(user_id)
+        s['alerts'] = []
+        save_settings(user_id, s)
+        socketio.emit('log_update', {"message": "🗑️ تم مسح سجل التنبيهات بنجاح"}, to=user_id)
+        return jsonify({"success": True, "message": "تم مسح سجل التنبيهات بنجاح", "alerts": []})
+        
+    ud = get_or_create_user(user_id)
+    s = load_settings(user_id)
+    alerts = ud.get('alerts') or s.get('alerts') or []
+    return jsonify({
+        "success": True,
+        "count": len(alerts),
+        "alerts": alerts
+    })
+
+
+@app.route("/api/alerts/test", methods=["POST"])
+def api_user_alerts_test():
+    """إرسال تنبيه مراقبة تجريبي شامل للقائمة والشريط والصوت"""
+    user_id = session.get('user_id')
+    if not user_id:
+        user_id = request.cookies.get('app_user_id') or 'user_1'
+        
+    test_alert = {
+        "keyword": "تجربة التنبيهات",
+        "group": "مجموعة تجريبية",
+        "group_link": "https://t.me/telegram",
+        "message": "هذا تنبيه تجريبي للتحقق من فاعلية التنبيهات الصوتية والإشعارات والرسائل المحفوظة.",
+        "full_message": "هذا تنبيه تجريبي للتحقق من فاعلية التنبيهات الصوتية والإشعارات والرسائل المحفوظة.",
+        "timestamp": time.strftime('%H:%M:%S'),
+        "sender": "نظام الفحص",
+        "sender_link": "https://t.me/me",
+        "message_time": time.strftime('%H:%M:%S'),
+        "message_id": 999999,
+        "already_sent_tg": True
+    }
+    
+    alert_queue.add_alert(user_id, test_alert)
+    return jsonify({
+        "success": True,
+        "message": "✅ تم إرسال التنبيه التجريبي الشامل بنجاح!"
+    })
+
+
+# ==========================================
+# 📧 نقاط نهاية خدمة البريد الإلكتروني (Email Service API)
+# ==========================================
+@app.route("/api/email/settings", methods=["GET", "POST"])
+def api_email_settings():
+    """قراءة أو حفظ إعدادات البريد الإلكتروني"""
+    import email_notifier
+    if request.method == "POST":
+        data = request.json or {}
+        old_settings = email_notifier.load_email_settings_from_file()
+        pwd = data.get('password')
+        if not pwd or pwd == '********':
+            pwd = old_settings.get('password', '')
+
+        settings_to_save = {
+            "host": str(data.get('host', '')).strip(),
+            "port": int(data.get('port', 587) or 587),
+            "username": str(data.get('username', '')).strip(),
+            "password": pwd,
+            "recipient": str(data.get('recipient', '')).strip(),
+            "sender_name": str(data.get('sender_name', 'نظام أنور تيليجرام الذكي')).strip(),
+            "use_tls": bool(data.get('use_tls', True)),
+            "use_ssl": bool(data.get('use_ssl', False)),
+            "enabled": bool(data.get('enabled', True))
+        }
+        ok = email_notifier.save_email_settings_to_file(settings_to_save)
+        is_cfg = email_notifier.EmailNotifier().is_configured()
+        return jsonify({
+            "success": ok,
+            "message": "✅ تم حفظ إعدادات البريد الإلكتروني بنجاح" if ok else "❌ فشل حفظ إعدادات البريد",
+            "is_configured": is_cfg
+        })
+    else:
+        notifier = email_notifier.EmailNotifier()
+        return jsonify({
+            "success": True,
+            "settings": {
+                "host": notifier.host,
+                "port": notifier.port,
+                "username": notifier.username,
+                "password": "********" if notifier.password else "",
+                "recipient": notifier.recipient,
+                "sender_name": notifier.sender_name,
+                "use_tls": notifier.use_tls,
+                "use_ssl": notifier.use_ssl,
+                "enabled": notifier.enabled
+            },
+            "is_configured": notifier.is_configured()
+        })
+
+
+@app.route("/api/email/test", methods=["POST"])
+def api_email_test():
+    """اختبار اتصال البريد الإلكتروني وإرسال رسالة تجريبية"""
+    import email_notifier
+    data = request.json or {}
+    send_sample = bool(data.get('send_sample', True))
+
+    host = data.get('host')
+    username = data.get('username')
+    password = data.get('password')
+    recipient = data.get('recipient')
+
+    if password == '********' or not password:
+        old_settings = email_notifier.load_email_settings_from_file()
+        password = old_settings.get('password')
+
+    notifier = email_notifier.EmailNotifier(
+        host=host,
+        port=data.get('port'),
+        username=username,
+        password=password,
+        recipient=recipient,
+        use_tls=data.get('use_tls'),
+        use_ssl=data.get('use_ssl')
+    )
+
+    if not notifier.is_configured():
+        return jsonify({
+            "success": False,
+            "message": "❌ بيانات الاتصال غير مكتملة (يرجى إدخال الخادم والمنفذ والمستخدم وكلمة المرور والمستلم)"
+        })
+
+    conn_res = notifier.test_connection()
+    if not conn_res.get('success'):
+        return jsonify(conn_res)
+
+    if send_sample and notifier.recipient:
+        sample_res = notifier.send_keyword_alert(
+            keyword="تجربة التنبيهات",
+            matched_word="اختبار البريد",
+            message_text="رسالة تجريبية لتأكيد نجاح تشغيل خدمة تنبيهات البريد الإلكتروني وتكاملها مع منصة أنور تيليجرام.",
+            sender_title="نظام الاختبار الذكي",
+            chat_title="مجموعة تجريبية",
+            chat_link="https://t.me/telegram"
+        )
+        return jsonify(sample_res)
+
+    return jsonify(conn_res)
+
+
+# ==========================================
+# 💾 نقطة نهاية حالة المزامنة مع Firestore
+# ==========================================
+@app.route("/api/sync/status", methods=["GET"])
+def api_sync_status():
+    """استرجاع حالة مزامنة الكاش المحلي وFirestore"""
+    import firestore_sync
+    return jsonify(firestore_sync.get_sync_status())
 
 # ملاحظة: /api/smart_stop أُزيل — الإيقاف يتم الآن تلقائياً عند تغيير sanitize_mode من salam إلى غيره
 
@@ -5468,14 +7101,7 @@ def api_get_account_info():
         if not cached.get("account_avatar"):
             avatar_file = os.path.join(SESSIONS_DIR, 'avatars', f"{user_id}.jpg")
             if os.path.exists(avatar_file) and os.path.getsize(avatar_file) > 0:
-                cached["account_avatar"] = f"/api/account_avatar/{user_id}?t={int(os.path.getmtime(avatar_file))}"
-            elif cached.get("authenticated"):
-                try:
-                    telegram_manager._fetch_account_photo(user_id)
-                    if os.path.exists(avatar_file) and os.path.getsize(avatar_file) > 0:
-                        cached["account_avatar"] = f"/api/account_avatar/{user_id}?t={int(time.time())}"
-                except Exception as _pe:
-                    logger.debug(f"fetch account photo failed: {_pe}")
+                cached["account_avatar"] = f"/api/account_avatar/{user_id}"
         cached["is_pro"] = is_user_restricted(user_id)
         return jsonify({
             "success": True,
@@ -5492,12 +7118,12 @@ def api_account_avatar(uid):
         from flask import send_file, Response
         avatar_file = os.path.join(SESSIONS_DIR, 'avatars', f"{uid}.jpg")
         if os.path.exists(avatar_file) and os.path.getsize(avatar_file) > 0:
-            return send_file(avatar_file, mimetype='image/jpeg', max_age=0)
+            return send_file(avatar_file, mimetype='image/jpeg', max_age=60)
         default_svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
             <defs>
                 <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#0088cc"/>
-                    <stop offset="100%" stop-color="#005580"/>
+                    <stop offset="0%" stop-color="#4f46e5"/>
+                    <stop offset="100%" stop-color="#06b6d4"/>
                 </linearGradient>
             </defs>
             <circle cx="50" cy="50" r="50" fill="url(#g)"/>
@@ -5633,137 +7259,11 @@ def api_switch_user():
             "message": f"❌ خطأ في التبديل: {str(e)}"
         })
 
-@app.route("/api/get_all_accounts", methods=["GET"])
-def api_get_all_accounts():
-    try:
-        active_uid = session.get('user_id', 'user_1')
-        accounts_list = []
-        for uid, udata in list(PREDEFINED_USERS.items()):
-            user_sess = USERS.get(uid, {})
-            settings = user_sess.get('settings') or load_settings(uid) or {}
-            avatar_path = os.path.join(SESSIONS_DIR, 'avatars', f"{uid}.jpg")
-            has_avatar = os.path.exists(avatar_path) and os.path.getsize(avatar_path) > 0
-            account_name = user_sess.get('account_name')
-            if not account_name and user_sess.get('authenticated'):
-                try:
-                    account_name = telegram_manager._fetch_account_name(uid)
-                except Exception:
-                    pass
-            accounts_list.append({
-                "id": uid,
-                "name": account_name or udata.get('name', uid),
-                "custom_name": udata.get('name', uid),
-                "phone": user_sess.get('account_phone') or settings.get('phone') or '',
-                "avatar": f"/api/account_avatar/{uid}?t={int(os.path.getmtime(avatar_path))}" if has_avatar else None,
-                "color": udata.get('color', '#0088cc'),
-                "icon": udata.get('icon', 'fas fa-user'),
-                "is_active": uid == active_uid,
-                "authenticated": user_sess.get('authenticated', False) or bool(settings.get('phone') and os.path.exists(os.path.join(SESSIONS_DIR, f"{uid}_session.session"))),
-                "connected": user_sess.get('connected', False)
-            })
-        return jsonify({
-            "success": True,
-            "accounts": accounts_list,
-            "active_user_id": active_uid
-        })
-    except Exception as e:
-        logger.error(f"Error fetching accounts: {e}")
-        return jsonify({"success": False, "message": str(e), "accounts": []})
-
-@app.route("/api/accounts/add", methods=["POST"])
-def api_accounts_add():
-    try:
-        idx = 1
-        while f"user_{idx}" in PREDEFINED_USERS:
-            idx += 1
-        new_uid = f"user_{idx}"
-        arabic_numbers = ["الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس", "السابع", "الثامن", "التاسع", "العاشر"]
-        num_str = arabic_numbers[idx - 1] if idx <= len(arabic_numbers) else str(idx)
-        colors = ["#0088cc", "#28a745", "#ffc107", "#dc3545", "#6f42c1", "#20c997", "#fd7e14", "#e83e8c"]
-        color = colors[(idx - 1) % len(colors)]
-        
-        new_user_data = {
-            "id": new_uid,
-            "name": f"الحساب {num_str}",
-            "icon": "fas fa-user",
-            "color": color
-        }
-        PREDEFINED_USERS[new_uid] = new_user_data
-        save_accounts_config(PREDEFINED_USERS)
-        
-        # التبديل إلى الحساب الجديد
-        session['user_id'] = new_uid
-        session.permanent = True
-        
-        with USERS_LOCK:
-            USERS[new_uid] = {
-                'client_manager': None,
-                'settings': {},
-                'thread': None,
-                'is_running': False,
-                'stats': {"sent": 0, "errors": 0},
-                'connected': False,
-                'authenticated': False,
-                'awaiting_code': False,
-                'awaiting_password': False,
-                'phone_code_hash': None,
-                'monitoring_active': False,
-                'event_handlers_registered': False,
-                'sent_batches': []
-            }
-        
-        return jsonify({
-            "success": True,
-            "message": f"✅ تم إنشاء {new_user_data['name']} بنجاح",
-            "user_id": new_uid,
-            "account": new_user_data
-        })
-    except Exception as e:
-        logger.error(f"Error adding account: {e}")
-        return jsonify({"success": False, "message": str(e)})
-
-@app.route("/api/accounts/delete", methods=["POST"])
-def api_accounts_delete():
-    try:
-        data = request.get_json() or {}
-        del_uid = data.get('user_id')
-        if not del_uid or del_uid not in PREDEFINED_USERS:
-            return jsonify({"success": False, "message": "❌ حساب غير صحيح"})
-        if len(PREDEFINED_USERS) <= 1:
-            return jsonify({"success": False, "message": "⚠️ لا يمكن حذف الحساب الوحيد المتبقي"})
-        
-        try:
-            telegram_manager.logout_user(del_uid)
-        except Exception:
-            pass
-        
-        del PREDEFINED_USERS[del_uid]
-        save_accounts_config(PREDEFINED_USERS)
-        
-        curr = session.get('user_id')
-        if curr == del_uid:
-            new_curr = list(PREDEFINED_USERS.keys())[0]
-            session['user_id'] = new_curr
-            session.permanent = True
-        
-        return jsonify({
-            "success": True, 
-            "message": "✅ تم حذف الحساب بنجاح",
-            "active_user_id": session.get('user_id')
-        })
-    except Exception as e:
-        logger.error(f"Error deleting account: {e}")
-        return jsonify({"success": False, "message": str(e)})
-
 @app.route("/api/start_monitoring", methods=["POST"])
 def api_start_monitoring():
-    if 'user_id' not in session:
-        return jsonify({
-            "success": False, 
-            "message": "❌ الجلسة غير صالحة، يرجى إعادة تحميل الصفحة"
-        })
-
-    user_id = session['user_id']
+    user_id = resolve_request_user_id(request.json)
+    session['user_id'] = user_id
+    session.permanent = True
 
     with USERS_LOCK:
         if user_id not in USERS:
@@ -5837,13 +7337,9 @@ def api_start_monitoring():
 
 @app.route("/api/stop_monitoring", methods=["POST"])
 def api_stop_monitoring():
-    if 'user_id' not in session:
-        return jsonify({
-            "success": False, 
-            "message": "❌ الجلسة غير صالحة، يرجى إعادة تحميل الصفحة"
-        })
-
-    user_id = session['user_id']
+    user_id = resolve_request_user_id(request.json)
+    session['user_id'] = user_id
+    session.permanent = True
 
     try:
         _settings = load_settings(user_id)
@@ -5886,11 +7382,11 @@ def api_stop_monitoring():
 @app.route("/api/pre_send_scan", methods=["POST"])
 def api_pre_send_scan():
     """
-    يفحص قائمة المجموعات المطلوبة ويرجع تقريراً مفصلاً:
-      - protected: bool
-      - bots: list
-      - reason: str
-    لكل مجموعة، ثم يحسب الإحصائيات الإجمالية.
+    يفحص قائمة المجموعات المطلوبة بالذكاء الاصطناعي:
+      - يستخرج آخر 50 محادثة داخل كل مجموعة
+      - يحللها بالذكاء لكشف حالات الكتم، الطرد، الحظر وأسبابها
+      - يستخرج أخطاء الآخرين وتجنبها آلياً وتلقائياً
+      - يرسل تقريراً مفصلاً إلى الرسائل المحفوظة في الحساب
     """
     if 'user_id' not in session:
         return jsonify({"success": False, "message": "❌ الجلسة غير صالحة"}), 401
@@ -5912,52 +7408,37 @@ def api_pre_send_scan():
     if not groups_raw:
         return jsonify({"success": False, "message": "❌ لا توجد مجموعات للفحص"}), 400
 
+    sample_msg = data.get('message', '')
+    send_report = data.get('send_report_to_me', True)
+
     results = []
-    for group in groups_raw:
+    for group in groups_raw[:30]:
         try:
             entity_obj = telegram_manager._resolve_entity(client_manager, group)
-            info = telegram_manager._check_group_protection_detailed(
-                user_id, client_manager, entity_obj, group
+            info = telegram_manager.scan_and_analyze_group_with_ai(
+                user_id, client_manager, entity_obj, group,
+                sample_message=sample_msg,
+                send_report_to_me=send_report
             )
-            # ── استخراج وفحص آخر 50 محادثة بواسطة الذكاء الاصطناعي ──
-            try:
-                group_context = client_manager.run_coroutine(
-                    extract_last_50_messages(client_manager.client, entity_obj, limit=50)
-                )
-                ai_analysis = analyze_group_with_ai(group_context, user_message="")
-                info["ai_analysis"] = ai_analysis
-                info["has_recent_bans"] = ai_analysis.get("has_recent_bans_or_mutes", False)
-                info["banned_count"] = ai_analysis.get("banned_count", 0)
-                info["ban_reasons"] = ai_analysis.get("ban_reasons", [])
-                info["mistakes_to_avoid"] = ai_analysis.get("mistakes_to_avoid", [])
-                info["avoid_rules"] = ai_analysis.get("avoid_rules", [])
-                info["group_strictness"] = ai_analysis.get("group_strictness", "low")
-                info["risk_summary"] = ai_analysis.get("risk_summary", "")
-
-                # إرسال تقرير مفصل إلى الرسائل المحفوظة في تليجرام
-                client_manager.run_coroutine(
-                    send_ai_group_report_to_saved(
-                        client_manager.client,
-                        user_id,
-                        getattr(entity_obj, 'title', group),
-                        group,
-                        ai_analysis,
-                        send_status="🔍 تم الفحص الاستباقي وتحديد أخطاء الآخرين لتفاديها"
-                    )
-                )
-            except Exception as _ai_scan_err:
-                logger.warning(f"AI pre-scan check failed for {group}: {_ai_scan_err}")
         except Exception as e:
             info = {
                 "entity_label": group,
+                "group_title": group,
+                "messages_analyzed": 0,
                 "protected": False,
-                "bots": [],
-                "reason": f"خطأ في حل الكيان: {str(e)[:80]}",
+                "risk_assessment": "unknown",
+                "punished_count": 0,
+                "details_of_punishments": [],
+                "causes": [],
+                "mistakes_by_others": [],
+                "actions_taken": [],
+                "should_skip": False,
+                "reason": f"خطأ في الفحص: {str(e)[:80]}",
                 "error": True
             }
         results.append(info)
 
-    protected_count = sum(1 for r in results if r.get('protected'))
+    protected_count = sum(1 for r in results if r.get('protected') or r.get('should_skip'))
     total = len(results)
 
     return jsonify({
@@ -5966,19 +7447,31 @@ def api_pre_send_scan():
         "protected_count": protected_count,
         "safe_count": total - protected_count,
         "total": total,
-        "all_clear": protected_count == 0
+        "all_clear": protected_count == 0,
+        "reported_to_saved_messages": send_report
     })
+
+
+@app.route("/api/send_now/stop", methods=["POST"])
+def api_send_now_stop():
+    """إيقاف لطيف لعملية الإرسال الفوري الجارية للمستخدم"""
+    req_data = request.get_json(silent=True) or {}
+    user_id = resolve_request_user_id(req_data)
+    if not user_id:
+        user_id = session.get('user_id')
+    if user_id and user_id in BATCH_CANCEL_EVENTS:
+        BATCH_CANCEL_EVENTS[user_id].set()
+        logger.info(f"🛑 تم إرسال إشارة إيقاف الإرسال للمستخدم: {user_id}")
+        socketio.emit('log_update', {"message": "🛑 تم استلام أمر إيقاف الإرسال، سيتم التوقف بعد إكمال المجموعة الحالية..."}, to=user_id)
+        return jsonify({"success": True, "message": "تم إرسال إشارة إيقاف الإرسال"})
+    return jsonify({"success": True, "message": "لا توجد عملية إرسال نشطة لإيقافها"})
 
 
 @app.route("/api/send_now", methods=["POST"])
 def api_send_now():
-    if 'user_id' not in session:
-        return jsonify({
-            "success": False, 
-            "message": "❌ الجلسة غير صالحة، يرجى إعادة تحميل الصفحة"
-        })
-
-    user_id = session['user_id']
+    user_id = resolve_request_user_id(request.json)
+    session['user_id'] = user_id
+    session.permanent = True
 
     with USERS_LOCK:
         if user_id not in USERS:
@@ -6006,6 +7499,8 @@ def api_send_now():
     send_to_all = bool(data.get('send_to_all', False))
     # الإجراء المختار من نافذة الفحص الاستباقي (skip / sanitize / salam / None)
     pre_scan_action = data.get('action', None)  # None = استخدم الإعدادات الافتراضية
+    force_salam = bool(data.get('force_salam', False))
+    batch_interval = int(data.get('interval') or os.getenv('BATCH_SEND_INTERVAL_SECONDS', 7))
 
     if not message and not images:
         return jsonify({
@@ -6042,7 +7537,9 @@ def api_send_now():
                 "success": False,
                 "message": "❌ يجب تحديد المجموعات للإرسال إليها"
             })
-        raw_groups = [g.strip() for g in groups.replace('\n', ',').split(',') if g.strip()]
+        import re as _re
+        raw_items = _re.split(r'[\r\n,;\t]+|\s+(?=https?://|@|-?\d+)', groups.strip())
+        raw_groups = [g.strip() for g in raw_items if g and g.strip()]
         original_count = len(raw_groups)
         groups_list = dedupe_groups(raw_groups)
         duplicates_removed = original_count - len(groups_list)
@@ -6105,151 +7602,353 @@ def api_send_now():
     elif images:
         content_type = f"{len(images)} صورة"
 
+    is_batch = len(groups_list) > 1
+    cancel_event = threading.Event()
+    BATCH_CANCEL_EVENTS[user_id] = cancel_event
+
     socketio.emit('log_update', {
-        "message": f"🚀 بدء الإرسال الفوري: {content_type} إلى {len(groups_list)} مجموعة"
+        "message": f"🚀 بدء الإرسال الفوري: {content_type} إلى {len(groups_list)} مجموعة (فاصل: {batch_interval}ث)"
     }, to=user_id)
 
     def send_messages_with_images():
         try:
             successful = 0
             failed = 0
+            skipped_count = 0
             batch_id = str(uuid.uuid4())
             batch_entries = []
 
             for i, group in enumerate(groups_list, 1):
-                ai_analysis = None
-                group_title = group
-                adapted_message_for_group = message
-                action_for_group = pre_scan_action
-                entity_obj = None
+                # ── فحص إشارة الإيقاف اللطيف بطلب من المستخدم (P3) ──
+                if cancel_event.is_set():
+                    stop_msg = f"🛑 تم إيقاف الإرسال يدوياً بطلب المستخدم بعد فحص {i-1} مجموعة"
+                    logger.info(stop_msg)
+                    socketio.emit('log_update', {"message": stop_msg}, to=user_id)
+                    break
 
                 try:
-                    # ── فحص المجموعة واستخراج آخر 50 محادثة بالذكاء الاصطناعي ──
+                    curr_message = message
+                    curr_images = image_files
+
+                    # 1. جلب عميل المستخدم وحل المجموعة
+                    with USERS_LOCK:
+                        cm = USERS.get(user_id, {}).get('client_manager')
+                    if not cm or not cm.client:
+                        raise Exception("العميل غير متصل - يرجى تسجيل الدخول للحساب")
+
+                    entity_obj = telegram_manager._resolve_entity(cm, group)
+
+                    # ── 2. فحص العضوية المسبق والانضمام التلقائي المنظم (P1) ──
+                    is_member = False
                     try:
-                        with USERS_LOCK:
-                            cm = USERS.get(user_id, {}).get('client_manager')
-                        if cm and cm.client:
-                            entity_obj = telegram_manager._resolve_entity(cm, group)
-                            group_title = getattr(entity_obj, 'title', group)
+                        is_member = cm.run_coroutine(telegram_manager._is_member_of(cm, entity_obj))
+                    except Exception as e_mem:
+                        logger.warning(f"⚠️ تعذّر فحص العضوية لـ {group}: {e_mem}")
+                        is_member = False
 
-                            group_context = cm.run_coroutine(
-                                extract_last_50_messages(cm.client, entity_obj, limit=50)
-                            )
-                            ai_analysis = analyze_group_with_ai(group_context, user_message=(message or ''))
-
-                            bans_cnt = ai_analysis.get('banned_count', 0)
-                            has_bans = ai_analysis.get('has_recent_bans_or_mutes', False)
-                            ban_tag = f"🚨 رصد {bans_cnt} كتم/حظر مؤخراً" if has_bans else "✅ لا يوجد حظر مؤخراً"
-                            strict_tag = ai_analysis.get('group_strictness', 'low')
-
-                            socketio.emit('log_update', {
-                                "message": f"🧠 فحص ذكي [{i}/{len(groups_list)}] {group_title}: {ban_tag} | صرامة: {strict_tag}"
-                            }, to=user_id)
-
-                            # ── تكييف الرسالة وتجنب أخطاء الآخرين ──
-                            if ai_analysis.get('adapted_text') and ai_analysis.get('adaptive_action') in ('sanitize_links', 'sanitize_keywords'):
-                                adapted_message_for_group = ai_analysis['adapted_text']
-                                socketio.emit('log_update', {
-                                    "message": f"🛡️ تم تكييف الرسالة لـ {group_title} لتفادي أسباب حظر الأعضاء الآخرين"
-                                }, to=user_id)
-
-                            if not action_for_group:
-                                if ai_analysis.get('adaptive_action') == 'switch_to_salam':
-                                    action_for_group = 'salam'
-                                elif ai_analysis.get('adaptive_action') in ('sanitize_links', 'sanitize_keywords'):
-                                    action_for_group = 'sanitize'
-
-                    except Exception as scan_err:
-                        logger.warning(f"AI check error in sending loop for {group}: {scan_err}")
-
-                    if images and adapted_message_for_group:
-                        result = telegram_manager.send_message_with_media_async(
-                            user_id, group, adapted_message_for_group, image_files
-                        )
-                    elif images:
-                        result = telegram_manager.send_media_async(
-                            user_id, group, image_files
-                        )
-                    else:
-                        result = telegram_manager.send_message_async(
-                            user_id, group, adapted_message_for_group,
-                            forced_action=action_for_group
-                        )
-
-                    is_skipped = isinstance(result, dict) and result.get('skipped')
-                    if is_skipped:
+                    join_success = False
+                    if not is_member:
                         socketio.emit('log_update', {
-                            "message": f"⏭️ [{i}/{len(groups_list)}] تم تخطي المجموعة أو حمايتها: {group}"
+                            "message": f"🔗 [{i}/{len(groups_list)}] الحساب ليس عضواً في {group} — جاري الانضمام التلقائي المنظم..."
                         }, to=user_id)
-                        send_status_txt = "⏭️ تم تخطي الإرسال أو تطبيق السلام الذكي لتفادي الحظر"
-                    else:
+
+                        # تطبيق JoinRateLimiter لتفادي قيود وحظر الانضمام السريع
+                        join_limiter.acquire_sync()
+
+                        try:
+                            import re as _re
+                            m_invite = _re.search(r't\.me/(?:\+|joinchat/)([A-Za-z0-9_\-]+)', group)
+                            if m_invite:
+                                invite_hash = m_invite.group(1)
+                                cm.run_coroutine(cm.client(ImportChatInviteRequest(invite_hash)))
+                            else:
+                                cm.run_coroutine(cm.client(JoinChannelRequest(entity_obj)))
+
+                            join_success = True
+                            is_member = True
+                            logger.info(f"✅ تم الانضمام التلقائي بنجاح إلى {group}")
+                            socketio.emit('log_update', {
+                                "message": f"✅ [{i}/{len(groups_list)}] تم الانضمام بنجاح إلى {group} — انتظار ثانيتين للاستقرار"
+                            }, to=user_id)
+                            time.sleep(2)
+                        except UserAlreadyParticipantError:
+                            join_success = True
+                            is_member = True
+                        except InviteRequestSentError:
+                            skip_msg = f"⏳ [{i}/{len(groups_list)}] تم التخطي: بانتظار موافقة المشرف في {group}"
+                            logger.info(skip_msg)
+                            socketio.emit('log_update', {"message": skip_msg}, to=user_id)
+                            socketio.emit('send_progress', {
+                                "group": group,
+                                "index": i,
+                                "total": len(groups_list),
+                                "status": "waiting_approval",
+                                "reason": "تم التخطي: بانتظار موافقة المشرف",
+                                "emoji": "⏳",
+                                "message": skip_msg
+                            }, to=user_id)
+                            skipped_count += 1
+                            continue
+                        except ChannelPrivateError:
+                            skip_msg = f"🚫 [{i}/{len(groups_list)}] تم التخطي: الحساب محظور من {group} أو القناة خاصة"
+                            logger.warning(skip_msg)
+                            socketio.emit('log_update', {"message": skip_msg}, to=user_id)
+                            socketio.emit('send_progress', {
+                                "group": group,
+                                "index": i,
+                                "total": len(groups_list),
+                                "status": "banned",
+                                "reason": "تم التخطي: الحساب محظور من المجموعة",
+                                "emoji": "🚫",
+                                "message": skip_msg
+                            }, to=user_id)
+                            skipped_count += 1
+                            continue
+                        except (InviteHashExpiredError, InviteHashInvalidError, UsernameInvalidError, UsernameNotOccupiedError) as link_err:
+                            skip_msg = f"⏭️ [{i}/{len(groups_list)}] تم التخطي: رابط غير صالح أو منتهي الصلاحية ({group})"
+                            logger.warning(skip_msg)
+                            socketio.emit('log_update', {"message": skip_msg}, to=user_id)
+                            socketio.emit('send_progress', {
+                                "group": group,
+                                "index": i,
+                                "total": len(groups_list),
+                                "status": "skipped",
+                                "reason": "تم التخطي: رابط غير صالح",
+                                "emoji": "⏭️",
+                                "message": skip_msg
+                            }, to=user_id)
+                            skipped_count += 1
+                            continue
+                        except FloodWaitError as fwe:
+                            wait_secs = fwe.seconds + random.uniform(3, 8)
+                            logger.warning(f"⚠️ FloodWait أثناء الانضمام لـ {group}: انتظار {wait_secs:.0f} ثانية")
+                            socketio.emit('log_update', {
+                                "message": f"⏳ [{i}/{len(groups_list)}] قيد FloodWait أثناء الانضمام لـ {group}: انتظار {wait_secs:.0f}ث..."
+                            }, to=user_id)
+                            time.sleep(wait_secs)
+                            try:
+                                if m_invite:
+                                    cm.run_coroutine(cm.client(ImportChatInviteRequest(m_invite.group(1))))
+                                else:
+                                    cm.run_coroutine(cm.client(JoinChannelRequest(entity_obj)))
+                                join_success = True
+                                is_member = True
+                                time.sleep(2)
+                            except Exception as fwe_retry:
+                                fail_msg = f"❌ [{i}/{len(groups_list)}] فشل الانضمام لـ {group} بعد انتظار FloodWait: {fwe_retry}"
+                                logger.error(fail_msg)
+                                socketio.emit('log_update', {"message": fail_msg}, to=user_id)
+                                socketio.emit('send_progress', {
+                                    "group": group,
+                                    "index": i,
+                                    "total": len(groups_list),
+                                    "status": "error",
+                                    "reason": f"فشل: FloodWait ({fwe.seconds}s)",
+                                    "emoji": "❌",
+                                    "message": fail_msg
+                                }, to=user_id)
+                                failed += 1
+                                continue
+                        except Exception as join_err:
+                            err_str = str(join_err)
+                            reason = "تم التخطي: الحساب وصل للحد الأقصى (500 مجموعة)" if ("too much" in err_str.lower() or "500" in err_str) else f"تعذر الانضمام ({err_str[:60]})"
+                            skip_msg = f"⏭️ [{i}/{len(groups_list)}] {reason} لـ {group}"
+                            logger.warning(skip_msg)
+                            socketio.emit('log_update', {"message": skip_msg}, to=user_id)
+                            socketio.emit('send_progress', {
+                                "group": group,
+                                "index": i,
+                                "total": len(groups_list),
+                                "status": "skipped",
+                                "reason": reason,
+                                "emoji": "⏭️",
+                                "message": skip_msg
+                            }, to=user_id)
+                            skipped_count += 1
+                            continue
+
+                    # 3. التحقق من تقرير الأمان وتكييف الرسالة
+                    report, is_new = telegram_manager.get_or_create_group_safety_report(
+                        user_id, cm, entity_obj, group, sample_message=message
+                    )
+                    curr_message, can_media, safety_actions = telegram_manager.adapt_message_to_group_report(
+                        message, report, has_media=bool(image_files)
+                    )
+                    curr_images = image_files if can_media else []
+                    if safety_actions:
                         socketio.emit('log_update', {
-                            "message": f"✅ [{i}/{len(groups_list)}] نجح إلى: {group}"
+                            "message": f"🛡️ [{i}/{len(groups_list)}] تلافي مسببات الحظر في {group}: {', '.join(safety_actions[:2])}"
+                        }, to=user_id)
+
+                    # إذا حدد المستخدم إجراء التخطي المسبق
+                    if pre_scan_action == 'skip':
+                        skip_msg = f"⏭️ [{i}/{len(groups_list)}] تم تخطي {group} (بناءً على اختيارك)"
+                        socketio.emit('log_update', {"message": skip_msg}, to=user_id)
+                        socketio.emit('send_progress', {
+                            "group": group,
+                            "index": i,
+                            "total": len(groups_list),
+                            "status": "skipped",
+                            "reason": "تم التخطي: بناءً على اختيار المستخدم",
+                            "emoji": "⏭️",
+                            "message": skip_msg
+                        }, to=user_id)
+                        skipped_count += 1
+                        continue
+
+                    # 4. تحديد الإجراء ومنع تعليق العميل بسبب وضع salam (P0)
+                    needs_smart = bool(
+                        report.get('requires_smart_send') or 
+                        (report.get('is_protected') and report.get('blocks_ads'))
+                    )
+
+                    # في وضع الإرسال الجماعي (Batch)، لا نفعّل salam تلقائياً لتجنب حجز العميل
+                    if is_batch and not force_salam:
+                        action_to_use = 'sanitize'
+                        if needs_smart or pre_scan_action == 'salam':
+                            logger.info(f"ℹ️ Batch mode: تخطي salam للمجموعة {group}، استخدام sanitize لتسريع الإرسال ومنع التعليق.")
+                            socketio.emit('log_update', {
+                                "message": f"ℹ️ [{i}/{len(groups_list)}] وضع الإرسال الجماعي: استخدام نمط التنقية المباشرة (sanitize) لتفادي تعليق المجموعات في {group}"
+                            }, to=user_id)
+                    else:
+                        if needs_smart or pre_scan_action == 'salam' or force_salam:
+                            action_to_use = 'salam'
+                        else:
+                            action_to_use = 'send'
+
+                    # 5. محاولة الإرسال مع معالجة FloodWaitError وإعادة المحاولة لمرة واحدة (P2)
+                    send_attempts = 0
+                    max_send_attempts = 2
+                    result = None
+
+                    while send_attempts < max_send_attempts:
+                        send_attempts += 1
+                        try:
+                            if action_to_use == 'salam':
+                                socketio.emit('log_update', {
+                                    "message": f"🤖 [{i}/{len(groups_list)}] جاري الإرسال بوضع salam لـ {group}..."
+                                }, to=user_id)
+                                result = telegram_manager.send_message_async(
+                                    user_id, group, curr_message, forced_action='salam',
+                                    wait_for_completion=is_batch, cancel_event=cancel_event
+                                )
+                            elif curr_images and curr_message:
+                                result = telegram_manager.send_message_with_media_async(
+                                    user_id, group, curr_message, curr_images
+                                )
+                            elif curr_images:
+                                result = telegram_manager.send_media_async(
+                                    user_id, group, curr_images
+                                )
+                            else:
+                                result = telegram_manager.send_message_async(
+                                    user_id, group, curr_message, forced_action='send'
+                                )
+                            break
+                        except FloodWaitError as fwe:
+                            if send_attempts < max_send_attempts:
+                                wait_s = fwe.seconds + random.uniform(3, 8)
+                                logger.warning(f"⚠️ FloodWait: انتظار {wait_s:.0f}s قبل إعادة محاولة الإرسال لـ {group}")
+                                socketio.emit('log_update', {
+                                    "message": f"⏳ [{i}/{len(groups_list)}] FloodWait: انتظار {wait_s:.0f} ثانية قبل إعادة محاولة الإرسال لـ {group}..."
+                                }, to=user_id)
+                                time.sleep(wait_s)
+                            else:
+                                raise fwe
+
+                    # 6. تحليل نتيجة الإرسال وتحديث الواجهة (P3)
+                    if isinstance(result, dict) and result.get('skipped'):
+                        reason = result.get('message', 'محمية')
+                        skip_msg = f"⏭️ [{i}/{len(groups_list)}] تم تخطي {group}: {reason}"
+                        socketio.emit('log_update', {"message": skip_msg}, to=user_id)
+                        socketio.emit('send_progress', {
+                            "group": group,
+                            "index": i,
+                            "total": len(groups_list),
+                            "status": "skipped",
+                            "reason": f"تم التخطي: {reason}",
+                            "emoji": "⏭️",
+                            "message": skip_msg
+                        }, to=user_id)
+                        skipped_count += 1
+                    else:
+                        status_type = "joined_then_sent" if join_success else "success"
+                        reason = "تم الانضمام ثم الإرسال بنجاح" if join_success else "تم الإرسال بنجاح"
+                        emoji_icon = "✅"
+                        success_msg = f"{emoji_icon} [{i}/{len(groups_list)}] {reason} إلى: {group}"
+                        logger.info(success_msg)
+                        socketio.emit('log_update', {"message": success_msg}, to=user_id)
+                        socketio.emit('send_progress', {
+                            "group": group,
+                            "index": i,
+                            "total": len(groups_list),
+                            "status": status_type,
+                            "reason": reason,
+                            "emoji": emoji_icon,
+                            "message": success_msg
                         }, to=user_id)
                         successful += 1
-                        send_status_txt = "✅ تم الإرسال بنجاح بعد تلافي أخطاء الآخرين وتكييف الإعلان"
 
-                        # حفظ معرف الرسالة لدفعة "رسائلي"
                         msg_id = None
                         if isinstance(result, dict):
                             msg_id = result.get('message_id') or (result.get('message_ids') or [None])[0]
                         if msg_id:
                             batch_entries.append({"group": group, "msg_id": msg_id})
+
                         with USERS_LOCK:
                             if user_id in USERS:
                                 USERS[user_id]['stats']['sent'] += 1
-                        with USERS_LOCK:
-                            if user_id in USERS:
                                 socketio.emit('stats_update', USERS[user_id]['stats'], to=user_id)
-
-                    # ── إرسال التقرير المفصل فورياً للرسائل المحفوظة في تليجرام ──
-                    if ai_analysis:
-                        try:
-                            with USERS_LOCK:
-                                cm = USERS.get(user_id, {}).get('client_manager')
-                            if cm and cm.client:
-                                cm.run_coroutine(
-                                    send_ai_group_report_to_saved(
-                                        cm.client,
-                                        user_id,
-                                        group_title,
-                                        group,
-                                        ai_analysis,
-                                        send_status=send_status_txt
-                                    )
-                                )
-                        except Exception as rep_err:
-                            logger.warning(f"Saved messages report dispatch error: {rep_err}")
-
-                    if i < len(groups_list):
-                        time.sleep(3)
 
                 except Exception as e:
                     error_msg = str(e)
-                    if "banned" in error_msg.lower() or "ban" in error_msg.lower():
-                        error_type = "محظور من المجموعة"
-                    elif "flood" in error_msg.lower():
-                        # استخرج وقت الانتظار إذا كان متاحاً
+                    error_lower = error_msg.lower()
+                    if "banned" in error_lower or "ban" in error_lower:
+                        error_type = "الحساب محظور أو مكتوم في هذه المجموعة"
+                    elif "flood" in error_lower:
                         import re as _re
                         m = _re.search(r'(\d+)', error_msg)
-                        wait_s = int(m.group(1)) if m else '?'
-                        error_type = f"تجاوز حد الإرسال — انتظر {wait_s} ثانية"
-                    elif "timeout" in error_msg.lower():
-                        error_type = "انتهت مهلة الاتصال (timeout)"
-                    elif "private" in error_msg.lower():
-                        error_type = "مجموعة خاصة/محدودة"
-                    elif "can't write" in error_msg.lower() or "write" in error_msg.lower():
-                        error_type = "لا يُسمح بالإرسال في هذه المجموعة"
-                    elif "not found" in error_msg.lower() or "invalid" in error_msg.lower() or "username" in error_msg.lower():
-                        error_type = "المجموعة غير موجودة أو الرابط خاطئ"
-                    elif "يُعاد تشغيله" in error_msg or "restart" in error_msg.lower():
-                        error_type = "العميل يُعاد تشغيله، أعد المحاولة"
+                        wait_s = int(m.group(1)) if m else '؟'
+                        error_type = f"تجاوز حد الإرسال المؤقت (FloodWait: {wait_s}s)"
+                        if isinstance(wait_s, int) and wait_s > 0:
+                            logger.warning(f"🛑 تم إيقاف الحملة مؤقتاً لمدة {wait_s} ثانية حتى انقضاء الـ FloodWait لحماية الحساب والردود...")
+                            time.sleep(min(wait_s + 2, 300))
+                    elif "slow" in error_lower:
+                        error_type = "مفعّل الوضع البطيء (Slow Mode) في المجموعة"
+                    elif "timeout" in error_lower:
+                        error_type = "انتهت مهلة الاتصال بخادم تيليجرام"
+                    elif "expired" in error_lower or "منتهي" in error_msg:
+                        error_type = "رابط الدعوة منتهي الصلاحية"
+                    elif "approval" in error_lower or "موافقة" in error_msg or "request" in error_lower:
+                        error_type = "المجموعة خاصة وبانتظار موافقة المشرفين"
+                    elif "too much" in error_lower or "الحد الأقصى" in error_msg:
+                        error_type = "الحساب وصل للحد الأقصى من القنوات والمجموعات (500)"
+                    elif "private" in error_lower or "join" in error_lower or "تتطلب الانضمام" in error_msg:
+                        error_type = "تتطلب الانضمام للمجموعة أو موافقة المشرفين"
+                    elif "write" in error_lower or "forbidden" in error_lower or "غير مسموح" in error_msg:
+                        error_type = "غير مسموح بالنشر (مخصصة للمشرفين فقط أو النشر مقفل)"
+                    elif "not found" in error_lower or "invalid" in error_lower or "username" in error_lower:
+                        error_type = "المجموعة غير موجودة أو الرابط غير صالح"
+                    elif "cannot find any entity" in error_lower or "لا يمكن الوصول" in error_msg:
+                        error_type = "تعذر الوصول للمجموعة (تأكد من صحة الرابط أو الانضمام)"
+                    elif "يُعاد تشغيله" in error_msg or "restart" in error_lower:
+                        error_type = "العميل يُعاد تشغيله، حاول مجدداً"
                     else:
-                        error_type = error_msg[:150]  # رسالة خطأ كاملة لتسهيل التشخيص
-                    log_user_event(user_id, 'ERROR', f"❌ فشل الإرسال إلى {group}: {error_type}")
+                        error_type = error_msg[:120]
+
+                    fail_msg = f"❌ [{i}/{len(groups_list)}] فشل إلى {group}: {error_type}"
+                    log_user_event(user_id, 'ERROR', fail_msg)
                     logger.error(f"Send error to {group}: {error_msg}")
-                    socketio.emit('log_update', {
-                        "message": f"❌ [{i}/{len(groups_list)}] فشل إلى {group}: {error_type}"
+                    socketio.emit('log_update', {"message": fail_msg}, to=user_id)
+                    socketio.emit('send_progress', {
+                        "group": group,
+                        "index": i,
+                        "total": len(groups_list),
+                        "status": "error",
+                        "reason": f"فشل: {error_type}",
+                        "emoji": "❌",
+                        "error_type": error_type,
+                        "message": fail_msg
                     }, to=user_id)
 
                     failed += 1
@@ -6258,27 +7957,29 @@ def api_send_now():
                             USERS[user_id]['stats']['errors'] += 1
                             socketio.emit('stats_update', USERS[user_id]['stats'], to=user_id)
 
-                    # إرسال تقرير الفشل إلى الرسائل المحفوظة
-                    if ai_analysis:
-                        try:
-                            with USERS_LOCK:
-                                cm = USERS.get(user_id, {}).get('client_manager')
-                            if cm and cm.client:
-                                cm.run_coroutine(
-                                    send_ai_group_report_to_saved(
-                                        cm.client,
-                                        user_id,
-                                        group_title,
-                                        group,
-                                        ai_analysis,
-                                        send_status=f"❌ تعذر الإرسال: {error_type}"
-                                    )
-                                )
-                        except Exception:
-                            pass
+                finally:
+                    # ── فاصل زمني ديناميكي آمن بين كل مجموعة وأخرى (P2) ──
+                    if i < len(groups_list) and not cancel_event.is_set():
+                        user_interval = max(5, min(60, batch_interval))
+                        dynamic_delay = random.uniform(user_interval, user_interval + 3.0)
+                        logger.info(f"⏳ فاصل زمني ديناميكي: انتظار {dynamic_delay:.1f} ثانية قبل المجموعة التالية...")
+                        sleep_steps = int(dynamic_delay * 2)
+                        for _ in range(sleep_steps):
+                            if cancel_event.is_set():
+                                break
+                            time.sleep(0.5)
 
-            socketio.emit('log_update', {
-                "message": f"📊 انتهى الإرسال: ✅ {successful} نجح | ❌ {failed} فشل"
+            # ── ملخص نهائي متكامل في نهاية الدفعة (P3) ──
+            summary_msg = f"📊 انتهى الإرسال: ✅ {successful} نجح | ⏭️ {skipped_count} تخطي | ❌ {failed} فشل من إجمالي {len(groups_list)} مجموعة"
+            logger.info(summary_msg)
+            socketio.emit('log_update', {"message": summary_msg}, to=user_id)
+            socketio.emit('send_progress', {
+                "status": "completed",
+                "total": len(groups_list),
+                "successful": successful,
+                "skipped": skipped_count,
+                "failed": failed,
+                "message": summary_msg
             }, to=user_id)
 
             # ── حفظ الدفعة في "رسائلي" ──
@@ -6361,34 +8062,11 @@ def api_scan_groups_protection():
                     client_manager.is_group_protected(entity_obj)
                 )
                 title = getattr(entity_obj, 'title', g)
-
-                # ── فحص آخر 50 محادثة بالذكاء الاصطناعي ──
-                ai_data = None
-                try:
-                    group_ctx = client_manager.run_coroutine(
-                        extract_last_50_messages(client_manager.client, entity_obj, limit=50)
-                    )
-                    ai_data = analyze_group_with_ai(group_ctx, user_message="")
-                    # إرسال تقرير مفصل للرسائل المحفوظة
-                    client_manager.run_coroutine(
-                        send_ai_group_report_to_saved(
-                            client_manager.client,
-                            user_id,
-                            title,
-                            g,
-                            ai_data,
-                            send_status="🔍 تم فحص آخر 50 محادثة بالذكاء الاصطناعي"
-                        )
-                    )
-                except Exception as _ai_e:
-                    logger.warning(f"AI group check error in api_scan_groups_protection: {_ai_e}")
-
                 results.append({
                     "group": g,
                     "title": title,
                     "protected": is_prot,
-                    "reason": reason or ('غير محمية ✅' if not is_prot else ''),
-                    "ai_analysis": ai_data
+                    "reason": reason or ('غير محمية ✅' if not is_prot else '')
                 })
             except Exception as e:
                 results.append({"group": g, "title": g, "protected": False, "reason": f"خطأ: {str(e)[:60]}"})
@@ -6455,14 +8133,20 @@ def api_get_login_status():
                     USERS[user_id]['authenticated'] = True
                     USERS[user_id]['connected'] = True
 
-            avatar_path = os.path.join(SESSIONS_DIR, 'avatars', f"{user_id}.jpg")
-            has_avatar = os.path.exists(avatar_path) and os.path.getsize(avatar_path) > 0
             account_name = user_data.get('account_name')
-            if not account_name and authenticated:
-                try:
-                    account_name = telegram_manager._fetch_account_name(user_id)
-                except Exception:
-                    pass
+            account_username = user_data.get('account_username')
+            account_phone = user_data.get('account_phone')
+            account_avatar = user_data.get('account_avatar')
+
+            if not account_name and 'settings' in user_data:
+                account_name = user_data['settings'].get('account_name')
+                account_username = user_data['settings'].get('account_username')
+                account_phone = user_data['settings'].get('account_phone')
+
+            if not account_avatar:
+                avatar_file = os.path.join(SESSIONS_DIR, 'avatars', f"{user_id}.jpg")
+                if os.path.exists(avatar_file) and os.path.getsize(avatar_file) > 0:
+                    account_avatar = f"/api/account_avatar/{user_id}?t={int(os.path.getmtime(avatar_file))}"
 
             return jsonify({
                 "logged_in": authenticated, 
@@ -6472,10 +8156,11 @@ def api_get_login_status():
                 "login_pending": login_pending,
                 "login_error": login_error,
                 "is_running": user_data.get('is_running', False),
-                "account_name": account_name or PREDEFINED_USERS.get(user_id, {}).get('name'),
-                "account_phone": user_data.get('account_phone') or user_data.get('settings', {}).get('phone', ''),
-                "account_avatar": f"/api/account_avatar/{user_id}?t={int(os.path.getmtime(avatar_path))}" if has_avatar else None,
-                "user_id": user_id
+                "user_id": user_id,
+                "account_name": account_name,
+                "account_username": account_username,
+                "account_phone": account_phone,
+                "account_avatar": account_avatar
             })
 
     return jsonify({
@@ -6485,8 +8170,153 @@ def api_get_login_status():
         "awaiting_password": False,
         "login_pending": False,
         "login_error": None,
-        "is_running": False
+        "is_running": False,
+        "user_id": user_id,
+        "account_name": None,
+        "account_username": None,
+        "account_phone": None,
+        "account_avatar": None
     })
+
+@app.route("/api/get_all_accounts_info", methods=["GET"])
+def api_get_all_accounts_info():
+    result = {}
+    for uid, udata in PREDEFINED_USERS.items():
+        st = load_settings(uid) or {}
+        with USERS_LOCK:
+            u_mem = USERS.get(uid, {})
+            auth = u_mem.get('authenticated', False) or os.path.exists(os.path.join(SESSIONS_DIR, f"{uid}_session.session"))
+            aname = u_mem.get('account_name') or st.get('account_name')
+            auser = u_mem.get('account_username') or st.get('account_username')
+            aphone = u_mem.get('account_phone') or st.get('account_phone')
+            aavatar = u_mem.get('account_avatar')
+        if not aavatar:
+            av_file = os.path.join(SESSIONS_DIR, 'avatars', f"{uid}.jpg")
+            if os.path.exists(av_file) and os.path.getsize(av_file) > 0:
+                aavatar = f"/api/account_avatar/{uid}?t={int(os.path.getmtime(av_file))}"
+        result[uid] = {
+            "id": uid,
+            "name": udata.get("name", uid),
+            "icon": udata.get("icon", "fas fa-user"),
+            "color": udata.get("color", "#0088cc"),
+            "logged_in": auth,
+            "account_name": aname,
+            "account_username": auser,
+            "account_phone": aphone,
+            "account_avatar": aavatar
+        }
+    return jsonify(result)
+
+@app.route("/api/add_account", methods=["POST"])
+def api_add_account():
+    """إنشاء حساب تيليجرام جديد وإضافته للنظام والتبديل إليه فوراً"""
+    try:
+        data = request.get_json(silent=True) or {}
+        custom_name = (data.get("name") or "").strip()
+        custom_phone = (data.get("phone") or "").strip()
+
+        # حساب المعرف التالي
+        idx = 1
+        while f"user_{idx}" in PREDEFINED_USERS:
+            idx += 1
+        new_uid = f"user_{idx}"
+
+        palette = [
+            ("#0088cc", "fas fa-user"),
+            ("#28a745", "fas fa-user-check"),
+            ("#e91e63", "fas fa-user-shield"),
+            ("#9c27b0", "fas fa-user-astronaut"),
+            ("#ff9800", "fas fa-user-graduate"),
+            ("#00bcd4", "fas fa-user-tie"),
+            ("#673ab7", "fas fa-user-ninja"),
+            ("#20c997", "fas fa-user-clock"),
+        ]
+        color, icon = palette[(idx - 1) % len(palette)]
+        display_name = custom_name if custom_name else f"المستخدم {idx}"
+
+        new_account_info = {
+            "id": new_uid,
+            "name": display_name,
+            "icon": icon,
+            "color": color
+        }
+        PREDEFINED_USERS[new_uid] = new_account_info
+        _save_custom_accounts()
+
+        # تهيئة مجلد الجلسة والإعدادات
+        get_user_session_dir(new_uid)
+        initial_settings = {"phone": custom_phone} if custom_phone else {}
+        save_settings(new_uid, initial_settings)
+
+        with USERS_LOCK:
+            USERS[new_uid] = {
+                'client_manager': None,
+                'settings': initial_settings,
+                'thread': None,
+                'is_running': False,
+                'stats': {"sent": 0, "errors": 0},
+                'connected': False,
+                'authenticated': False,
+                'awaiting_code': False,
+                'awaiting_password': False,
+                'phone_code_hash': None,
+                'monitoring_active': False,
+                'event_handlers_registered': False,
+                'sent_batches': []
+            }
+
+        old_uid = session.get('user_id', 'user_1')
+        session['user_id'] = new_uid
+        session.permanent = True
+
+        logger.info(f"✅ Created and switched to new account: {new_uid} ({display_name})")
+        return jsonify({
+            "success": True,
+            "user_id": new_uid,
+            "account": new_account_info,
+            "previous_user_id": old_uid,
+            "message": f"تم إنشاء {display_name} بنجاح وتم التبديل إليه"
+        })
+    except Exception as e:
+        logger.error(f"Error in api_add_account: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/api/delete_account", methods=["POST"])
+def api_delete_account():
+    """حذف حساب إضافي وإعادة تعيينه بالكامل"""
+    try:
+        data = request.get_json(silent=True) or {}
+        target_uid = data.get("user_id")
+        if not target_uid or target_uid not in PREDEFINED_USERS:
+            return jsonify({"success": False, "message": "الحساب غير موجود"}), 404
+
+        if target_uid == 'user_1':
+            return jsonify({"success": False, "message": "لا يمكن حذف الحساب الأساسي"}), 400
+
+        if len(PREDEFINED_USERS) <= 1:
+            return jsonify({"success": False, "message": "لا يمكن حذف الحساب الوحيد المتبقي"}), 400
+
+        try:
+            _do_reset_user(target_uid)
+        except Exception as _e:
+            logger.warning(f"Reset error during account deletion: {_e}")
+
+        account_name = PREDEFINED_USERS[target_uid].get('name', target_uid)
+        del PREDEFINED_USERS[target_uid]
+        _save_custom_accounts()
+
+        if session.get('user_id') == target_uid:
+            remaining_uid = next(iter(PREDEFINED_USERS.keys()))
+            session['user_id'] = remaining_uid
+
+        return jsonify({
+            "success": True,
+            "message": f"تم حذف الحساب {account_name} بنجاح",
+            "active_user": session.get('user_id')
+        })
+    except Exception as e:
+        logger.error(f"Error in api_delete_account: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route("/api/get_user_info", methods=["GET"])
 def api_get_user_info():
@@ -6509,10 +8339,10 @@ def api_get_user_info():
 @app.route("/api/resend_code", methods=["POST"])
 def api_resend_code():
     try:
-        if 'user_id' not in session:
-            return jsonify({"success": False, "message": "❌ الجلسة غير صالحة"})
-        user_id = session['user_id']
         data = request.json or {}
+        user_id = resolve_request_user_id(data)
+        session['user_id'] = user_id
+        session.permanent = True
         force_sms = bool(data.get('force_sms', False))
 
         with USERS_LOCK:
@@ -8385,14 +10215,21 @@ def api_get_auto_replies():
 def _normalize_user_auto_reply(rule):
     if not isinstance(rule, dict):
         return None
-    username = (rule.get('username') or rule.get('target_user') or '').strip()
+    username_raw = (rule.get('username') or rule.get('target_user') or '').strip()
     reply = (rule.get('reply') or '').strip()
-    if not username or not reply:
+    if not username_raw or not reply:
         return None
-    username_clean = username.lstrip('@')
+    username_clean = username_raw.replace('https://t.me/', '').replace('http://t.me/', '').replace('t.me/', '').strip().lstrip('@')
+    target_uid = None
+    if username_clean.isdigit():
+        target_uid = int(username_clean)
+    elif str(rule.get('target_user_id', '')).isdigit():
+        target_uid = int(rule.get('target_user_id'))
+
     return {
         'username': username_clean,
         'display_username': f"@{username_clean}" if not username_clean.isdigit() else username_clean,
+        'target_user_id': target_uid,
         'reply': reply,
         'send_dm': bool(rule.get('send_dm', True)),
         'enabled': bool(rule.get('enabled', True)),
@@ -8407,6 +10244,22 @@ def api_add_user_auto_reply():
     rule = _normalize_user_auto_reply(data)
     if not rule:
         return jsonify({"success": False, "message": "❌ معرف المستخدم ونص الرد مطلوبان"})
+
+    # محاولة استخراج ID المستخدم فورياً عبر تليجرام لضمان التطابق 100%
+    if not rule.get('target_user_id') and rule.get('username'):
+        try:
+            with USERS_LOCK:
+                cm = USERS.get(user_id, {}).get('client_manager')
+            if cm and cm.client and cm.client.is_connected():
+                u_ent = cm.run_coroutine(cm.client.get_entity(rule['username']))
+                if u_ent and hasattr(u_ent, 'id'):
+                    rule['target_user_id'] = u_ent.id
+                    if hasattr(u_ent, 'username') and u_ent.username:
+                        rule['username'] = u_ent.username
+                        rule['display_username'] = f"@{u_ent.username}"
+                    logger.info(f"✅ تم ربط معرف تيليجرام الرقمي ({u_ent.id}) بقاعدة الرد للمستخدم {rule['display_username']}")
+        except Exception as _res_err:
+            logger.debug(f"Could not pre-resolve target user {rule['username']}: {_res_err}")
 
     settings = load_settings(user_id)
     rules = settings.get('user_auto_replies', []) or []
@@ -10265,6 +12118,80 @@ def formatter_page():
     resp = make_response(render_template('formatter.html'))
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     return resp
+
+
+@app.route("/html_to_word")
+@app.route("/html_to_word/")
+@app.route("/html2word")
+@app.route("/html2word/")
+def html_to_word_studio():
+    """استوديو تحويل HTML إلى Word الاحترافي بالذكاء الاصطناعي"""
+    resp = make_response(render_template('html_to_word.html'))
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    return resp
+
+
+@app.route("/api/html_to_word/convert", methods=["POST"])
+def api_html_to_word_convert():
+    """تصدير HTML إلى ملف DOCX أصلي وتحميله فوراً لذاكرة الجهاز"""
+    try:
+        from html_word_engine import convert_html_to_docx
+        data = request.get_json(silent=True) or {}
+        html_content = data.get('html', '').strip()
+        filename = (data.get('filename', 'document') or 'document').strip()
+        if not html_content:
+            return jsonify({"error": "محتوى HTML فارغ"}), 400
+
+        font_family = data.get('font_family', 'Cairo')
+        font_size = float(data.get('font_size', 12.0) or 12.0)
+        margin_inches = float(data.get('margin', 1.0) or 1.0)
+        rtl_doc = bool(data.get('rtl', True))
+
+        buffer = io.BytesIO()
+        convert_html_to_docx(
+            html_content=html_content,
+            output_target=buffer,
+            filename=filename,
+            font_family=font_family,
+            font_size=font_size,
+            margin_inches=margin_inches,
+            rtl_doc=rtl_doc
+        )
+        buffer.seek(0)
+
+        safe_name = re.sub(r'[^\w\u0600-\u06FF\-_]', '_', filename) or 'document'
+        if not safe_name.endswith('.docx'):
+            safe_name += '.docx'
+
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=safe_name,
+            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+    except Exception as e:
+        logger.error(f"HTML to Word export error: {e}", exc_info=True)
+        return jsonify({"error": f"حدث خطأ أثناء تصدير ملف Word: {str(e)}"}), 500
+
+
+@app.route("/api/html_to_word/ai_process", methods=["POST"])
+def api_html_to_word_ai():
+    """معالجة وتحسين كود HTML بواسطة Gemini AI"""
+    try:
+        from html_word_engine import ai_process_html
+        data = request.get_json(silent=True) or {}
+        html_content = data.get('html', '').strip()
+        action = data.get('action', 'optimize')
+        custom_prompt = data.get('custom_prompt', '')
+
+        if not html_content:
+            return jsonify({"success": False, "error": "كود HTML فارغ"}), 400
+
+        res = ai_process_html(html_content, action=action, custom_prompt=custom_prompt)
+        return jsonify(res)
+    except Exception as e:
+        logger.error(f"AI HTML processing error: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/formatter/<path:filename>")
@@ -13096,6 +15023,87 @@ def clear_monitored_links():
         LINK_MONITORS[user_id]['total_links'] = 0
     return jsonify({'success': True, 'message': 'تم مسح الروابط'})
 
+# ==============================================================
+# مسارات رادار الروابط والإنضمام التلقائي الذكي (Link Radar)
+# ==============================================================
+
+@app.route("/link_radar")
+def link_radar_page():
+    """صفحة رادار الروابط والإنضمام الذكي"""
+    return render_template("link_radar.html")
+
+@app.route("/api/link_radar/stats", methods=["GET"])
+def api_link_radar_stats():
+    """جلب الإحصائيات الفورية الثابتة وسجل الروابط المرصودة"""
+    if not radar_manager:
+        return jsonify({"success": False, "message": "الرادار غير متوفر"}), 500
+    data = radar_manager.get_stats()
+    data["recent_events"] = radar_manager.state.get("recent_events", [])
+    return jsonify({"success": True, **data})
+
+@app.route("/api/link_radar/toggle", methods=["POST"])
+def api_link_radar_toggle():
+    """تبديل حالة تشغيل الرادار (مفعل افتراضياً)"""
+    if not radar_manager:
+        return jsonify({"success": False, "message": "الرادار غير متوفر"}), 500
+    enabled = radar_manager.toggle_state()
+    socketio.emit("link_radar_stats", radar_manager.get_stats())
+    return jsonify({"success": True, "enabled": enabled})
+
+@app.route("/api/link_radar/clear_history", methods=["POST"])
+def api_link_radar_clear():
+    """مسح سجل الأحداث الأخيرة مع الاحتفاظ بالعدادات"""
+    if not radar_manager:
+        return jsonify({"success": False, "message": "الرادار غير متوفر"}), 500
+    radar_manager.clear_recent_events()
+    return jsonify({"success": True})
+
+@app.route("/api/link_radar/test_link", methods=["POST"])
+def api_link_radar_test():
+    """فحص واختبار رابط فوري يدوي ومعالجته بنفس منطق الرادار"""
+    if not radar_manager:
+        return jsonify({"success": False, "message": "الرادار غير متوفر"}), 500
+    body = request.json or {}
+    url = (body.get("link") or "").strip()
+    if not url:
+        return jsonify({"success": False, "message": "الرابط مطلوب"}), 400
+
+    user_id = session.get("user_id") or "user_1"
+    client_mgr = USERS.get(user_id, {}).get("client_manager")
+    client = getattr(client_mgr, "client", None) if client_mgr else None
+
+    # البحث عن أي عميل متصل إذا لم يكن الحساب الحالي متصلاً
+    if not client or not client.is_connected():
+        for uid, udata in USERS.items():
+            cm = udata.get("client_manager")
+            if cm and getattr(cm, "client", None) and cm.client.is_connected():
+                client_mgr = cm
+                client = cm.client
+                break
+
+    if not client or not client.is_connected():
+        return jsonify({"success": False, "message": "لا يوجد حساب تيليجرام نشط ومتصل حالياً لإجراء الفحص والانضمام الآلي"})
+
+    async def run_test():
+        return await radar_manager.handle_captured_link(
+            client=client,
+            link=url,
+            chat_info={"id": 0, "name": "فحص يدوي فوري"},
+            sender_info={"name": "المستخدم"},
+            message_text=url,
+            send_to_saved_func=client_mgr.send_to_saved_messages if client_mgr else None,
+            save_to_db_func=add_saved_link,
+            socketio_emit_func=lambda ev_name, ev_data: socketio.emit(ev_name, ev_data)
+        )
+
+    try:
+        res = client_mgr.run_coroutine(run_test())
+        if res:
+            return jsonify({"success": True, "event": res})
+        return jsonify({"success": False, "message": "تم فحص الرابط مسبقاً أو غير مدعوم"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
 
 
 
@@ -13365,7 +15373,21 @@ def download_from_github(file_path_in_repo):
 SAVED_LINKS_FILE = os.path.join(DATA_DIR, 'saved_links.json')
 
 def load_saved_links():
-    """تحميل الروابط المحفوظة من الملف المحلي أو GitHub"""
+    """تحميل الروابط المحفوظة من Firestore أولاً ثم الملف المحلي أو GitHub"""
+    try:
+        import firestore_sync
+        fs_links = firestore_sync.get_firestore_links()
+        if fs_links:
+            data = {"links": fs_links}
+            try:
+                with open(SAVED_LINKS_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+            return data
+    except Exception as e:
+        logger.error(f"Error loading links from Firestore: {e}")
+
     try:
         if os.path.exists(SAVED_LINKS_FILE):
             with open(SAVED_LINKS_FILE, 'r', encoding='utf-8') as f:
@@ -13412,6 +15434,11 @@ def add_saved_link(url, title=None, category='عام', notes='', source='يدو�
     }
     data["links"].append(new_link)
     save_saved_links(data)
+    try:
+        import firestore_sync
+        firestore_sync.add_firestore_link(new_link)
+    except Exception as e:
+        logger.error(f"Error syncing new link to Firestore: {e}")
     return True, new_link
 
 def add_multiple_links(urls, category='عام', source='دفعة'):
@@ -13437,6 +15464,11 @@ def add_multiple_links(urls, category='عام', source='دفعة'):
         }
         data["links"].append(new_link)
         added.append(url)
+        try:
+            import firestore_sync
+            firestore_sync.add_firestore_link(new_link)
+        except Exception:
+            pass
     save_saved_links(data)
     return added, skipped
 
@@ -13444,12 +15476,23 @@ def delete_saved_link(link_id):
     data = load_saved_links()
     data["links"] = [l for l in data["links"] if l["id"] != link_id]
     save_saved_links(data)
+    try:
+        import firestore_sync
+        firestore_sync.delete_firestore_link(link_id)
+    except Exception as e:
+        logger.error(f"Error deleting link from Firestore: {e}")
     return True
 
 def delete_multiple_links(link_ids):
     data = load_saved_links()
     data["links"] = [l for l in data["links"] if l["id"] not in link_ids]
     save_saved_links(data)
+    for lid in link_ids:
+        try:
+            import firestore_sync
+            firestore_sync.delete_firestore_link(lid)
+        except Exception:
+            pass
     return True
 
 def update_saved_link(link_id, updates):
@@ -16484,6 +18527,18 @@ def api_check_update():
         "message": message
     })
 
+@app.route("/api/render/deploy", methods=["POST", "GET"])
+def api_render_deploy():
+    """إطلاق النشر الفوري على Render عبر الـ Deploy Hook الثابت"""
+    success, detail = trigger_render_deploy()
+    return jsonify({
+        "success": success,
+        "detail": detail,
+        "hook": RENDER_DEPLOY_HOOK_URL,
+        "message": "تم إرسال أمر النشر التلقائي إلى Render بنجاح" if success else f"فشل إرسال أمر النشر: {detail}"
+    })
+
+
 @app.route("/api/perform_update", methods=["POST"])
 def api_perform_update():
     if not session.get("admin_auth"):
@@ -16580,7 +18635,7 @@ def api_promo_status():
 # ──────────────────────────────────────────────────────────────────────────
 @app.route("/api/get_all_groups", methods=["GET"])
 def api_get_all_groups():
-    user_id = session.get('user_id')
+    user_id = resolve_request_user_id()
     if not user_id:
         return jsonify({"success": False, "message": "❌ غير مسجل - يرجى تسجيل الدخول أولاً"}), 401
     
@@ -16597,31 +18652,77 @@ def api_get_all_groups():
     if not client_manager or not client_manager.client:
         return jsonify({"success": False, "message": "❌ العميل غير متصل - يرجى تسجيل الدخول للحساب"}), 400
     try:
-        dialogs = client_manager.run_coroutine(client_manager.client.get_dialogs())
+        from telethon.tl import types
+
+        async def _fetch_all_dialogs(client):
+            seen_ids = set()
+            dialogs_list = []
+            # 1. جلب المحادثات الرئيسية المباشرة بدون فلتر
+            try:
+                main_dialogs = await client.get_dialogs(limit=None)
+                for d in main_dialogs:
+                    if d.id not in seen_ids:
+                        seen_ids.add(d.id)
+                        dialogs_list.append(d)
+            except Exception as _me:
+                logger.warning(f"get_dialogs main error: {_me}")
+
+            # 2. جلب المحادثات المؤرشفة
+            try:
+                archived_dialogs = await client.get_dialogs(limit=None, folder=1)
+                for d in archived_dialogs:
+                    if d.id not in seen_ids:
+                        seen_ids.add(d.id)
+                        dialogs_list.append(d)
+            except Exception as _ae:
+                logger.debug(f"get_dialogs archived error: {_ae}")
+
+            return dialogs_list
+
+        dialogs = client_manager.run_coroutine(_fetch_all_dialogs(client_manager.client))
         groups = []
         for d in dialogs:
-            entity = d.entity
-            is_group = bool(getattr(d, 'is_group', False) or hasattr(entity, 'megagroup') or hasattr(entity, 'gigagroup'))
-            is_channel = bool(getattr(d, 'is_channel', False) and getattr(entity, 'broadcast', False))
-            if is_group or is_channel or hasattr(entity, 'megagroup') or hasattr(entity, 'broadcast') or hasattr(entity, 'gigagroup'):
+            entity = getattr(d, 'entity', None)
+            if not entity:
+                continue
+
+            # استبعاد المستخدمين والمحادثات الخاصة الفردية والبوتات
+            if getattr(d, 'is_user', False) or isinstance(entity, types.User) or getattr(entity, 'bot', False):
+                continue
+
+            # استبعاد المجموعات التي غادرها المستخدم أو تم حذفها
+            if getattr(entity, 'left', False) or getattr(entity, 'deactivated', False):
+                continue
+            if isinstance(entity, (types.ChatForbidden, types.ChannelForbidden)):
+                continue
+
+            is_megagroup = bool(getattr(entity, 'megagroup', False))
+            is_gigagroup = bool(getattr(entity, 'gigagroup', False))
+            is_chat = isinstance(entity, types.Chat) or bool(getattr(d, 'is_group', False))
+            is_channel = bool(getattr(d, 'is_channel', False) or (hasattr(entity, 'broadcast') and entity.broadcast))
+
+            if is_megagroup or is_gigagroup or is_chat or is_channel or getattr(d, 'is_group', False):
                 title = getattr(d, 'title', None) or getattr(entity, 'title', None) or getattr(d, 'name', 'مجموعة بدون عنوان')
                 username = getattr(entity, 'username', None)
                 link = f"https://t.me/{username}" if username else None
                 if username:
                     target = f"https://t.me/{username}"
                 else:
-                    eid_str = str(entity.id)
-                    target = eid_str if eid_str.startswith("-") else f"-100{entity.id}"
+                    target = str(d.id)
 
+                g_type = "قناة" if (is_channel and not is_megagroup and not is_chat) else "مجموعة"
                 groups.append({
-                    "id": str(entity.id),
-                    "title": title,
+                    "id": str(d.id),
+                    "title": str(title),
                     "username": username,
                     "link": link or target,
                     "target": target,
-                    "type": "قناة" if is_channel else "مجموعة"
+                    "type": g_type,
+                    "participants_count": getattr(entity, 'participants_count', None)
                 })
+
         groups.sort(key=lambda x: str(x.get('title', '')).lower())
+        logger.info(f"✅ Fetched {len(groups)} total groups/channels for user {user_id}")
         return jsonify({"success": True, "groups": groups, "count": len(groups)})
     except Exception as e:
         logger.error(f"خطأ في جلب المجموعات: {e}")
@@ -16827,8 +18928,16 @@ register_admin_routes(
     reset_user_func=_do_reset_user,
 )
 
+# ── تسجيل مسارات المستكشف والمحلل الذكي للملفات والمستندات (AI Doc Analyzer) ──
+try:
+    from ai_doc_analyzer import register_ai_doc_analyzer_routes
+    register_ai_doc_analyzer_routes(app)
+    logger.info("✅ تم تسجيل مسارات المحلل الذكي للمستندات والصور (AI Doc Analyzer) بنجاح")
+except Exception as _e_ai_doc:
+    logger.error(f"❌ خطأ في تسجيل مسارات المحلل الذكي للمستندات: {_e_ai_doc}")
+
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 3000))
     print(f"🌐 تشغيل الخادم على المنفذ {port}...")
     print(f"🔗 رابط التطبيق: http://0.0.0.0:{port}")
     print("🛡️ نظام الاستمرارية الدائم مُفعل — يعمل حتى الإيقاف اليدوي")

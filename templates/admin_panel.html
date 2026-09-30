@@ -940,9 +940,12 @@ async function doBioLogin() {
 
 function _enterDashboard() {
     _authed = true;
-    document.getElementById('authScreen').style.display = 'none';
-    document.getElementById('dashboard').style.display  = 'block';
-    document.getElementById('sysPageTitle').textContent = document.title;
+    const authScr = document.getElementById('authScreen');
+    const dash = document.getElementById('dashboard');
+    if (authScr) authScr.style.display = 'none';
+    if (dash) dash.style.display  = 'block';
+    const pageTitle = document.getElementById('sysPageTitle');
+    if (pageTitle) pageTitle.textContent = document.title;
     loadUsers();
 }
 

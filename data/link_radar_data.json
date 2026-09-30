@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "auto_join_public": true,
+  "notify_saved_messages": true,
+  "save_to_database": true,
+  "stats": {
+    "total_links": 0,
+    "whatsapp_count": 0,
+    "tg_public_count": 0,
+    "tg_private_count": 0,
+    "joined_success_count": 0,
+    "joined_pending_approval": 0,
+    "joined_already": 0,
+    "failed_or_expired": 0
+  },
+  "recent_events": []
+}

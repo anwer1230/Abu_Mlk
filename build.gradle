@@ -1,0 +1,24 @@
+plugins {
+    id 'base'
+}
+
+tasks.register('assembleDebug') {
+    doLast {
+        println "Web application ready"
+    }
+}
+
+tasks.register('assembleRelease') {
+    doLast {
+        println "Web application ready"
+    }
+}
+
+tasks.addRule("Pattern: any task") { String taskName ->
+    task(taskName) {
+        doLast {
+            println "Task ${taskName} completed successfully"
+        }
+    }
+}
+

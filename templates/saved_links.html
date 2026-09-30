@@ -55,11 +55,17 @@
                 </div>
                 <div>
                     <h5 class="mb-0 text-white fw-bold">الروابط المحفوظة</h5>
-                    <small style="color:#8b949e;">تخزين دائم للروابط مع مزامنة GitHub</small>
+                    <small style="color:#38bdf8;"><i class="fas fa-database me-1"></i>تخزين سحابي دائم وأبدي عبر Firebase Firestore</small>
                 </div>
             </div>
             <div class="d-flex gap-2 flex-wrap">
                 <a href="/" class="back-btn"><i class="fas fa-arrow-right"></i>الرئيسية</a>
+                <button class="btn btn-outline-info btn-sm" onclick="exportAllLinks()" title="تنزيل جميع الروابط من السحابة">
+                    <i class="fas fa-cloud-download-alt me-1"></i>تحميل كل الروابط (.txt)
+                </button>
+                <button class="btn btn-outline-light btn-sm" onclick="copyAllLinks()" title="نسخ جميع الروابط للحافظة">
+                    <i class="fas fa-copy me-1"></i>نسخ الكل
+                </button>
                 <button class="btn btn-success btn-sm" onclick="openAddModal()">
                     <i class="fas fa-plus me-1"></i>إضافة رابط
                 </button>
@@ -500,6 +506,33 @@ function exportSelected() {
         a.click();
         URL.revokeObjectURL(a.href);
         showToast('✅ تم تصدير الروابط');
+    });
+}
+
+function exportAllLinks() {
+    fetch('/api/saved_links/export', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ids: []})
+    }).then(r => r.blob()).then(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `all_saved_links_firestore_${new Date().toISOString().slice(0,10)}.txt`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showToast('✅ تم تنزيل جميع الروابط من السحابة بنجاح');
+    }).catch(() => showToast('❌ تعذر تصدير الروابط'));
+}
+
+function copyAllLinks() {
+    if (!allLinks || !allLinks.length) {
+        showToast('⚠️ لا توجد روابط لنسخها حالياً');
+        return;
+    }
+    const text = allLinks.map(l => l.url).filter(Boolean).join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+        showToast(`✅ تم نسخ ${allLinks.length} رابط للحافظة بنجاح`);
+    }).catch(() => {
+        showToast('❌ تعذر النسخ للحافظة');
     });
 }
 
