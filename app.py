@@ -18937,7 +18937,11 @@ except Exception as _e_ai_doc:
     logger.error(f"❌ خطأ في تسجيل مسارات المحلل الذكي للمستندات: {_e_ai_doc}")
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 3000))
+    env_port = os.environ.get("PORT")
+    if env_port and env_port != "8080":
+        port = int(env_port)
+    else:
+        port = int(os.environ.get("DEFAULT_APP_PORT", 3000))
     print(f"🌐 تشغيل الخادم على المنفذ {port}...")
     print(f"🔗 رابط التطبيق: http://0.0.0.0:{port}")
     print("🛡️ نظام الاستمرارية الدائم مُفعل — يعمل حتى الإيقاف اليدوي")

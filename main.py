@@ -39,13 +39,21 @@ def free_port(port):
         pass
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 3000))
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
     if os.environ.get('RENDER'):
+        port = int(os.environ.get("PORT", 10000))
         print(f"🌐 تشغيل Abu_Malk-Services على المنفذ {port} في بيئة Render")
         socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
     else:
+        # In AI Studio / local container: Nginx listens on 8080 and proxies to 3000.
+        # If PORT=8080 is passed by Cloud Run, we must use DEFAULT_APP_PORT (3000) to avoid port collision.
+        env_port = os.environ.get("PORT")
+        if env_port and env_port != "8080":
+            port = int(env_port)
+        else:
+            port = int(os.environ.get("DEFAULT_APP_PORT", 3000))
+            
         free_port(port)
         print(f"🌐 تشغيل Abu_Malk-Services على المنفذ {port}")
         socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
